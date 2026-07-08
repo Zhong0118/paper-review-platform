@@ -1,0 +1,100 @@
+# ==========================================
+# 1. macOS 系统文件 (Mac System Files)
+# ==========================================
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+.AppleDB
+.AppleDesktop
+
+# ==========================================
+# 2. 通用/敏感信息 (Environment & Secrets)
+# ==========================================
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.pem
+*.key
+*.pfx
+*.cert
+
+# 日志文件
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ==========================================
+# 3. 编辑器 & IDE (Editors & IDEs)
+# ==========================================
+# VS Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+
+# JetBrains (WebStorm, PyCharm, IntelliJ, etc.)
+.idea/
+
+# Xcode / Mac 编辑器
+*.swp
+*.swo
+*~
+
+# ==========================================
+# 4. 前端常用依赖与构建 (Frontend Dependencies & Builds)
+# ==========================================
+node_modules/
+/dist/
+/build/
+/out/
+/.next/
+/.nuxt/
+.vuepress/dist/
+.cache/
+.parcel-cache/
+.eslintcache
+
+# ==========================================
+# 5. 后端常用依赖与产物 (Backend Runtime & Builds)
+# ==========================================
+# Python (如果后端是 Python/FastAPI/Django)
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+.pytest_cache/
+.coverage
+
+# Node.js / Express / NestJS (如果后端是 Node)
+# (已由 node_modules/ 和 logs/ 覆盖)
+
+# Java / Spring Boot (如果后端是 Java)
+target/
+*.class
+*.jar
+*.war
+
+# Go (如果后端是 Go)
+/bin/
+/pkg/
+
+# ==========================================
+# 6. 本地数据库与临时文件 (Databases & Temporary)
+# ==========================================
+*.sqlite
+*.sqlite3
+*.db
+tmp/
+temp/
