@@ -1,0 +1,1 @@
+# 调用java adapter的客户端
