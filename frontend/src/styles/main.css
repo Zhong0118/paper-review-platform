@@ -1,1 +1,7 @@
-@import "tailwindcss";
+/**
+ * @file 全局样式入口
+ * @description
+ *    引入 Tailwind v4 与 Element Plus 样式。设计令牌定义见 theme.css。
+ */
+@import 'tailwindcss';
+@import './theme.css';
