@@ -1,8 +1,8 @@
 ---
 title: API 设计
 status: DRAFT
-version: 0.1.0
-last_updated: 2026-08-03
+version: 0.2.0
+last_updated: 2026-08-10
 sources:
   - docs/01_需求分析/需求规格说明.md
   - docs/02_产品设计/产品与流程设计.md
@@ -64,17 +64,17 @@ related_documents:
 | API-006 | `GET/POST /theses`、`GET/PATCH /theses/{id}` | 创建和维护草稿（含送审专业方向） | 学生 |
 | API-007 | `POST /theses/{id}/versions` | 创建论文版本并关联上传文件 | 学生 |
 | API-008 | `POST /theses/{id}:submit` | 提交当前版本 | 学生 |
-| API-009 | `POST /theses/{id}:withdraw`、`POST /withdrawal-requests/{id}:decide` | 送审前撤回或送审后申请审批 | 学生、学校审核人员 |
-| API-010 | `GET /school-review/theses`、`POST /school-review/theses/{id}:confirm-anonymization` | 材料和匿名件确认 | 学校审核人员 |
+| API-009 | `POST /theses/{id}:withdraw`、`POST /withdrawal-requests/{id}:decide`、`POST /school-review/theses/{id}:terminate` | 送审前撤回、送审后申请审批或学校永久终止 | 学生、学校审核人员 |
+| API-010 | `GET /school-review/theses`、`POST /school-review/theses/{id}:confirm-anonymization`、`POST /school-review/theses:batch-confirm-anonymization`、`POST /school-review/theses/{id}:confirm-dispatch` | 材料和匿名件确认、逐项返回的批量确认、学校确认送出 | 学校审核人员 |
 | API-011 | `POST /files:prepare-upload`、`POST /files/{id}:complete`、`POST /files/{id}:authorize-download` | 文件上传确认和授权下载 | 按资源权限 |
 
-匿名检查失败必须返回结构化检查项；未确认匿名件不得进入 `READY_FOR_DISPATCH`。学校审核投影允许识别学生，不返回专家身份。
+匿名检查失败必须返回结构化检查项；未确认匿名件不得进入 `READY_FOR_DISPATCH`。批量确认逐项返回成功/失败，不执行无解释的部分提交。学校确认送出后才允许百杰创建首个送审轮次。学校审核投影允许识别学生，不返回专家身份。
 
 ### 3.3 专家与送审
 
 | 编号 | 方法与资源 | 用途 | 主要角色 |
 |---|---|---|---|
-| API-012 | `/platform-review/experts`、`/experts/{id}/qualifications` | 平台专家库与资格维护 | 百杰审核人员；专家维护本人资料 |
+| API-012 | `/platform-review/experts`、`/experts/{id}/qualifications`、`GET/PATCH /experts/me` | 平台专家库、资格审核与专家本人资料维护 | 百杰审核人员；专家仅维护本人资料 |
 | API-013 | `GET /platform-review/dispatch-candidates` | 按送审专业方向、学科与回避条件检索候选专家 | 百杰审核人员 |
 | API-014 | `POST /review-rounds` | 为已确认论文版本创建轮次并携带送审专业方向 | 百杰审核人员 |
 | API-015 | `POST /review-rounds/{id}/tasks` | 人工指派专家 | 百杰审核人员 |
@@ -92,7 +92,7 @@ related_documents:
 | API-020 | `GET /expert/tasks/{id}/materials` | 接受后获取完整匿名材料 | 专家本人 |
 | API-021 | `PUT /expert/tasks/{id}/draft` | 保存评阅草稿 | 专家本人 |
 | API-022 | `POST /expert/tasks/{id}:submit-final` | 最终提交并锁定；按模板评分模式校验（分项平均或总分+评语） | 专家本人 |
-| API-023 | `POST /expert/tasks/{id}/correction-requests`、`POST /correction-requests/{id}:decide` | 结果更正申请与批准 | 专家、百杰审核人员 |
+| API-023 | `POST /expert/tasks/{id}/correction-requests`、`GET /correction-requests`、`GET /correction-requests/{id}`、`POST /correction-requests/{id}:decide` | 结果更正申请、范围化查询与批准 | 专家提交本人申请；百杰审核人员查询和决定 |
 
 接受前只返回匿名基本信息、学科、期限和说明。拒绝必须填写原因。超期不自动删除草稿；任务被取消后草稿只读。最终提交请求必须以模板版本校验所有必填项和分数范围。
 
@@ -103,7 +103,7 @@ related_documents:
 | API-024 | `GET /school-review/results` | 查看去标识的独立结果、汇总和冲突 | 学校审核人员 |
 | API-025 | `POST /result-summaries/{id}:publish` | 确认发布 | 学校审核人员 |
 | API-026 | `GET /my/theses/{id}/published-result` | 查看已发布分数、可发布评语和汇总 | 学生；导师限本人学生 |
-| API-027 | `POST /my/theses/{id}/objections`、`GET /objections/{id}` | 提交和跟踪异议 | 学生、学校审核人员 |
+| API-027 | `POST /my/theses/{id}/objections`、`GET /objections/{id}`、`GET /school-review/objections` | 提交、本人跟踪和学校范围化查询异议 | 学生、学校审核人员 |
 | API-028 | `POST /objections/{id}:record-resolution` | 回填线上或线下处理结论 | 学校审核人员 |
 
 无汇总规则时只返回各独立结果，不生成推测性结论。冲突规则命中只产生标记和补审流程，不允许审核人员修改专家原始结果。
@@ -115,11 +115,19 @@ related_documents:
 | API-029 | `GET /notifications`、`POST /notifications/{id}:read` | 站内通知 | 全部用户 |
 | API-030 | `GET /expert/account`、`GET /expert/ledger` | 费用与余额 | 专家本人 |
 | API-031 | `POST /expert/withdrawals`、`GET /expert/withdrawals/{id}` | 在线提现申请 | 专家本人 |
-| API-032 | `POST /finance/withdrawals/{id}:review`、`POST /finance/withdrawals/{id}:record-payment` | 人工审核和线下付款回填 | 授权财务处理范围；不新增核心角色 |
+| API-032 | `GET /finance/withdrawals`、`GET /finance/withdrawals/{id}`、`POST /finance/withdrawals/{id}:review`、`POST /finance/withdrawals/{id}:record-payment` | 范围化查询、人工审核和线下付款回填 | 授权财务处理范围；不新增核心角色 |
 | API-033 | `GET /audit-events` | 范围化审计查询 | 经授权的系统管理员或审核人员 |
 | API-034 | `POST /exports`、`GET /exports/{id}` | 异步生成评阅书和统计导出 | 按数据范围 |
 
 财务操作权限通过现有角色的数据范围或职能权限赋予，不为此新增第六个核心角色。P0 不提供自动支付供应商调用接口。
+
+### 3.7 批次与评审规则
+
+| 编号 | 方法与资源 | 用途 | 主要角色 |
+|---|---|---|---|
+| API-035 | `GET /school-review/batches`、`GET/POST /school-review/batches/{id}/rule-versions`、`PATCH /school-review/batches/{id}/rule-versions/{version}`、`POST /school-review/batches/{id}/rule-versions/{version}:activate` | 查看学校权威批次，维护并启用评审规则版本 | 具备批次配置权限的学校审核人员；普通学校审核人员只读 |
+
+批次名称、起止时间、组织和提交资格等学校权威字段只读。规则版本覆盖目标专家人数、接单/评阅期限、评阅模板及评分模式、汇总模式、冲突条件、异议期限和通知策略；不得提供未经学校确认的默认业务值。新版本先保存草稿并校验，启用后不可原地修改；创建送审轮次时固化规则快照。所有创建、修改和启用命令要求幂等、乐观锁和审计。
 
 ## 4. 业务投影与敏感字段
 
