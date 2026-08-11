@@ -27,7 +27,6 @@
 ### Task 1: 学生领域模型、允许动作与持久化状态
 
 **Files:**
-
 - Create: `frontend/src/modules/thesis/services/studentPortalService.ts`
 - Create: `frontend/src/demo/studentFixtures.ts`
 - Create: `frontend/src/demo/studentPersistence.ts`
@@ -38,7 +37,6 @@
 - Modify: `frontend/src/demo/serviceProvider.ts`
 
 **Interfaces:**
-
 - Produces: `StudentPortalService`、`StudentThesisDetail`、`StudentEligibility`、`StudentTimelineEvent`、`StudentObjection`、`StudentNotification`、`StudentScenarioPreset`。
 - Produces: `createScenarioService(options?: { storage?: StorageLike; demoMode?: boolean })`，无参数调用继续兼容现有测试。
 - Consumes: 现有 `DemoStage`、`DemoThesisSummary`、`DemoPublishedResult` 与跨角色场景状态。
@@ -46,30 +44,28 @@
 - [ ] **Step 1: 写学生服务状态转换失败测试**
 
 ```ts
-it("allows only legal student actions and keeps related projections in sync", async () => {
-  const storage = createMemoryStorage();
-  const service = createScenarioService({ storage, demoMode: true });
-  const draft = await service.getStudentThesis("thesis-main");
-  expect(draft.allowedActions).toContain("EDIT_THESIS");
+it('allows only legal student actions and keeps related projections in sync', async () => {
+  const storage = createMemoryStorage()
+  const service = createScenarioService({ storage, demoMode: true })
+  const draft = await service.getStudentThesis('thesis-main')
+  expect(draft.allowedActions).toContain('EDIT_THESIS')
 
-  await service.submitStudentThesis("thesis-main");
-  const submitted = await service.getStudentThesis("thesis-main");
-  expect(submitted.stage).toBe("SUBMITTED");
-  expect(submitted.allowedActions).toContain("WITHDRAW_BEFORE_DISPATCH");
-  expect((await service.listStudentNotifications())[0].kind).toBe(
-    "THESIS_SUBMITTED",
-  );
+  await service.submitStudentThesis('thesis-main')
+  const submitted = await service.getStudentThesis('thesis-main')
+  expect(submitted.stage).toBe('SUBMITTED')
+  expect(submitted.allowedActions).toContain('WITHDRAW_BEFORE_DISPATCH')
+  expect((await service.listStudentNotifications())[0].kind).toBe('THESIS_SUBMITTED')
 
-  await service.withdrawStudentThesis("thesis-main", "修改匿名版文件");
-  expect((await service.getStudentThesis("thesis-main")).stage).toBe("DRAFT");
-});
+  await service.withdrawStudentThesis('thesis-main', '修改匿名版文件')
+  expect((await service.getStudentThesis('thesis-main')).stage).toBe('DRAFT')
+})
 ```
 
 同时测试：学校代传记录无编辑动作；`UNDER_REVIEW` 只能创建撤回申请；`COMPLETED` 才能查看结果和提交异议；页面拿到的快照不可变。
 
 - [ ] **Step 2: 运行测试并确认缺少学生服务能力**
 
-Run: `npm run test:unit -- --run src/demo/__tests__/studentPortalService.spec.ts`
+Run: `npm run test:unit:run -- src/demo/__tests__/studentPortalService.spec.ts`
 
 Expected: FAIL，提示 `getStudentThesis`、`submitStudentThesis`、`withdrawStudentThesis` 或对应类型不存在。
 
@@ -77,52 +73,38 @@ Expected: FAIL，提示 `getStudentThesis`、`submitStudentThesis`、`withdrawSt
 
 ```ts
 export type StudentVisibleStage =
-  | "MATERIALS"
-  | "SCHOOL_REVIEW"
-  | "EXPERT_REVIEW"
-  | "RESULT_PROCESSING"
-  | "COMPLETED"
-  | "TERMINATED";
+  | 'MATERIALS'
+  | 'SCHOOL_REVIEW'
+  | 'EXPERT_REVIEW'
+  | 'RESULT_PROCESSING'
+  | 'COMPLETED'
+  | 'TERMINATED'
 
 export type StudentAction =
-  | "EDIT_THESIS"
-  | "DELETE_DRAFT"
-  | "VIEW_THESIS"
-  | "WITHDRAW_BEFORE_DISPATCH"
-  | "REQUEST_WITHDRAWAL"
-  | "VIEW_RESULT"
-  | "SUBMIT_OBJECTION";
+  | 'EDIT_THESIS'
+  | 'DELETE_DRAFT'
+  | 'VIEW_THESIS'
+  | 'WITHDRAW_BEFORE_DISPATCH'
+  | 'REQUEST_WITHDRAWAL'
+  | 'VIEW_RESULT'
+  | 'SUBMIT_OBJECTION'
 
 export interface StudentPortalService {
-  listStudentTheses(query?: StudentThesisQuery): Promise<StudentThesisDetail[]>;
-  getStudentThesis(id: string): Promise<StudentThesisDetail>;
-  createStudentDraft(): Promise<StudentThesisDetail>;
-  saveStudentDraft(
-    id: string,
-    input: StudentDraftInput,
-  ): Promise<StudentThesisDetail>;
-  submitStudentThesis(id: string): Promise<StudentThesisDetail>;
-  deleteStudentDraft(id: string): Promise<void>;
-  withdrawStudentThesis(
-    id: string,
-    reason: string,
-  ): Promise<StudentThesisDetail>;
-  requestStudentWithdrawal(
-    id: string,
-    reason: string,
-  ): Promise<StudentWithdrawalRequest>;
-  getStudentResult(id: string): Promise<StudentResult | null>;
-  submitStudentObjection(
-    id: string,
-    input: StudentObjectionInput,
-  ): Promise<StudentObjection>;
-  listStudentNotifications(): Promise<StudentNotification[]>;
-  markStudentNotificationRead(id: string): Promise<StudentNotification[]>;
-  markAllStudentNotificationsRead(): Promise<StudentNotification[]>;
-  loadStudentScenario(
-    preset: StudentScenarioPreset,
-  ): Promise<StudentThesisDetail>;
-  resetStudentDemo(): Promise<void>;
+  listStudentTheses(query?: StudentThesisQuery): Promise<StudentThesisDetail[]>
+  getStudentThesis(id: string): Promise<StudentThesisDetail>
+  createStudentDraft(): Promise<StudentThesisDetail>
+  saveStudentDraft(id: string, input: StudentDraftInput): Promise<StudentThesisDetail>
+  submitStudentThesis(id: string): Promise<StudentThesisDetail>
+  deleteStudentDraft(id: string): Promise<void>
+  withdrawStudentThesis(id: string, reason: string): Promise<StudentThesisDetail>
+  requestStudentWithdrawal(id: string, reason: string): Promise<StudentWithdrawalRequest>
+  getStudentResult(id: string): Promise<StudentResult | null>
+  submitStudentObjection(id: string, input: StudentObjectionInput): Promise<StudentObjection>
+  listStudentNotifications(): Promise<StudentNotification[]>
+  markStudentNotificationRead(id: string): Promise<StudentNotification[]>
+  markAllStudentNotificationsRead(): Promise<StudentNotification[]>
+  loadStudentScenario(preset: StudentScenarioPreset): Promise<StudentThesisDetail>
+  resetStudentDemo(): Promise<void>
 }
 ```
 
@@ -136,19 +118,18 @@ export interface StudentPortalService {
 
 ```ts
 export function toStudentVisibleStage(stage: DemoStage): StudentVisibleStage {
-  if (stage === "DRAFT") return "MATERIALS";
-  if (["SUBMITTED", "PREPARING", "READY_FOR_DISPATCH"].includes(stage))
-    return "SCHOOL_REVIEW";
-  if (stage === "UNDER_REVIEW") return "EXPERT_REVIEW";
-  if (stage === "RESULT_PROCESSING") return "RESULT_PROCESSING";
-  if (stage === "COMPLETED") return "COMPLETED";
-  return "TERMINATED";
+  if (stage === 'DRAFT') return 'MATERIALS'
+  if (['SUBMITTED', 'PREPARING', 'READY_FOR_DISPATCH'].includes(stage)) return 'SCHOOL_REVIEW'
+  if (stage === 'UNDER_REVIEW') return 'EXPERT_REVIEW'
+  if (stage === 'RESULT_PROCESSING') return 'RESULT_PROCESSING'
+  if (stage === 'COMPLETED') return 'COMPLETED'
+  return 'TERMINATED'
 }
 ```
 
 - [ ] **Step 5: 运行服务测试和现有黄金流程测试**
 
-Run: `npm run test:unit -- --run src/demo/__tests__/studentPortalService.spec.ts src/demo/__tests__/scenarioService.spec.ts src/demo/__tests__/goldenPath.spec.ts`
+Run: `npm run test:unit:run -- src/demo/__tests__/studentPortalService.spec.ts src/demo/__tests__/scenarioService.spec.ts src/demo/__tests__/goldenPath.spec.ts`
 
 Expected: PASS；现有跨角色黄金流程保持通过，刷新重建服务后学生状态不丢失。
 
@@ -162,7 +143,6 @@ git commit -m "feat: add persistent student workflow state"
 ### Task 2: 完整专业目录和悬浮搜索选择器
 
 **Files:**
-
 - Create: `frontend/src/modules/thesis/data/graduate-disciplines-2022.json`
 - Create: `frontend/src/modules/thesis/data/disciplineCatalog.ts`
 - Create: `frontend/src/modules/thesis/__tests__/disciplineCatalog.spec.ts`
@@ -171,7 +151,6 @@ git commit -m "feat: add persistent student workflow state"
 - Modify: `frontend/src/modules/thesis/__tests__/disciplineAndKeywords.spec.ts`
 
 **Interfaces:**
-
 - Produces: `DisciplineCatalogEntry { code, name, categoryCode, categoryName, type, aliases }`。
 - Produces: `disciplineCatalog` 和 `searchDisciplines(query: string): DisciplineCatalogEntry[]`。
 - Component contract: `v-model?: DisciplineOption`，不再要求页面传入三个硬编码 `options`。
@@ -179,34 +158,30 @@ git commit -m "feat: add persistent student workflow state"
 - [ ] **Step 1: 写目录完整性和悬浮行为失败测试**
 
 ```ts
-it("contains the complete controlled directory with unique codes", () => {
-  expect(disciplineCatalog).toHaveLength(184);
-  expect(new Set(disciplineCatalog.map((item) => item.code)).size).toBe(184);
-  expect(disciplineCatalog).toContainEqual(
-    expect.objectContaining({
-      code: "0812",
-      name: "计算机科学与技术",
-      type: "ACADEMIC",
-    }),
-  );
-});
+it('contains the complete controlled directory with unique codes', () => {
+  expect(disciplineCatalog).toHaveLength(184)
+  expect(new Set(disciplineCatalog.map((item) => item.code)).size).toBe(184)
+  expect(disciplineCatalog).toContainEqual(expect.objectContaining({
+    code: '0812', name: '计算机科学与技术', type: 'ACADEMIC',
+  }))
+})
 
-it("opens as an overlay only after activation and closes with Escape", async () => {
-  const wrapper = mount(DisciplineSelector);
-  expect(wrapper.find('[role="listbox"]').exists()).toBe(false);
-  await wrapper.get('[data-action="open-discipline"]').trigger("click");
-  expect(wrapper.get('[role="listbox"]').isVisible()).toBe(true);
-  expect(wrapper.get(".discipline-selector").classes()).toContain("is-open");
-  await wrapper.get('input[type="search"]').trigger("keydown.esc");
-  expect(wrapper.find('[role="listbox"]').exists()).toBe(false);
-});
+it('opens as an overlay only after activation and closes with Escape', async () => {
+  const wrapper = mount(DisciplineSelector)
+  expect(wrapper.find('[role="listbox"]').exists()).toBe(false)
+  await wrapper.get('[data-action="open-discipline"]').trigger('click')
+  expect(wrapper.get('[role="listbox"]').isVisible()).toBe(true)
+  expect(wrapper.get('.discipline-selector').classes()).toContain('is-open')
+  await wrapper.get('input[type="search"]').trigger('keydown.esc')
+  expect(wrapper.find('[role="listbox"]').exists()).toBe(false)
+})
 ```
 
 增加代码搜索、名称搜索、无结果、点击外部、方向键、Enter 选择和选中值回显测试。
 
 - [ ] **Step 2: 运行目录和输入组件测试并确认失败**
 
-Run: `npm run test:unit -- --run src/modules/thesis/__tests__/disciplineCatalog.spec.ts src/modules/thesis/__tests__/disciplineAndKeywords.spec.ts`
+Run: `npm run test:unit:run -- src/modules/thesis/__tests__/disciplineCatalog.spec.ts src/modules/thesis/__tests__/disciplineAndKeywords.spec.ts`
 
 Expected: FAIL，当前无目录文件，且未选值时菜单自动占据文档流。
 
@@ -242,7 +217,7 @@ JSON 根结构固定为：
 
 - [ ] **Step 5: 运行组件测试和类型检查**
 
-Run: `npm run test:unit -- --run src/modules/thesis/__tests__/disciplineCatalog.spec.ts src/modules/thesis/__tests__/disciplineAndKeywords.spec.ts`
+Run: `npm run test:unit:run -- src/modules/thesis/__tests__/disciplineCatalog.spec.ts src/modules/thesis/__tests__/disciplineAndKeywords.spec.ts`
 
 Run: `npm run type-check`
 
@@ -258,7 +233,6 @@ git commit -m "feat: add searchable graduate discipline catalog"
 ### Task 3: 可保存的论文材料编辑与文件交互
 
 **Files:**
-
 - Create: `frontend/src/modules/thesis/components/StudentIdentityPanel.vue`
 - Create: `frontend/src/modules/thesis/components/ThesisFileField.vue`
 - Create: `frontend/src/modules/thesis/components/ThesisMaterialEditor.vue`
@@ -269,7 +243,6 @@ git commit -m "feat: add searchable graduate discipline catalog"
 - Modify: `frontend/src/modules/thesis/__tests__/studentSubmission.spec.ts`
 
 **Interfaces:**
-
 - Consumes: Task 1 的 `StudentPortalService.saveStudentDraft()`、`submitStudentThesis()` 和 `StudentDraftInput`。
 - Consumes: Task 2 的 `DisciplineSelector`。
 - Produces: `ThesisFileMeta { id, name, size, mimeType, purpose, validationStatus }`。
@@ -277,36 +250,31 @@ git commit -m "feat: add searchable graduate discipline catalog"
 - [ ] **Step 1: 写表单、关键词上限和文件状态失败测试**
 
 ```ts
-it("saves a complete draft and reports the saved time", async () => {
-  await wrapper.get('textarea[name="abstract"]').setValue("研究摘要");
-  await wrapper.get('[data-action="save-draft"]').trigger("click");
-  await flushPromises();
-  expect(saveSpy).toHaveBeenCalledWith(
-    "thesis-main",
-    expect.objectContaining({
-      abstract: "研究摘要",
-      discipline: { code: "0812", name: "计算机科学与技术" },
-    }),
-  );
-  expect(wrapper.get("[data-save-status]").text()).toContain("已保存");
-});
+it('saves a complete draft and reports the saved time', async () => {
+  await wrapper.get('textarea[name="abstract"]').setValue('研究摘要')
+  await wrapper.get('[data-action="save-draft"]').trigger('click')
+  await flushPromises()
+  expect(saveSpy).toHaveBeenCalledWith('thesis-main', expect.objectContaining({
+    abstract: '研究摘要',
+    discipline: { code: '0812', name: '计算机科学与技术' },
+  }))
+  expect(wrapper.get('[data-save-status]').text()).toContain('已保存')
+})
 
-it("stops at five keywords with an actionable message", async () => {
-  const wrapper = mount(KeywordTagInput, {
-    props: { modelValue: ["一", "二", "三", "四", "五"] },
-  });
-  await wrapper.get("input").setValue("六");
-  await wrapper.get("input").trigger("keydown.enter");
-  expect(wrapper.emitted("update:modelValue")).toBeUndefined();
-  expect(wrapper.text()).toContain("最多填写 5 个关键词");
-});
+it('stops at five keywords with an actionable message', async () => {
+  const wrapper = mount(KeywordTagInput, { props: { modelValue: ['一','二','三','四','五'] } })
+  await wrapper.get('input').setValue('六')
+  await wrapper.get('input').trigger('keydown.enter')
+  expect(wrapper.emitted('update:modelValue')).toBeUndefined()
+  expect(wrapper.text()).toContain('最多填写 5 个关键词')
+})
 ```
 
 文件测试覆盖选择 PDF、模拟进度、失败、删除、重新选择，以及本地存储数据不含 `File` 或二进制内容。编辑页测试还需让 `saveStudentDraft()` 拒绝一次，断言摘要和文件元数据仍保留、保存状态显示“保存失败，请重试”，再次点击可以成功。
 
 - [ ] **Step 2: 运行编辑页测试并确认失败**
 
-Run: `npm run test:unit -- --run src/modules/thesis/__tests__/studentSubmission.spec.ts src/modules/thesis/__tests__/disciplineAndKeywords.spec.ts src/modules/thesis/__tests__/ThesisFileField.spec.ts`
+Run: `npm run test:unit:run -- src/modules/thesis/__tests__/studentSubmission.spec.ts src/modules/thesis/__tests__/disciplineAndKeywords.spec.ts src/modules/thesis/__tests__/ThesisFileField.spec.ts`
 
 Expected: FAIL，当前缺少摘要、只读学籍、保存草稿、文件状态和 5 个关键词限制。
 
@@ -321,8 +289,8 @@ const meta: ThesisFileMeta = {
   size: file.size,
   mimeType: file.type,
   purpose: props.purpose,
-  validationStatus: "VALID",
-};
+  validationStatus: 'VALID',
+}
 ```
 
 文件名包含学生姓名、学号或“致谢”时，匿名版标记 `REVIEW_REQUIRED` 并显示“请检查文件名和正文中的身份线索”，但仍明确正文尚未自动检测。
@@ -333,7 +301,7 @@ const meta: ThesisFileMeta = {
 
 - [ ] **Step 5: 运行编辑页测试和类型检查**
 
-Run: `npm run test:unit -- --run src/modules/thesis/__tests__/studentSubmission.spec.ts src/modules/thesis/__tests__/disciplineAndKeywords.spec.ts src/modules/thesis/__tests__/ThesisFileField.spec.ts`
+Run: `npm run test:unit:run -- src/modules/thesis/__tests__/studentSubmission.spec.ts src/modules/thesis/__tests__/disciplineAndKeywords.spec.ts src/modules/thesis/__tests__/ThesisFileField.spec.ts`
 
 Run: `npm run type-check`
 
@@ -349,7 +317,6 @@ git commit -m "feat: complete student thesis material editor"
 ### Task 4: 论文工作台、五阶段进度和状态动作
 
 **Files:**
-
 - Create: `frontend/src/modules/thesis/components/StudentThesisFilters.vue`
 - Create: `frontend/src/modules/thesis/components/StudentThesisDetailDrawer.vue`
 - Create: `frontend/src/modules/thesis/components/StudentProgressTimeline.vue`
@@ -360,31 +327,26 @@ git commit -m "feat: complete student thesis material editor"
 - Modify: `frontend/src/modules/thesis/__tests__/StudentThesisTable.spec.ts`
 
 **Interfaces:**
-
 - Consumes: Task 1 的列表、详情、删除草稿、派单前撤回和派单后撤回申请。
 - Produces: `selectedThesisId` 驱动的表格、进度和详情一致投影。
 
 - [ ] **Step 1: 写选中论文和允许动作失败测试**
 
 ```ts
-it("changes progress and actions when a thesis row is selected", async () => {
-  await wrapper.get('[data-thesis-id="thesis-completed"]').trigger("click");
-  expect(
-    wrapper.get("[data-selected-thesis]").attributes("data-selected-thesis"),
-  ).toBe("thesis-completed");
-  expect(wrapper.get('[data-student-stage="COMPLETED"]').exists()).toBe(true);
-  expect(wrapper.get('[data-action="view-result"]').exists()).toBe(true);
-  expect(wrapper.find('[data-action="edit-thesis"]').exists()).toBe(false);
-});
+it('changes progress and actions when a thesis row is selected', async () => {
+  await wrapper.get('[data-thesis-id="thesis-completed"]').trigger('click')
+  expect(wrapper.get('[data-selected-thesis]').attributes('data-selected-thesis')).toBe('thesis-completed')
+  expect(wrapper.get('[data-student-stage="COMPLETED"]').exists()).toBe(true)
+  expect(wrapper.get('[data-action="view-result"]').exists()).toBe(true)
+  expect(wrapper.find('[data-action="edit-thesis"]').exists()).toBe(false)
+})
 
-it("withdraws before dispatch after confirmation", async () => {
-  await wrapper
-    .get('[data-action="withdraw-before-dispatch"]')
-    .trigger("click");
-  await wrapper.get('[data-action="confirm-withdrawal"]').trigger("click");
-  await flushPromises();
-  expect(wrapper.get('[data-student-stage="MATERIALS"]').exists()).toBe(true);
-});
+it('withdraws before dispatch after confirmation', async () => {
+  await wrapper.get('[data-action="withdraw-before-dispatch"]').trigger('click')
+  await wrapper.get('[data-action="confirm-withdrawal"]').trigger('click')
+  await flushPromises()
+  expect(wrapper.get('[data-student-stage="MATERIALS"]').exists()).toBe(true)
+})
 ```
 
 增加筛选统计、搜索、删除草稿、学校代传只读、送审中撤回申请和抽屉时间线测试。
@@ -393,7 +355,7 @@ it("withdraws before dispatch after confirmation", async () => {
 
 - [ ] **Step 2: 运行工作台测试并确认失败**
 
-Run: `npm run test:unit -- --run src/modules/thesis/__tests__/studentWorkspace.spec.ts src/modules/thesis/__tests__/StudentThesisTable.spec.ts`
+Run: `npm run test:unit:run -- src/modules/thesis/__tests__/studentWorkspace.spec.ts src/modules/thesis/__tests__/StudentThesisTable.spec.ts`
 
 Expected: FAIL，当前表格行不能选中，进度固定绑定主线状态，撤回和详情动作不存在。
 
@@ -407,7 +369,7 @@ Expected: FAIL，当前表格行不能选中，进度固定绑定主线状态，
 
 - [ ] **Step 5: 运行工作台回归和移动布局组件测试**
 
-Run: `npm run test:unit -- --run src/modules/thesis/__tests__/studentWorkspace.spec.ts src/modules/thesis/__tests__/StudentThesisTable.spec.ts`
+Run: `npm run test:unit:run -- src/modules/thesis/__tests__/studentWorkspace.spec.ts src/modules/thesis/__tests__/StudentThesisTable.spec.ts`
 
 Run: `npm run type-check`
 
@@ -423,7 +385,6 @@ git commit -m "feat: add interactive student thesis workspace"
 ### Task 5: 结果查看和异议提交闭环
 
 **Files:**
-
 - Create: `frontend/src/modules/result/components/StudentResultSelector.vue`
 - Create: `frontend/src/modules/result/components/StudentScoreDimensions.vue`
 - Create: `frontend/src/modules/result/components/StudentObjectionForm.vue`
@@ -433,30 +394,29 @@ git commit -m "feat: add interactive student thesis workspace"
 - Modify: `frontend/src/modules/result/__tests__/resultPublication.spec.ts`
 
 **Interfaces:**
-
 - Consumes: Task 1 的 `getStudentResult(id)`、`submitStudentObjection(id, input)` 和论文列表。
 - Produces: `StudentObjectionInput { reason, request, attachments }`；异议状态 `SUBMITTED | PROCESSING | RESOLVED`。
 
 - [ ] **Step 1: 写未发布、已发布和重复异议失败测试**
 
 ```ts
-it("shows six dimensions only for a published result", async () => {
-  await service.loadStudentScenario("COMPLETED");
-  const wrapper = await mountStudentResult(service, "thesis-main");
-  expect(wrapper.findAll("[data-score-dimension]")).toHaveLength(6);
-  expect(wrapper.text()).toContain("专家 A");
-  expect(wrapper.text()).not.toContain("周明远");
-});
+it('shows six dimensions only for a published result', async () => {
+  await service.loadStudentScenario('COMPLETED')
+  const wrapper = await mountStudentResult(service, 'thesis-main')
+  expect(wrapper.findAll('[data-score-dimension]')).toHaveLength(6)
+  expect(wrapper.text()).toContain('专家 A')
+  expect(wrapper.text()).not.toContain('周明远')
+})
 
-it("submits one objection and blocks a duplicate while unresolved", async () => {
-  await wrapper.get('textarea[name="reason"]').setValue("对评价依据存在疑问");
-  await wrapper.get('textarea[name="request"]').setValue("申请学校复核处理");
-  await wrapper.get('[data-action="submit-objection"]').trigger("click");
-  await wrapper.get('[data-action="confirm-objection"]').trigger("click");
-  await flushPromises();
-  expect(wrapper.text()).toContain("异议已提交");
-  expect(wrapper.find('[data-action="submit-objection"]').exists()).toBe(false);
-});
+it('submits one objection and blocks a duplicate while unresolved', async () => {
+  await wrapper.get('textarea[name="reason"]').setValue('对评价依据存在疑问')
+  await wrapper.get('textarea[name="request"]').setValue('申请学校复核处理')
+  await wrapper.get('[data-action="submit-objection"]').trigger('click')
+  await wrapper.get('[data-action="confirm-objection"]').trigger('click')
+  await flushPromises()
+  expect(wrapper.text()).toContain('异议已提交')
+  expect(wrapper.find('[data-action="submit-objection"]').exists()).toBe(false)
+})
 ```
 
 - [ ] **Step 2: 运行结果异议测试并确认失败**
@@ -491,7 +451,6 @@ git commit -m "feat: add student results and objection workflow"
 ### Task 6: 学生消息通知交互
 
 **Files:**
-
 - Create: `frontend/src/modules/shared/components/StudentNotificationList.vue`
 - Create: `frontend/src/modules/shared/__tests__/studentNotifications.spec.ts`
 - Create: `frontend/src/router/studentNotificationRoutes.ts`
@@ -503,30 +462,20 @@ git commit -m "feat: add student results and objection workflow"
 - Modify: `frontend/src/router/index.ts`
 
 **Interfaces:**
-
 - Consumes: Task 1 的 `listStudentNotifications()`、`markStudentNotificationRead()`、`markAllStudentNotificationsRead()`。
 - Produces: 通知目标 `{ routeName, query: { thesisId } }`，只跳转到本人论文、结果或异议页面。
 
 - [ ] **Step 1: 写消息已读和跳转失败测试**
 
 ```ts
-it("marks a notification read and navigates to its thesis target", async () => {
-  await wrapper
-    .get(
-      '[data-notification-id="notice-result"] [data-action="open-notification"]',
-    )
-    .trigger("click");
-  await flushPromises();
-  expect(
-    (await service.listStudentNotifications()).find(
-      (item) => item.id === "notice-result",
-    )?.read,
-  ).toBe(true);
+it('marks a notification read and navigates to its thesis target', async () => {
+  await wrapper.get('[data-notification-id="notice-result"] [data-action="open-notification"]').trigger('click')
+  await flushPromises()
+  expect((await service.listStudentNotifications()).find((item) => item.id === 'notice-result')?.read).toBe(true)
   expect(router.currentRoute.value).toMatchObject({
-    path: "/student/results",
-    query: { thesisId: "thesis-main" },
-  });
-});
+    path: '/student/results', query: { thesisId: 'thesis-main' },
+  })
+})
 ```
 
 增加全部已读、空消息和非学生角色继续使用原页面投影的测试。
@@ -557,7 +506,6 @@ git commit -m "fix: integrate student notification routes"
 ### Task 7: 演示场景控制器和环境隔离
 
 **Files:**
-
 - Create: `frontend/src/modules/thesis/components/StudentDemoScenarioController.vue`
 - Create: `frontend/src/modules/thesis/__tests__/studentDemoScenario.spec.ts`
 - Modify: `frontend/src/modules/thesis/pages/StudentDashboardPage.vue`
@@ -567,35 +515,30 @@ git commit -m "fix: integrate student notification routes"
 - Modify: `frontend/src/vite-env.d.ts`
 
 **Interfaces:**
-
 - Consumes: Task 1 的 `loadStudentScenario(preset)` 和 `resetStudentDemo()`。
 - Produces: `StudentScenarioPreset = 'DRAFT' | 'RETURNED' | 'SCHOOL_REVIEW' | 'EXPERT_REVIEW' | 'RESULT_PROCESSING' | 'COMPLETED'`。
 
 - [ ] **Step 1: 写环境门禁和一致快照失败测试**
 
 ```ts
-it("does not render without explicit demo mode", () => {
-  const wrapper = mount(StudentDemoScenarioController, {
-    props: { enabled: false },
-  });
-  expect(wrapper.html()).toBe("<!--v-if-->");
-});
+it('does not render without explicit demo mode', () => {
+  const wrapper = mount(StudentDemoScenarioController, { props: { enabled: false } })
+  expect(wrapper.html()).toBe('<!--v-if-->')
+})
 
-it("loads a completed snapshot with result, timeline and notification", async () => {
+it('loads a completed snapshot with result, timeline and notification', async () => {
   const wrapper = mount(StudentDemoScenarioController, {
     props: { enabled: true },
     global: { provide: { [studentPortalServiceKey as symbol]: service } },
-  });
-  await wrapper.get('[data-scenario="COMPLETED"]').trigger("click");
-  await flushPromises();
-  expect((await service.getStudentThesis("thesis-main")).stage).toBe(
-    "COMPLETED",
-  );
-  expect(await service.getStudentResult("thesis-main")).not.toBeNull();
+  })
+  await wrapper.get('[data-scenario="COMPLETED"]').trigger('click')
+  await flushPromises()
+  expect((await service.getStudentThesis('thesis-main')).stage).toBe('COMPLETED')
+  expect(await service.getStudentResult('thesis-main')).not.toBeNull()
   expect(await service.listStudentNotifications()).toContainEqual(
-    expect.objectContaining({ kind: "RESULT_PUBLISHED" }),
-  );
-});
+    expect.objectContaining({ kind: 'RESULT_PUBLISHED' }),
+  )
+})
 ```
 
 - [ ] **Step 2: 运行场景控制器测试并确认失败**
@@ -632,7 +575,6 @@ git commit -m "feat: add isolated student demo scenarios"
 ### Task 8: 学生黄金路径、视觉验收和文档回写
 
 **Files:**
-
 - Create: `frontend/src/modules/thesis/__tests__/studentGoldenPath.spec.ts`
 - Modify: `frontend/src/__tests__/App.spec.ts`
 - Modify: `docs/02_产品设计/页面原型/页面原型_PAGE-002_学生论文工作台.md`
@@ -643,48 +585,41 @@ git commit -m "feat: add isolated student demo scenarios"
 - Modify: `docs/superpowers/plans/2026-08-11-student-interactive-workflow.md`
 
 **Interfaces:**
-
 - Consumes: Tasks 1—7 的学生服务和页面。
 - Produces: 可重复执行的学生端验收证据；不改变其他角色完成状态。
 
-- [ ] **Step 1: 写学生角色黄金路径测试**
+- [x] **Step 1: 写学生角色黄金路径测试**
 
 ```ts
-it("persists the complete legal student path", async () => {
-  const storage = createMemoryStorage();
-  const service = createScenarioService({ storage, demoMode: true });
-  await service.saveStudentDraft("thesis-main", completeDraft);
-  await service.submitStudentThesis("thesis-main");
-  expect(
-    (await service.getStudentThesis("thesis-main")).studentVisibleStage,
-  ).toBe("SCHOOL_REVIEW");
+it('persists the complete legal student path', async () => {
+  const storage = createMemoryStorage()
+  const service = createScenarioService({ storage, demoMode: true })
+  await service.saveStudentDraft('thesis-main', completeDraft)
+  await service.submitStudentThesis('thesis-main')
+  expect((await service.getStudentThesis('thesis-main')).studentVisibleStage).toBe('SCHOOL_REVIEW')
 
-  await service.loadStudentScenario("COMPLETED");
-  await service.submitStudentObjection("thesis-main", {
-    reason: "对评价依据存在疑问",
-    request: "申请学校复核处理",
-    attachments: [],
-  });
+  await service.loadStudentScenario('COMPLETED')
+  await service.submitStudentObjection('thesis-main', {
+    reason: '对评价依据存在疑问', request: '申请学校复核处理', attachments: [],
+  })
 
-  const restored = createScenarioService({ storage, demoMode: true });
-  expect((await restored.getStudentThesis("thesis-main")).stage).toBe(
-    "COMPLETED",
-  );
-  expect(
-    (await restored.getStudentResult("thesis-main"))?.objection?.status,
-  ).toBe("SUBMITTED");
-});
+  const restored = createScenarioService({ storage, demoMode: true })
+  expect((await restored.getStudentThesis('thesis-main')).stage).toBe('COMPLETED')
+  expect((await restored.getStudentResult('thesis-main'))?.objection?.status).toBe('SUBMITTED')
+})
 ```
 
-- [ ] **Step 2: 运行学生黄金路径和全量单元测试**
+- [x] **Step 2: 运行学生黄金路径和全量单元测试**
 
-Run: `npm run test:unit -- --run src/modules/thesis/__tests__/studentGoldenPath.spec.ts`
+Run: `npm run test:unit:run -- src/modules/thesis/__tests__/studentGoldenPath.spec.ts`
 
-Run: `npm run test:unit -- --run`
+Run: `npm run test:unit:run`
 
 Expected: PASS；所有测试 0 failures，现有学校、运营和专家测试不得因学生服务改造而失败。
 
-- [ ] **Step 3: 运行类型检查和生产构建**
+执行记录（2026-08-11）：黄金路径测试 1 文件 1 项通过；全量单元测试 32 个文件、166 项全部通过（0 failures），现有学校、运营、专家测试未受学生服务改造影响。TDD 证据：临时移除异议持久化写入后测试以 `expected undefined to be 'SUBMITTED'` 失败（断言异议跨服务实例重建后状态不丢失），恢复最小实现后转绿。
+
+- [x] **Step 3: 运行类型检查和生产构建**
 
 Run: `npm run type-check`
 
@@ -692,17 +627,23 @@ Run: `VITE_DEMO_MODE=true npm run build`
 
 Expected: 两个命令退出码 0；构建警告可记录，但不得有 TypeScript 错误或未处理构建错误。
 
-- [ ] **Step 4: 浏览器检查桌面和移动端关键流程**
+执行记录（2026-08-11）：`vue-tsc --build` 退出码 0；演示模式生产构建退出码 0，仅保留第三方 `@vueuse/core` PURE 注释警告与既有大 chunk 警告。
+
+- [x] **Step 4: 浏览器检查桌面和移动端关键流程**
 
 Run: `npm run dev -- --host 127.0.0.1`
 
 在 1440×900、1920×1080 和 390×844 检查：登录学生、选择不同论文、打开详情、编辑材料、悬浮专业搜索、关键词达到 5 个、文件失败/重试、保存、提交、撤回、结果、异议、消息跳转、场景切换和重置。确认专业浮层不挤压布局，390px 无整页横向滚动，焦点与 Esc 行为正确。
 
-- [ ] **Step 5: 回写正式文档的真实完成边界**
+执行记录（2026-08-11）：三个视口全部通过。1440×900 与 1920×1080 下完成学生登录、论文切换（选择已完成论文后五阶段进度与动作同步为 `COMPLETED`/查看结果）、详情抽屉（时间线与退回原因）、编辑页专业浮层搜索与选择、关键词第 6 个被拒并提示“最多填写 5 个关键词”、文件失败（INVALID 时保存禁用）与恢复（VALID 后保存恢复）、保存（“已保存 · 2026-08-11 09:00”）、提交二次确认、撤回（学校审核期填写原因二次确认后回到材料准备）、结果与异议（86 分六维、提交异议后表单隐藏）、消息跳转（通知点击先已读再跳转 `/student/results?thesisId=thesis-main`）、场景切换与重置（二次确认、重置后恢复 fixtures）。390×844：无整页横向滚动（scrollWidth=clientWidth=390），专业选择器为固定底部弹层（`max-height: 70vh`）不挤压布局；重置确认对话框初始焦点在取消、Tab 循环约束、Esc 关闭并恢复入口焦点，编辑页离开时脏状态确认弹窗正确触发。
+
+- [x] **Step 5: 回写正式文档的真实完成边界**
 
 PAGE-002/003/012 文档补充已实现交互；需求追踪矩阵只标记学生前端演示证据。编码准入检查表注明真实 API、数据库、SSO、文件解析、通知发送仍未实现。不得把其他角色静态页面标记为交互闭环完成。
 
-- [ ] **Step 6: 检查补丁与原始材料边界**
+执行记录（2026-08-11）：PAGE-002/003/012 各新增“前端演示实现”小节，仅记录学生前端交互证据并逐项注明真实 API、数据库、SSO、文件解析、匿名检测、通知发送未实现；需求追踪矩阵新增学生交互闭环段落并只标记学生前端演示证据；编码准入检查表新增 GATE-015 并注明准入范围仅为学生前端演示。未修改其他角色静态页面状态。
+
+- [x] **Step 6: 检查补丁与原始材料边界**
 
 Run: `git diff --check`
 
@@ -710,7 +651,9 @@ Run: `git diff --name-only -- docs/99_原始材料`
 
 Expected: 第一条无输出并退出 0；第二条无输出，证明未修改原始材料。
 
-- [ ] **Step 7: 提交学生端验收与文档证据**
+执行记录（2026-08-11）：`git diff --check` 无输出、退出码 0；`docs/99_原始材料` 无改动。
+
+- [x] **Step 7: 提交学生端验收与文档证据**
 
 ```bash
 git add frontend/src/modules/thesis/__tests__/studentGoldenPath.spec.ts frontend/src/__tests__/App.spec.ts docs/02_产品设计/页面原型/页面原型_PAGE-002_学生论文工作台.md docs/02_产品设计/页面原型/页面原型_PAGE-003_论文编辑与上传.md docs/02_产品设计/页面原型/页面原型_PAGE-012_学生结果与异议.md docs/10_审查与决策/需求追踪矩阵.md docs/10_审查与决策/编码准入检查表.md docs/superpowers/plans/2026-08-11-student-interactive-workflow.md
