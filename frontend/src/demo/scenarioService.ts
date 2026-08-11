@@ -2,8 +2,10 @@ import type { RoleCode } from '@/types/roles'
 
 import { createInitialScenarioState, demoIdentity, demoStudentId, demoThesis } from './fixtures'
 import { createStudentPortalService } from '@/modules/thesis/services/studentPortalService'
+import { createPlatformOperationService } from '@/modules/expert-management/services/platformOperationService'
 import { createInitialStudentPortalState, type StudentPortalState } from './studentFixtures'
 import { loadStudentDemo, saveStudentDemo } from './studentPersistence'
+import { loadPlatformDemo, savePlatformDemo } from './platformPersistence'
 import type {
   DemoAction,
   BatchImportRow,
@@ -23,6 +25,7 @@ import type {
   StudentFileValidationScenario,
   StudentScenarioPreset,
   StudentScoreDimension,
+  PlatformOperationService,
 } from './types'
 
 const scenarioStage: Record<StudentScenarioPreset, DemoStage> = {
@@ -289,10 +292,13 @@ export function createScenarioService(
 ): ScenarioService {
   const storage = options.storage ?? createMemoryStorage()
   const loaded = loadStudentDemo(storage)
+  const loadedPlatform = loadPlatformDemo(storage)
   let state = loaded.scenario
   let studentState = loaded.student
+  let platformState = loadedPlatform.platform
 
   const persist = () => saveStudentDemo(storage, state, studentState)
+  const persistPlatform = () => savePlatformDemo(storage, platformState)
   if (loaded.reset) {
     studentState = {
       ...studentState,
@@ -307,6 +313,9 @@ export function createScenarioService(
       ],
     }
     persist()
+  }
+  if (loadedPlatform.reset) {
+    persistPlatform()
   }
 
   const currentReviewResults = (): DemoPublishedResult[] =>
@@ -495,8 +504,18 @@ export function createScenarioService(
     },
   })
 
+  const platformOperation: PlatformOperationService = createPlatformOperationService({
+    getState: () => platformState,
+    setState: (nextState) => {
+      platformState = nextState
+      persistPlatform()
+    },
+    demoMode: options.demoMode ?? true,
+  })
+
   return {
     ...studentPortal,
+    ...platformOperation,
     listSchoolNotifications: async () =>
       deepFreeze(
         structuredClone(
@@ -691,9 +710,13 @@ export function createScenarioService(
     getSchoolBills: async () => deepFreeze(structuredClone(state.schoolBills)),
     getExpertAccount: async () => deepFreeze(structuredClone(state.expertAccount)),
     reset: async () => {
+      storage.removeItem?.('baijie-demo-student:v1')
+      storage.removeItem?.('baijie-demo-platform:v1')
       state = createInitialScenarioState()
       studentState = createInitialStudentPortalState()
+      platformState = loadPlatformDemo(storage).platform
       persist()
+      persistPlatform()
       return snapshot()
     },
   }

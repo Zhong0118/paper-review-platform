@@ -28,6 +28,8 @@ export type OperationsQueue =
   | 'OVERDUE'
   | 'PENDING_REASSIGNMENT'
   | 'PENDING_SUPPLEMENT'
+  | 'CORRECTION_PENDING'
+  | 'SETTLEMENT_PENDING'
   | 'COMPLETED'
 
 export type SchoolBillStatus = 'FROZEN' | 'CONSUMED' | 'RELEASED' | 'CANCELLED' | 'REVERSED'
@@ -426,7 +428,145 @@ export interface DemoScenarioSnapshot {
   review?: DemoReview
 }
 
-export interface ScenarioService extends StudentPortalService {
+export type ExpertQualificationStatus = 'APPROVED' | 'REVIEWING' | 'REJECTED'
+
+export type ExpertServiceStatus = 'ACTIVE' | 'DISABLED'
+
+export type ExpertQualificationAction = 'APPROVED' | 'REJECTED'
+
+export type ExpertProfileAction =
+  | 'UPDATE_PROFILE'
+  | 'SET_SERVICE_STATUS'
+  | 'REVIEW_QUALIFICATION'
+
+/** 平台运营可见的专家档案投影。 */
+export interface ExpertProfile {
+  id: string
+  name: string
+  unit: string
+  title: string
+  discipline: { code: string; name: string }
+  researchTags: string[]
+  reviewableTypes: string[]
+  qualification: ExpertQualificationStatus
+  qualificationNote?: string
+  serviceStatus: ExpertServiceStatus
+  serviceNote?: string
+  avoidSchools: string[]
+  activeTasks: number
+  completedTasks: number
+  overdueRate: string
+  avgCompletionDays: number
+  acceptanceRate: string
+  onTimeRate: string
+  qualitySummary: string
+  feeStandard: number
+  payoutStatus: 'BOUND' | 'PENDING'
+  allowedActions: ExpertProfileAction[]
+}
+
+export interface ExpertProfileQuery {
+  qualification?: ExpertQualificationStatus
+  serviceStatus?: ExpertServiceStatus
+}
+
+export interface ExpertProfileCreateInput {
+  name: string
+  unit: string
+  title: string
+  discipline: { code: string; name: string }
+  researchTags: string[]
+  avoidSchools: string[]
+}
+
+export type ExpertProfilePatch = Partial<
+  Pick<ExpertProfile, 'researchTags' | 'avoidSchools' | 'feeStandard'>
+>
+
+/** Task 3 派单匹配的候选投影；本轮仅保留契约。 */
+export interface ExpertMatchCandidate {
+  id: string
+  name: string
+  unit: string
+  title: string
+  discipline: { code: string; name: string }
+  fields: string[]
+  keywordHits: string[]
+  conflictHit: boolean
+  conflictReason?: string
+  selectable: boolean
+  activeTasks: number
+  acceptanceRate: string
+  onTimeRate: string
+  avgCompletionDays: number
+  feeStandard: number
+}
+
+/** Task 4 更正申请的投影；本轮仅保留契约。 */
+export interface CorrectionRequest {
+  id: string
+  taskId: string
+  status: 'PENDING' | 'APPROVED' | 'REJECTED'
+  reason: string
+}
+
+/** Task 4 提现申请的投影；本轮仅保留契约。 */
+export interface WithdrawalRequest {
+  id: string
+  expertId: string
+  amount: number
+  status: 'PENDING' | 'PAID'
+  requestedAt: string
+}
+
+/** 十条运营队列的计数投影。 */
+export interface OperationsQueueCounts extends Record<OperationsQueue, number> {}
+
+export interface PlatformOperationService {
+  listExpertProfiles(query?: ExpertProfileQuery): Promise<ExpertProfile[]>
+  createExpertProfile(input: ExpertProfileCreateInput): Promise<ExpertProfile>
+  updateExpertProfile(id: string, patch: ExpertProfilePatch): Promise<ExpertProfile>
+  setExpertServiceStatus(
+    id: string,
+    status: ExpertServiceStatus,
+    reason: string,
+  ): Promise<ExpertProfile>
+  reviewExpertQualification(
+    id: string,
+    decision: ExpertQualificationAction,
+    reason: string,
+  ): Promise<ExpertProfile>
+  listExpertMatches(thesisId: string): Promise<ExpertMatchCandidate[]>
+  listOperationsQueues(): Promise<OperationsQueueCounts>
+}
+
+/** 平台演示持久化负载（独立 key `baijie-demo-platform:v1`，见 platformPersistence.ts）。 */
+export interface PlatformState {
+  experts: ExpertProfile[]
+  expertTasks: ExpertTaskSummary[]
+  /** Task 4 更正申请；本轮预留为空列表。 */
+  correctionRequests: CorrectionRequest[]
+  /** Task 4 提现申请；本轮预留为空列表。 */
+  withdrawals: WithdrawalRequest[]
+}
+
+export class PlatformOperationError extends Error {
+  constructor(
+    public readonly code:
+      | 'ILLEGAL_ACTION'
+      | 'NOT_FOUND'
+      | 'FORBIDDEN'
+      | 'INVALID_INPUT'
+      | 'STATE_CONFLICT'
+      | 'DEMO_MODE_DISABLED',
+    message: string,
+  ) {
+    super(message)
+    this.name = 'PlatformOperationError'
+  }
+}
+
+export interface ScenarioService extends StudentPortalService, PlatformOperationService {
   listSchoolNotifications(): Promise<StudentNotification[]>
   loginAs(role: RoleCode): Promise<DemoScenarioSnapshot>
   submitThesis(input?: StudentSubmissionInput): Promise<DemoScenarioSnapshot>

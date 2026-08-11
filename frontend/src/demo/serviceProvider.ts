@@ -1,7 +1,7 @@
 import { inject, type InjectionKey } from 'vue'
 
 import { createScenarioService } from './scenarioService'
-import type { ScenarioService, StudentPortalService } from './types'
+import type { PlatformOperationService, ScenarioService, StudentPortalService } from './types'
 
 function browserStorage() {
   return typeof window === 'undefined' ? undefined : window.localStorage
@@ -51,6 +51,13 @@ function createUnavailableService(): ScenarioService {
     getSchoolAccount: unavailable,
     getSchoolBills: unavailable,
     getExpertAccount: unavailable,
+    listExpertProfiles: unavailable,
+    createExpertProfile: unavailable,
+    updateExpertProfile: unavailable,
+    setExpertServiceStatus: unavailable,
+    reviewExpertQualification: unavailable,
+    listExpertMatches: unavailable,
+    listOperationsQueues: unavailable,
     reset: unavailable,
   }
 }
@@ -75,5 +82,9 @@ export function useScenarioService(): ScenarioService {
 }
 
 export function useStudentPortalService(): StudentPortalService {
+  return useScenarioService()
+}
+
+export function usePlatformOperationService(): PlatformOperationService {
   return useScenarioService()
 }
