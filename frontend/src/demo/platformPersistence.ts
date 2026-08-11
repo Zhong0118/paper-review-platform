@@ -2,11 +2,15 @@ import { createInitialPlatformState } from './platformFixtures'
 import type { PlatformState } from './platformFixtures'
 import type {
   AuditLogEntry,
+  CorrectionRequest,
   DispatchThesisSeed,
   ExpertProfile,
   ExpertProfileAction,
   ExpertTaskSummary,
+  ReviewVersion,
   StorageLike,
+  WithdrawalRequest,
+  WithdrawalHistoryEntry,
 } from './types'
 
 /**
@@ -205,6 +209,9 @@ function normalizeAuditLog(value: unknown): AuditLogEntry[] {
     'EXTEND',
     'SET_SERVICE_STATUS',
     'REVIEW_QUALIFICATION',
+    'CORRECTION_DECIDED',
+    'WITHDRAWAL_REVIEWED',
+    'PAYMENT_RECORDED',
   ]
   return value.flatMap((entry) => {
     if (!entry || typeof entry !== 'object') return []
@@ -236,6 +243,139 @@ function normalizeAuditLog(value: unknown): AuditLogEntry[] {
   })
 }
 
+function normalizeCorrectionRequests(value: unknown): CorrectionRequest[] {
+  if (!Array.isArray(value)) return []
+  const statuses: CorrectionRequest['status'][] = ['PENDING', 'APPROVED', 'REJECTED']
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object') return []
+    const source = entry as Record<string, unknown>
+    if (
+      typeof source.id !== 'string' ||
+      typeof source.taskId !== 'string' ||
+      typeof source.reason !== 'string' ||
+      typeof source.requestedAt !== 'string'
+    ) {
+      return []
+    }
+    const status = statuses.includes(source.status as CorrectionRequest['status'])
+      ? (source.status as CorrectionRequest['status'])
+      : 'PENDING'
+    const version = typeof source.version === 'string' ? source.version : 'R1'
+    return [
+      {
+        id: source.id,
+        taskId: source.taskId,
+        anonymousId: typeof source.anonymousId === 'string' ? source.anonymousId : '',
+        expertId: typeof source.expertId === 'string' ? source.expertId : '',
+        expertName: typeof source.expertName === 'string' ? source.expertName : '',
+        status,
+        reason: source.reason,
+        requestedAt: source.requestedAt,
+        proposedDiff: typeof source.proposedDiff === 'string' ? source.proposedDiff : '',
+        evidence: typeof source.evidence === 'string' ? source.evidence : '',
+        ...(typeof source.decisionReason === 'string' ? { decisionReason: source.decisionReason } : {}),
+        version,
+        ...(typeof source.newVersionId === 'string' ? { newVersionId: source.newVersionId } : {}),
+        ...(typeof source.oldVersionId === 'string' ? { oldVersionId: source.oldVersionId } : {}),
+        ...(typeof source.impactWarning === 'string' ? { impactWarning: source.impactWarning } : {}),
+      },
+    ]
+  })
+}
+
+function normalizeWithdrawalHistory(value: unknown): WithdrawalHistoryEntry[] {
+  if (!Array.isArray(value)) return []
+  const actions: WithdrawalHistoryEntry['action'][] = [
+    'SUBMIT',
+    'APPROVE',
+    'REJECT',
+    'PAYMENT_SUCCESS',
+    'PAYMENT_FAILED',
+    'REVERSE',
+  ]
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object') return []
+    const source = entry as Record<string, unknown>
+    if (typeof source.at !== 'string' || typeof source.note !== 'string') return []
+    const action = actions.includes(source.action as WithdrawalHistoryEntry['action'])
+      ? (source.action as WithdrawalHistoryEntry['action'])
+      : 'SUBMIT'
+    return [{ action, at: source.at, note: source.note }]
+  })
+}
+
+function normalizeWithdrawals(value: unknown): WithdrawalRequest[] {
+  if (!Array.isArray(value)) return []
+  const statuses: WithdrawalRequest['status'][] = [
+    'PENDING',
+    'REVIEWING',
+    'PAID',
+    'REJECTED',
+    'REVERSED',
+  ]
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object') return []
+    const source = entry as Record<string, unknown>
+    if (
+      typeof source.id !== 'string' ||
+      typeof source.expertId !== 'string' ||
+      typeof source.amount !== 'number' ||
+      typeof source.requestedAt !== 'string'
+    ) {
+      return []
+    }
+    const status = statuses.includes(source.status as WithdrawalRequest['status'])
+      ? (source.status as WithdrawalRequest['status'])
+      : 'PENDING'
+    return [
+      {
+        id: source.id,
+        expertId: source.expertId,
+        expertName: typeof source.expertName === 'string' ? source.expertName : '',
+        amount: source.amount,
+        status,
+        requestedAt: source.requestedAt,
+        ...(typeof source.reason === 'string' ? { reason: source.reason } : {}),
+        withdrawableBasis:
+          typeof source.withdrawableBasis === 'string' ? source.withdrawableBasis : '',
+        freezeLedger: typeof source.freezeLedger === 'string' ? source.freezeLedger : '',
+        bankName: typeof source.bankName === 'string' ? source.bankName : '',
+        maskedAccount: typeof source.maskedAccount === 'string' ? source.maskedAccount : '',
+        ...(typeof source.voucherNo === 'string' ? { voucherNo: source.voucherNo } : {}),
+        ...(typeof source.paymentNote === 'string' ? { paymentNote: source.paymentNote } : {}),
+        history: normalizeWithdrawalHistory(source.history),
+      },
+    ]
+  })
+}
+
+function normalizeReviewVersions(value: unknown): ReviewVersion[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object') return []
+    const source = entry as Record<string, unknown>
+    if (
+      typeof source.id !== 'string' ||
+      typeof source.version !== 'string' ||
+      typeof source.submittedAt !== 'string' ||
+      typeof source.score !== 'number'
+    ) {
+      return []
+    }
+    return [
+      {
+        id: source.id,
+        version: source.version,
+        status: source.status === 'SUPERSEDED' ? 'SUPERSEDED' : 'CURRENT',
+        score: source.score,
+        submittedAt: source.submittedAt,
+        readonly: true,
+        ...(typeof source.nextVersionId === 'string' ? { nextVersionId: source.nextVersionId } : {}),
+      },
+    ]
+  })
+}
+
 export function loadPlatformDemo(storage: StorageLike): LoadedPlatformDemo {
   const raw = storage.getItem(platformPersistenceKey)
   if (!raw) {
@@ -256,8 +396,10 @@ export function loadPlatformDemo(storage: StorageLike): LoadedPlatformDemo {
               .map(normalizeTask)
               .filter((task): task is ExpertTaskSummary => task !== null)
           : [],
-        correctionRequests: [],
-        withdrawals: [],
+        correctionRequests: normalizeCorrectionRequests(saved.platform.correctionRequests),
+        withdrawals: normalizeWithdrawals(saved.platform.withdrawals),
+        // 旧存档（Task 1–3 写入）没有评阅版本字段：以当前 fixture 兜底。
+        reviewVersions: normalizeReviewVersions(saved.platform.reviewVersions),
         // 旧存档（Task 1/2 写入）没有派单论文与审计字段：以当前 fixture 兜底，行为同首次加载。
         dispatchTheses: normalizeDispatchTheses(saved.platform.dispatchTheses),
         auditLog: normalizeAuditLog(saved.platform.auditLog),

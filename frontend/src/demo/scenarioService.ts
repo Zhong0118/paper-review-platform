@@ -2,11 +2,16 @@ import type { RoleCode } from '@/types/roles'
 
 import { createInitialScenarioState, demoIdentity, demoStudentId, demoThesis } from './fixtures'
 import { createStudentPortalService } from '@/modules/thesis/services/studentPortalService'
-import { createPlatformOperationService, dispatchFeeStandard } from '@/modules/expert-management/services/platformOperationService'
 import { createInitialStudentPortalState, type StudentPortalState } from './studentFixtures'
+import { createPlatformOperationService, dispatchFeeStandard } from '@/modules/expert-management/services/platformOperationService'
 import { loadStudentDemo, saveStudentDemo } from './studentPersistence'
 import { loadPlatformDemo, savePlatformDemo } from './platformPersistence'
-import { createDispatchScenario, initialAuditEntries, type PlatformState as FixturePlatformState } from './platformFixtures'
+import {
+  createCorrectionSettlementScenario,
+  createDispatchScenario,
+  initialAuditEntries,
+  type PlatformState as FixturePlatformState,
+} from './platformFixtures'
 import type {
   DemoAction,
   BatchImportRow,
@@ -695,6 +700,21 @@ export function createScenarioService(
             ? { ...task, status: 'SUBMITTED' as const }
             : task,
         ),
+        // 终审提交生成当前只读评阅版本 R1（版本历史投影，非真实论文内容）。
+        // 演示场景装载时已存在 R1 则不再重复追加。
+        reviewVersions: platformState.reviewVersions.some((version) => version.version === 'R1')
+          ? platformState.reviewVersions
+          : [
+              ...platformState.reviewVersions,
+              {
+                id: 'review-version-r1',
+                version: 'R1',
+                status: 'CURRENT' as const,
+                score: totalScore(input),
+                submittedAt: '2026-08-24 16:40',
+                readonly: true as const,
+              },
+            ],
       }
       persistPlatform()
       persist()
@@ -830,6 +850,13 @@ export function createScenarioService(
       const NOW = new Date('2026-08-12T09:00:00')
       const at = (day: number, hour = 18, minute = 0) =>
         `${NOW.getFullYear()}-${String(NOW.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')} ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`
+      if (preset === 'CORRECTION_PENDING') {
+        // Task 4 结算演示场景：待审批更正申请 + 待审核提现（本地快照）。
+        platformState = createCorrectionSettlementScenario()
+        persistPlatform()
+        syncThesisStageToDispatch('thesis-main')
+        return
+      }
       const status: 'PENDING_DISPATCH' | 'PENDING_ACCEPTANCE' | 'IN_REVIEW' | 'COMPLETED' =
         preset === 'PENDING_REASSIGNMENT'
           ? 'PENDING_ACCEPTANCE'

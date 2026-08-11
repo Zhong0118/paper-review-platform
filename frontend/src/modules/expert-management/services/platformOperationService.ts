@@ -1,6 +1,8 @@
 import { PlatformOperationError } from '@/demo/types'
 import type {
   AuditLogEntry,
+  CorrectionDecision,
+  CorrectionRequest,
   DispatchThesisSeed,
   ExpertMatchCandidate,
   ExpertProfile,
@@ -12,7 +14,11 @@ import type {
   ExpertServiceStatus,
   ExpertTaskSummary,
   OperationsQueueCounts,
+  PaymentResult,
   PlatformState,
+  ReviewVersion,
+  WithdrawalRequest,
+  WithdrawalReviewDecision,
 } from '@/demo/types'
 
 /**
@@ -86,6 +92,13 @@ export function createPlatformOperationService(
   | 'remindExpertTask'
   | 'extendExpertTask'
   | 'listPlatformAuditLog'
+  | 'listCorrectionRequests'
+  | 'requestCorrection'
+  | 'decideCorrection'
+  | 'listReviewVersions'
+  | 'listWithdrawals'
+  | 'reviewWithdrawal'
+  | 'recordWithdrawalPayment'
 > {
   const ensureDemoMode = () => {
     if (!deps.demoMode) {
@@ -533,6 +546,295 @@ export function createPlatformOperationService(
         else if (task.status === 'SUBMITTED') counts.SETTLEMENT_PENDING += 1
       }
       return immutable(counts)
+    },
+
+    listCorrectionRequests: async () => {
+      ensureDemoMode()
+      const requests = deps.getState().correctionRequests.map((request) => {
+        if (request.impactWarning) return request
+        // 原结果已发布（论文 COMPLETED）：提示影响范围（演示文案，不宣称自动回滚）。
+        const thesis = deps.getState().dispatchTheses.find(
+          (item) => item.anonymousId === request.anonymousId,
+        )
+        if (thesis?.status === 'COMPLETED') {
+          return {
+            ...request,
+            impactWarning:
+              '原评审结果已发布给学校与学生。批准更正后将生成新版本，已发布结果不会自动回滚，需平台人工同步通知学校与学生后发布新版本。',
+          }
+        }
+        return request
+      })
+      return immutable(requests)
+    },
+
+    /** 专家端发起更正申请（演示投影：申请专家与差异由演示装载提供）。 */
+    requestCorrection: async (taskId: string, reason: string) => {
+      ensureDemoMode()
+      const state = deps.getState()
+      const task = state.expertTasks.find((item) => item.id === taskId)
+      if (!task) {
+        throw new PlatformOperationError('NOT_FOUND', '未找到该评阅任务。')
+      }
+      if (!reason.trim()) {
+        throw new PlatformOperationError('INVALID_INPUT', '更正原因不能为空。')
+      }
+      // 更正申请后原版本保留：仅追加申请投影，不改动既有评阅版本；同任务重复申请去重。
+      const existing = state.correctionRequests.find(
+        (item) => item.taskId === taskId && item.status === 'PENDING',
+      )
+      if (existing) return immutable(existing)
+      const request: CorrectionRequest = {
+        id: `COR-2026-${String(state.correctionRequests.length + 1).padStart(3, '0')}`,
+        taskId,
+        anonymousId: task.anonymousId,
+        expertId: task.expertId ?? 'expert-31',
+        expertName: '宋清和',
+        status: 'PENDING',
+        reason: reason.trim(),
+        requestedAt: '2026-08-26 09:12',
+        proposedDiff: '研究方法维度（20 分）由 17 分更正为 18 分。',
+        evidence: '附件：更正说明与支撑材料（模拟校验通过）。',
+        version: 'R1',
+      }
+      deps.setState({
+        ...state,
+        correctionRequests: [...state.correctionRequests, request],
+      })
+      return immutable(request)
+    },
+
+    decideCorrection: async (
+      id: string,
+      decision: CorrectionDecision,
+      reason: string,
+    ) => {
+      ensureDemoMode()
+      if (!reason.trim()) {
+        throw new PlatformOperationError('INVALID_INPUT', '审核意见不能为空。')
+      }
+      const state = deps.getState()
+      const request = state.correctionRequests.find((item) => item.id === id)
+      if (!request) throw new PlatformOperationError('NOT_FOUND', '未找到该更正申请。')
+      if (request.status !== 'PENDING') {
+        throw new PlatformOperationError('STATE_CONFLICT', '该更正申请已审核，不能重复审批。')
+      }
+      if (decision === 'APPROVED') {
+        // 批准更正：生成新评阅版本（演示投影，非真实论文内容），旧版本只读保留并建立版本关系。
+        const latest = state.reviewVersions.length
+          ? Math.max(
+              ...state.reviewVersions.map((item) =>
+                Number(item.version.replace(/^R/, '')),
+              ),
+            )
+          : 1
+        const newVersionId = `review-version-r${latest + 1}`
+        const newVersion: ReviewVersion = {
+          id: newVersionId,
+          version: `R${latest + 1}`,
+          status: 'CURRENT',
+          score: 87,
+          submittedAt: '2026-08-27 10:30',
+          readonly: true,
+        }
+        const previous = state.reviewVersions.map((item) => ({ ...item }))
+        const nextState: PlatformState = {
+          ...state,
+          correctionRequests: state.correctionRequests.map((item) =>
+            item.id === id
+              ? {
+                  ...item,
+                  status: 'APPROVED',
+                  decisionReason: reason.trim(),
+                  newVersionId,
+                  oldVersionId: previous.at(-1)?.id ?? 'review-version-r1',
+                }
+              : item,
+          ),
+          reviewVersions: [
+            // 旧版本被新版本替换：保留只读并链接新版本。
+            ...previous.map((item) =>
+              item.id === previous.at(-1)?.id
+                ? { ...item, status: 'SUPERSEDED' as const, nextVersionId: newVersionId }
+                : item,
+            ),
+            newVersion,
+          ],
+        }
+        deps.setState(
+          appendAudit(nextState, {
+            action: 'CORRECTION_DECIDED',
+            thesisId: request.anonymousId,
+            taskId: request.taskId,
+            expertId: request.expertId,
+            detail: `批准更正（${reason.trim()}）：生成新版本 R${latest + 1}，旧版本只读保留。`,
+            operator: '陈岚',
+          }),
+        )
+        return immutable(
+          nextState.correctionRequests.find((item) => item.id === id) as CorrectionRequest,
+        )
+      }
+      const nextState: PlatformState = {
+        ...state,
+        correctionRequests: state.correctionRequests.map((item) =>
+          item.id === id ? { ...item, status: 'REJECTED', decisionReason: reason.trim() } : item,
+        ),
+      }
+      deps.setState(
+        appendAudit(nextState, {
+          action: 'CORRECTION_DECIDED',
+          thesisId: request.anonymousId,
+          taskId: request.taskId,
+          expertId: request.expertId,
+          detail: `驳回更正（${reason.trim()}）：保留原评阅版本。`,
+          operator: '陈岚',
+        }),
+      )
+      return immutable(
+        nextState.correctionRequests.find((item) => item.id === id) as CorrectionRequest,
+      )
+    },
+
+    listReviewVersions: async (_taskId: string) => {
+      ensureDemoMode()
+      // 版本历史按新到旧投影（页面「版本历史」默认展示最新）；新旧版本均只读。
+      // 旧持久化快照可能没有版本记录：回退到 R1 投影，保证详情页版本历史非空。
+      const versions = deps.getState().reviewVersions
+      const projected =
+        versions.length > 0
+          ? versions
+          : [
+              {
+                id: 'review-version-r1',
+                version: 'R1',
+                status: 'CURRENT' as const,
+                score: 0,
+                submittedAt: '2026-08-24 16:40',
+                readonly: true as const,
+              },
+            ]
+      return immutable([...projected].reverse())
+    },
+
+    listWithdrawals: async () => {
+      ensureDemoMode()
+      return immutable(deps.getState().withdrawals)
+    },
+
+    reviewWithdrawal: async (
+      id: string,
+      decision: WithdrawalReviewDecision,
+      reason: string,
+    ) => {
+      ensureDemoMode()
+      if (!reason.trim()) {
+        throw new PlatformOperationError('INVALID_INPUT', '审核意见不能为空。')
+      }
+      const state = deps.getState()
+      const withdrawal = state.withdrawals.find((item) => item.id === id)
+      if (!withdrawal) throw new PlatformOperationError('NOT_FOUND', '未找到该提现申请。')
+      if (withdrawal.status !== 'PENDING') {
+        throw new PlatformOperationError('STATE_CONFLICT', '该提现申请已审核，不能重复审核。')
+      }
+      const reviewed: WithdrawalRequest = {
+        ...withdrawal,
+        status: decision === 'APPROVE' ? 'REVIEWING' : 'REJECTED',
+        reason: reason.trim(),
+        history: [
+          ...withdrawal.history,
+          {
+            action: decision === 'APPROVE' ? 'APPROVE' : 'REJECT',
+            at: '2026-08-26 10:00',
+            note:
+              decision === 'APPROVE'
+                ? `审核通过（${reason.trim()}）：进入线下付款。`
+                : `审核驳回（${reason.trim()}）：解除冻结。`,
+          },
+        ],
+      }
+      const nextState: PlatformState = {
+        ...state,
+        withdrawals: state.withdrawals.map((item) => (item.id === id ? reviewed : item)),
+      }
+      deps.setState(
+        appendAudit(nextState, {
+          action: 'WITHDRAWAL_REVIEWED',
+          expertId: withdrawal.expertId,
+          detail: `提现${decision === 'APPROVE' ? '通过' : '驳回'}（${reason.trim()}）：${decision === 'APPROVE' ? '进入线下付款' : '解除冻结'}。`,
+          operator: '陈岚',
+        }),
+      )
+      return immutable(reviewed)
+    },
+
+    recordWithdrawalPayment: async (
+      id: string,
+      result: PaymentResult,
+      voucher: string,
+    ) => {
+      ensureDemoMode()
+      if (!voucher.trim()) {
+        throw new PlatformOperationError('INVALID_INPUT', '线下付款凭证号不能为空。')
+      }
+      const state = deps.getState()
+      const withdrawal = state.withdrawals.find((item) => item.id === id)
+      if (!withdrawal) throw new PlatformOperationError('NOT_FOUND', '未找到该提现申请。')
+      if (withdrawal.status === 'PAID') {
+        // 幂等：已付款的申请重复回填不重复计账，原凭证号保留。
+        return immutable(withdrawal)
+      }
+      if (withdrawal.status !== 'REVIEWING') {
+        throw new PlatformOperationError(
+          'STATE_CONFLICT',
+          '仅审核通过的提现申请可以回填付款结果。',
+        )
+      }
+      const recorded: WithdrawalRequest = {
+        ...withdrawal,
+        ...(result === 'SUCCESS'
+          ? {
+              status: 'PAID',
+              voucherNo: voucher.trim(),
+              paymentNote: undefined,
+              history: [
+                ...withdrawal.history,
+                {
+                  action: 'PAYMENT_SUCCESS',
+                  at: '2026-08-26 11:00',
+                  note: `线下付款成功（凭证号 ${voucher.trim()}）。`,
+                },
+              ],
+            }
+          : {
+              status: 'REVIEWING',
+              paymentNote: `线下付款失败（凭证号 ${voucher.trim()}），保持待付款状态，请重新线下付款后再次回填。`,
+              history: [
+                ...withdrawal.history,
+                {
+                  action: 'PAYMENT_FAILED',
+                  at: '2026-08-26 11:00',
+                  note: `线下付款失败（凭证号 ${voucher.trim()}）。`,
+                },
+              ],
+            }),
+      }
+      const nextState: PlatformState = {
+        ...state,
+        withdrawals: state.withdrawals.map((item) => (item.id === id ? recorded : item)),
+      }
+      deps.setState(
+        appendAudit(nextState, {
+          action: 'PAYMENT_RECORDED',
+          expertId: withdrawal.expertId,
+          detail:
+            result === 'SUCCESS'
+              ? `线下付款回填成功（凭证号 ${voucher.trim()}）。`
+              : `线下付款回填失败（凭证号 ${voucher.trim()}），保持待付款。`,
+          operator: '陈岚',
+        }),
+      )
+      return immutable(recorded)
     },
   }
 }

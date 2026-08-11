@@ -540,6 +540,9 @@ export interface AuditLogEntry {
     | 'EXTEND'
     | 'SET_SERVICE_STATUS'
     | 'REVIEW_QUALIFICATION'
+    | 'CORRECTION_DECIDED'
+    | 'WITHDRAWAL_REVIEWED'
+    | 'PAYMENT_RECORDED'
   thesisId?: string
   expertId?: string
   taskId?: string
@@ -556,23 +559,86 @@ export type PlatformScenarioPreset =
   | 'DUE_SOON'
   | 'OVERDUE'
   | 'COMPLETED'
+  /** Task 4：待审批更正申请与待审核提现的结算演示快照。 */
+  | 'CORRECTION_PENDING'
+  /** Task 4：待审批更正申请 + 待审核提现的结算演示快照。 */
+  | 'CORRECTION_PENDING'
 
-/** Task 4 更正申请的投影；本轮仅保留契约。 */
+/** Task 4 更正申请的投影（PAGE-020）。 */
 export interface CorrectionRequest {
   id: string
   taskId: string
+  anonymousId: string
+  expertId: string
+  expertName: string
   status: 'PENDING' | 'APPROVED' | 'REJECTED'
   reason: string
+  requestedAt: string
+  /** 拟更正差异（演示投影，非真实论文原文）。 */
+  proposedDiff: string
+  /** 证据与依据（演示投影）。 */
+  evidence: string
+  /** 审核意见（必填，驳回必须；批准亦需意见）。 */
+  decisionReason?: string
+  /** 原评阅版本号（如 R1），批准后生成新版本。 */
+  version: string
+  /** 批准后生成的新版本 ID；批准前不存在。 */
+  newVersionId?: string
+  /** 新版本链接（新版本号），批准后建立版本关系。 */
+  oldVersionId?: string
+  /** 原结果已发布时的影响范围提示（演示文案）。 */
+  impactWarning?: string
 }
 
-/** Task 4 提现申请的投影；本轮仅保留契约。 */
+/** 评阅版本历史投影：新旧版本均保留且只读，版本链记录新旧关系。 */
+export interface ReviewVersion {
+  id: string
+  version: string
+  status: 'CURRENT' | 'SUPERSEDED'
+  score: number
+  submittedAt: string
+  readonly: true
+  /** 版本链：被哪个新版本替换（仅旧版本存在）。 */
+  nextVersionId?: string
+}
+
+export type CorrectionDecision = 'APPROVED' | 'REJECTED'
+
+/** Task 4 提现申请的投影（PAGE-022）。 */
 export interface WithdrawalRequest {
   id: string
   expertId: string
+  expertName: string
   amount: number
-  status: 'PENDING' | 'PAID'
+  status: 'PENDING' | 'REVIEWING' | 'PAID' | 'REJECTED' | 'REVERSED'
   requestedAt: string
+  /** 审核意见（驳回必须；审核通过亦需意见）。 */
+  reason?: string
+  /** 可提现依据（演示投影）。 */
+  withdrawableBasis: string
+  /** 冻结流水摘要（演示投影）。 */
+  freezeLedger: string
+  /** 收款银行名（脱敏展示，不出现完整账号）。 */
+  bankName: string
+  /** 脱敏账号（如 6222*******1234），完整账号永不出现在投影中。 */
+  maskedAccount: string
+  /** 线下付款凭证号（回填成功时写入，幂等校验依据）。 */
+  voucherNo?: string
+  /** 付款失败等处理备注（演示投影）。 */
+  paymentNote?: string
+  /** 历史处理记录（只追加）。 */
+  history: WithdrawalHistoryEntry[]
 }
+
+/** 提现处理历史条目（演示投影，只追加不可覆盖）。 */
+export interface WithdrawalHistoryEntry {
+  action: 'SUBMIT' | 'APPROVE' | 'REJECT' | 'PAYMENT_SUCCESS' | 'PAYMENT_FAILED' | 'REVERSE'
+  at: string
+  note: string
+}
+
+export type WithdrawalReviewDecision = 'APPROVE' | 'REJECT'
+export type PaymentResult = 'SUCCESS' | 'FAILED'
 
 /** 十条运营队列的计数投影。 */
 export interface OperationsQueueCounts extends Record<OperationsQueue, number> {}
@@ -599,20 +665,45 @@ export interface PlatformOperationService {
   remindExpertTask(taskId: string): Promise<ExpertTaskSummary>
   extendExpertTask(taskId: string, days: number): Promise<ExpertTaskSummary>
   listPlatformAuditLog(): Promise<AuditLogEntry[]>
+  /** Task 4 更正审批（PAGE-020）：列表与审批；批准生成新版本，旧版本只读保留。 */
+  listCorrectionRequests(): Promise<CorrectionRequest[]>
+  /** 专家端发起更正申请（演示：供审批投影装载，见专家端任务流程）。 */
+  requestCorrection(taskId: string, reason: string): Promise<CorrectionRequest>
+  decideCorrection(
+    id: string,
+    decision: CorrectionDecision,
+    reason: string,
+  ): Promise<CorrectionRequest>
+  /** 评阅版本历史：新旧版本均保留且只读。 */
+  listReviewVersions(taskId: string): Promise<ReviewVersion[]>
+  /** Task 4 结算处理（PAGE-022）：提现列表、审核与线下付款回填。 */
+  listWithdrawals(): Promise<WithdrawalRequest[]>
+  reviewWithdrawal(
+    id: string,
+    decision: WithdrawalReviewDecision,
+    reason: string,
+  ): Promise<WithdrawalRequest>
+  recordWithdrawalPayment(
+    id: string,
+    result: PaymentResult,
+    voucher: string,
+  ): Promise<WithdrawalRequest>
 }
 
 /** 平台演示持久化负载（独立 key `baijie-demo-platform:v1`，见 platformPersistence.ts）。 */
 export interface PlatformState {
   experts: ExpertProfile[]
   expertTasks: ExpertTaskSummary[]
-  /** Task 4 更正申请；本轮预留为空列表。 */
+  /** 评阅更正申请（PAGE-020 数据源，演示投影）。 */
   correctionRequests: CorrectionRequest[]
-  /** Task 4 提现申请；本轮预留为空列表。 */
+  /** 专家提现申请（PAGE-022 数据源，演示投影）。 */
   withdrawals: WithdrawalRequest[]
   /** Task 3 起：运营派单论文投影（本地演示快照）。 */
   dispatchTheses: DispatchThesisSeed[]
   /** Task 3 起：关键操作审计（演示投影）。 */
   auditLog: AuditLogEntry[]
+  /** Task 4 起：评阅版本历史（新旧版本均保留，只读）。 */
+  reviewVersions: ReviewVersion[]
 }
 
 export class PlatformOperationError extends Error {

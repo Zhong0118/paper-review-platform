@@ -64,6 +64,13 @@ function createUnavailableService(): ScenarioService {
     remindExpertTask: unavailable,
     extendExpertTask: unavailable,
     listPlatformAuditLog: unavailable,
+    listCorrectionRequests: unavailable,
+    requestCorrection: unavailable,
+    decideCorrection: unavailable,
+    listReviewVersions: unavailable,
+    listWithdrawals: unavailable,
+    reviewWithdrawal: unavailable,
+    recordWithdrawalPayment: unavailable,
     loadPlatformScenario: unavailable,
     reset: unavailable,
   }

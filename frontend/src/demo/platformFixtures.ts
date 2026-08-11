@@ -1,13 +1,77 @@
 import type {
   AuditLogEntry,
+  CorrectionRequest,
   DispatchStatus,
   DispatchThesisSeed,
   ExpertProfile,
   OperationsQueueCounts,
   PlatformState,
+  ReviewVersion,
+  WithdrawalRequest,
 } from './types'
 
 export type { PlatformState }
+
+/** 演示批次固定费用标准（与平台运营服务 dispatchFeeStandard 一致）。 */
+export const dispatchFeeStandard = 300
+
+/**
+ * 演示评审版本（只读快照，非真实论文内容）。专家最终提交后生成；
+ * 版本号 R1 为初始版本，R2 起由更正审批「批准并生成新版本」产生。
+ */
+export const demoReviewVersions: ReviewVersion[] = [
+  {
+    id: 'review-version-r1',
+    version: 'R1',
+    status: 'CURRENT',
+    score: 86,
+    submittedAt: '2026-08-24 16:40',
+    readonly: true,
+  },
+]
+
+/** 演示收款信息：仅脱敏展示，完整账号永不出现在投影中（见 §8 演示数据边界）。 */
+const MASKED_BANK = '招商银行（**** **** **** 1234）'
+
+/** 更正申请演示种子（PAGE-020 数据源；本地快照，非真实论文原文）。 */
+export const demoCorrectionRequests: CorrectionRequest[] = [
+  {
+    id: 'COR-2026-014',
+    taskId: 'task-e-2026-042',
+    anonymousId: 'HY-2026-0042',
+    expertId: 'expert-31',
+    expertName: '宋清和',
+    status: 'PENDING',
+    reason: '补充遗漏的实验限制说明',
+    requestedAt: '2026-08-26 09:12',
+    proposedDiff: '研究方法维度（20 分）由 17 分更正为 18 分；写作规范维度（10 分）由 9 分更正为 8 分。',
+    evidence: '附件：实验环境补充说明（PDF，模拟校验通过）。',
+    version: 'R1',
+  },
+]
+
+/** 提现申请演示种子（PAGE-022 数据源；本地快照，不模拟真实支付）。 */
+export const demoWithdrawals: WithdrawalRequest[] = [
+  {
+    id: 'WD-2026-0088',
+    expertId: 'expert-17',
+    expertName: '周明远',
+    amount: 300,
+    status: 'PENDING',
+    requestedAt: '2026-08-25 10:20',
+    withdrawableBasis: '已完成 46 篇有效评阅，其中 2 篇处于结算周期；当前可提现余额 ¥ 300.00。',
+    freezeLedger: '冻结流水：2026-08-25 提现申请 WD-2026-0088 冻结 ¥ 300.00。',
+    bankName: '招商银行',
+    maskedAccount: MASKED_BANK,
+    history: [
+      {
+        action: 'SUBMIT',
+        at: '2026-08-25 10:20',
+        note: '专家提交提现申请，冻结可提现余额 ¥ 300.00。',
+      },
+    ],
+  },
+]
 
 /** 平台运营端专家库初始档案；复用派单页候选专家数据（周明远/顾远航/宋清和）。 */
 export const demoExpertProfiles: ExpertProfile[] = [
@@ -134,6 +198,7 @@ export function createInitialPlatformState(): PlatformState {
     withdrawals: [],
     auditLog: [],
     dispatchTheses: structuredClone(dispatchThesisSeeds),
+    reviewVersions: structuredClone(demoReviewVersions),
   }
 }
 
@@ -184,4 +249,37 @@ export function initialAuditEntries(): AuditLogEntry[] {
       occurredAt: '2026-08-11 09:00',
     },
   ]
+}
+
+/**
+ * Task 4 演示场景：待审批更正申请 + 待审核提现。
+ * 论文 thesis-main 已完成评阅（SUBMITTED），版本 R1 为只读初始版本；
+ * 更正申请与提现申请为本地快照，不读取论文原始版，也不模拟真实支付。
+ */
+export function createCorrectionSettlementScenario(): PlatformState {
+  const base = createInitialPlatformState()
+  const mainThesis = structuredClone(dispatchThesisSeeds[0])
+  return {
+    ...base,
+    expertTasks: [
+      {
+        id: 'task-e-2026-042',
+        thesisId: 'thesis-main',
+        expertId: 'expert-31',
+        anonymousId: mainThesis.anonymousId,
+        anonymousTitle: mainThesis.title,
+        discipline: { ...mainThesis.discipline },
+        status: 'SUBMITTED',
+        fee: dispatchFeeStandard,
+        dueAt: '2026-08-28 18:00',
+        overdue: false,
+        round: 1,
+      },
+    ],
+    dispatchTheses: [{ ...mainThesis, status: 'COMPLETED' }],
+    correctionRequests: structuredClone(demoCorrectionRequests),
+    withdrawals: structuredClone(demoWithdrawals),
+    reviewVersions: structuredClone(demoReviewVersions),
+    auditLog: initialAuditEntries(),
+  }
 }
