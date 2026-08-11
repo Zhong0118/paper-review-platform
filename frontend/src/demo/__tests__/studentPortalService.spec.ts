@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { createScenarioService } from '../scenarioService'
+import type { ThesisFileMeta } from '../types'
 
 function createMemoryStorage() {
   const values = new Map<string, string>()
@@ -12,6 +13,110 @@ function createMemoryStorage() {
 }
 
 describe('student portal service', () => {
+  it('persists the abstract and exact file metadata across service reconstruction', async () => {
+    const storage = createMemoryStorage()
+    const service = createScenarioService({ storage, demoMode: true })
+    const files = [
+      {
+        id: 'file-original-1',
+        name: 'complete-original.pdf',
+        size: 4321,
+        mimeType: 'application/pdf',
+        purpose: 'SCHOOL_ARCHIVE' as const,
+        validationStatus: 'VALID' as const,
+      },
+      {
+        id: 'file-anonymous-1',
+        name: 'complete-anonymous.pdf',
+        size: 3210,
+        mimeType: 'application/pdf',
+        purpose: 'EXPERT_REVIEW' as const,
+        validationStatus: 'REVIEW_REQUIRED' as const,
+      },
+    ]
+
+    await service.saveStudentDraft('thesis-main', {
+      title: '完整材料持久化测试',
+      abstract: '跨服务实例仍应恢复的摘要。',
+      discipline: { code: '0812', name: '计算机科学与技术' },
+      keywords: ['持久化'],
+      files,
+    })
+
+    const restored = await createScenarioService({ storage, demoMode: true }).getStudentThesis(
+      'thesis-main',
+    )
+    expect(restored.abstract).toBe('跨服务实例仍应恢复的摘要。')
+    expect(restored.files).toEqual(files)
+  })
+
+  it('projects file metadata through a strict JSON-safe persistence boundary', async () => {
+    const storage = createMemoryStorage()
+    const service = createScenarioService({ storage, demoMode: true })
+    const unsafeFile = {
+      id: 'file-safe-boundary',
+      name: 'safe-boundary.pdf',
+      size: 4,
+      mimeType: 'application/pdf',
+      purpose: 'SCHOOL_ARCHIVE' as const,
+      validationStatus: 'VALID' as const,
+      binary: new File(['body'], 'unsafe.pdf', { type: 'application/pdf' }),
+      internalNote: 'must-not-persist',
+    } satisfies ThesisFileMeta & { binary: File; internalNote: string }
+
+    await service.saveStudentDraft('thesis-main', {
+      title: '持久化边界',
+      abstract: '只允许六个元数据字段。',
+      discipline: { code: '0812', name: '计算机科学与技术' },
+      keywords: ['边界'],
+      files: [unsafeFile],
+    })
+
+    const persisted = JSON.parse(storage.getItem('baijie-demo-student:v1')!)
+    const storedFile = persisted.student.fileMetadataByThesis['thesis-main'][0]
+    expect(Object.keys(storedFile).sort()).toEqual(
+      ['id', 'mimeType', 'name', 'purpose', 'size', 'validationStatus'].sort(),
+    )
+    expect(JSON.stringify(persisted)).not.toContain('must-not-persist')
+    expect(JSON.stringify(persisted)).not.toContain('body')
+  })
+
+  it.each(['PENDING', 'INVALID'] as const)(
+    'rejects submission while original material metadata is %s',
+    async (validationStatus) => {
+      const service = createScenarioService({ storage: createMemoryStorage(), demoMode: true })
+      const draft = await service.createStudentDraft()
+      await service.saveStudentDraft(draft.id, {
+        title: '材料仍在校验',
+        abstract: '摘要已填写。',
+        discipline: { code: '0812', name: '计算机科学与技术' },
+        keywords: ['校验'],
+        files: [
+          {
+            id: 'pending-original',
+            name: 'pending.pdf',
+            size: 10,
+            mimeType: 'application/pdf',
+            purpose: 'SCHOOL_ARCHIVE',
+            validationStatus,
+          },
+          {
+            id: 'valid-anonymous',
+            name: 'anonymous.pdf',
+            size: 9,
+            mimeType: 'application/pdf',
+            purpose: 'EXPERT_REVIEW',
+            validationStatus: 'VALID',
+          },
+        ],
+      })
+
+      await expect(service.submitStudentThesis(draft.id)).rejects.toMatchObject({
+        code: 'ILLEGAL_ACTION',
+      })
+    },
+  )
+
   it('allows only legal student actions and keeps related projections in sync', async () => {
     const storage = createMemoryStorage()
     const service = createScenarioService({ storage, demoMode: true })
@@ -52,10 +157,19 @@ describe('student portal service', () => {
     const deleted = await service.createStudentDraft()
     await service.saveStudentDraft(deleted.id, {
       title: '即将删除的草稿',
+      abstract: '删除后不应泄漏。',
       discipline: { code: '0812', name: '计算机科学与技术' },
       keywords: ['删除测试'],
-      originalFileName: 'deleted-original.pdf',
-      anonymousFileName: 'deleted-anonymous.pdf',
+      files: [
+        {
+          id: 'deleted-original',
+          name: 'deleted-original.pdf',
+          size: 100,
+          mimeType: 'application/pdf',
+          purpose: 'SCHOOL_ARCHIVE',
+          validationStatus: 'VALID',
+        },
+      ],
     })
 
     await service.deleteStudentDraft(deleted.id)
@@ -129,10 +243,10 @@ describe('student portal service', () => {
     const foreignThesisId = 'thesis-0048'
     const draftInput = {
       title: '不应写入的论文',
+      abstract: '越权摘要',
       discipline: { code: '0812', name: '计算机科学与技术' },
       keywords: ['越权'],
-      originalFileName: 'foreign.pdf',
-      anonymousFileName: 'foreign-anonymous.pdf',
+      files: [],
     }
 
     expect((await service.listStudentTheses()).map((thesis) => thesis.id)).not.toContain(
@@ -160,39 +274,56 @@ describe('student portal service', () => {
     const service = createScenarioService({ storage, demoMode: true })
 
     expect((await service.getStudentThesis('thesis-main')).files).toContainEqual({
-      kind: 'ORIGINAL',
+      id: 'file-thesis-main-original',
       purpose: 'SCHOOL_ARCHIVE',
-      fileName: '林知远-硕士学位论文.pdf',
-      sizeBytes: 3145728,
+      name: '林知远-硕士学位论文.pdf',
+      size: 3145728,
       mimeType: 'application/pdf',
       validationStatus: 'VALID',
     })
 
     await service.saveStudentDraft('thesis-main', {
       title: '更新后的论文题目',
+      abstract: '仅保存元数据，不保存文件正文。',
       discipline: { code: '0812', name: '计算机科学与技术' },
       keywords: ['持久化'],
-      originalFileName: 'changed-original.pdf',
-      anonymousFileName: 'changed-anonymous.pdf',
+      files: [
+        {
+          id: 'changed-original',
+          name: 'changed-original.pdf',
+          size: 1234,
+          mimeType: 'application/pdf',
+          purpose: 'SCHOOL_ARCHIVE',
+          validationStatus: 'VALID',
+        },
+        {
+          id: 'changed-anonymous',
+          name: 'changed-anonymous.pdf',
+          size: 1200,
+          mimeType: 'application/pdf',
+          purpose: 'EXPERT_REVIEW',
+          validationStatus: 'REVIEW_REQUIRED',
+        },
+      ],
     })
 
     const restored = createScenarioService({ storage, demoMode: true })
     expect((await restored.getStudentThesis('thesis-main')).files).toEqual([
       {
-        kind: 'ORIGINAL',
+        id: 'changed-original',
         purpose: 'SCHOOL_ARCHIVE',
-        fileName: 'changed-original.pdf',
-        sizeBytes: 0,
+        name: 'changed-original.pdf',
+        size: 1234,
         mimeType: 'application/pdf',
-        validationStatus: 'PENDING',
+        validationStatus: 'VALID',
       },
       {
-        kind: 'ANONYMOUS',
+        id: 'changed-anonymous',
         purpose: 'EXPERT_REVIEW',
-        fileName: 'changed-anonymous.pdf',
-        sizeBytes: 0,
+        name: 'changed-anonymous.pdf',
+        size: 1200,
         mimeType: 'application/pdf',
-        validationStatus: 'PENDING',
+        validationStatus: 'REVIEW_REQUIRED',
       },
     ])
   })
@@ -202,10 +333,27 @@ describe('student portal service', () => {
     const service = createScenarioService({ storage, demoMode: true })
     await service.saveStudentDraft('thesis-main', {
       title: '旧版快照中的论文',
+      abstract: '旧版摘要',
       discipline: { code: '0812', name: '计算机科学与技术' },
       keywords: ['旧版快照'],
-      originalFileName: 'legacy-changed-original.pdf',
-      anonymousFileName: 'legacy-changed-anonymous.pdf',
+      files: [
+        {
+          id: 'legacy-original',
+          name: 'legacy-changed-original.pdf',
+          size: 100,
+          mimeType: 'application/pdf',
+          purpose: 'SCHOOL_ARCHIVE',
+          validationStatus: 'VALID',
+        },
+        {
+          id: 'legacy-anonymous',
+          name: 'legacy-changed-anonymous.pdf',
+          size: 90,
+          mimeType: 'application/pdf',
+          purpose: 'EXPERT_REVIEW',
+          validationStatus: 'VALID',
+        },
+      ],
     })
     const persisted = JSON.parse(storage.getItem('baijie-demo-student:v1')!)
     delete persisted.student.fileMetadataByThesis
@@ -215,20 +363,60 @@ describe('student portal service', () => {
 
     expect((await restored.getStudentThesis('thesis-main')).files).toEqual([
       {
-        kind: 'ORIGINAL',
+        id: 'file-thesis-main-original',
         purpose: 'SCHOOL_ARCHIVE',
-        fileName: 'legacy-changed-original.pdf',
-        sizeBytes: 0,
+        name: 'legacy-changed-original.pdf',
+        size: 0,
         mimeType: 'application/pdf',
         validationStatus: 'PENDING',
       },
       {
-        kind: 'ANONYMOUS',
+        id: 'file-thesis-main-anonymous',
         purpose: 'EXPERT_REVIEW',
-        fileName: 'legacy-changed-anonymous.pdf',
-        sizeBytes: 0,
+        name: 'legacy-changed-anonymous.pdf',
+        size: 0,
         mimeType: 'application/pdf',
         validationStatus: 'PENDING',
+      },
+    ])
+  })
+
+  it('migrates legacy v1 file metadata objects to the complete metadata contract', async () => {
+    const storage = createMemoryStorage()
+    const service = createScenarioService({ storage, demoMode: true })
+    await service.saveStudentDraft('thesis-main', {
+      title: '旧元数据对象',
+      abstract: '旧元数据对象迁移摘要',
+      discipline: { code: '0812', name: '计算机科学与技术' },
+      keywords: ['迁移'],
+      files: [],
+    })
+    const persisted = JSON.parse(storage.getItem('baijie-demo-student:v1')!)
+    persisted.student.fileMetadataByThesis['thesis-main'] = [
+      {
+        kind: 'ANONYMOUS',
+        purpose: 'EXPERT_REVIEW',
+        fileName: 'legacy-shape.pdf',
+        sizeBytes: 765,
+        mimeType: 'application/pdf',
+        validationStatus: 'VALID',
+      },
+    ]
+    storage.setItem('baijie-demo-student:v1', JSON.stringify(persisted))
+
+    const restored = await createScenarioService({
+      storage,
+      demoMode: true,
+    }).getStudentThesis('thesis-main')
+
+    expect(restored.files).toEqual([
+      {
+        id: 'file-thesis-main-anonymous',
+        name: 'legacy-shape.pdf',
+        size: 765,
+        mimeType: 'application/pdf',
+        purpose: 'EXPERT_REVIEW',
+        validationStatus: 'VALID',
       },
     ])
   })

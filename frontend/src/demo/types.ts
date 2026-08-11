@@ -114,19 +114,23 @@ export interface StudentTimelineEvent {
   message: string
 }
 
-export interface StudentFileMetadata {
-  kind: 'ORIGINAL' | 'ANONYMOUS'
-  purpose: 'SCHOOL_ARCHIVE' | 'EXPERT_REVIEW'
-  fileName: string
-  sizeBytes: number
+export interface ThesisFileMeta {
+  id: string
+  name: string
+  size: number
   mimeType: string
-  validationStatus: 'VALID' | 'PENDING' | 'INVALID'
+  purpose: 'SCHOOL_ARCHIVE' | 'EXPERT_REVIEW'
+  validationStatus: 'VALID' | 'REVIEW_REQUIRED' | 'PENDING' | 'INVALID'
 }
+
+/** @deprecated Use ThesisFileMeta for new student material flows. */
+export type StudentFileMetadata = ThesisFileMeta
 
 export interface StudentThesisDetail {
   id: string
   anonymousId: string
   title: string
+  abstract: string
   studentId: string
   studentName: string
   batchId: string
@@ -141,8 +145,13 @@ export interface StudentThesisDetail {
   timeline: StudentTimelineEvent[]
   submissionSource: SubmissionSource
   student: Readonly<{ id: string; name: string; tenantName: string }>
-  form: { title: string; discipline: { code: string; name: string }; keywords: string[] }
-  files: StudentFileMetadata[]
+  form: {
+    title: string
+    abstract: string
+    discipline: { code: string; name: string }
+    keywords: string[]
+  }
+  files: ThesisFileMeta[]
   updatedAt: string
 }
 
@@ -152,10 +161,10 @@ export interface StudentThesisQuery {
 
 export interface StudentDraftInput {
   title: string
+  abstract: string
   discipline: { code: string; name: string }
   keywords: string[]
-  originalFileName: string
-  anonymousFileName: string
+  files: ThesisFileMeta[]
 }
 
 export interface StudentWithdrawalRequest {

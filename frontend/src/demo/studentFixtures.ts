@@ -1,7 +1,7 @@
 import type {
   DemoPublishedResult,
   StudentEligibility,
-  StudentFileMetadata,
+  ThesisFileMeta,
   StudentNotification,
   StudentObjection,
   StudentTimelineEvent,
@@ -14,7 +14,8 @@ export interface StudentPortalState {
   timelines: Record<string, StudentTimelineEvent[]>
   objections: StudentObjection[]
   withdrawalRequests: StudentWithdrawalRequest[]
-  fileMetadataByThesis: Record<string, StudentFileMetadata[]>
+  abstractsByThesis: Record<string, string>
+  fileMetadataByThesis: Record<string, ThesisFileMeta[]>
   resultsByThesis: Record<string, DemoPublishedResult[]>
   nextDraftSequence: number
 }
@@ -42,39 +43,43 @@ export function createInitialStudentPortalState(): StudentPortalState {
     },
     objections: [],
     withdrawalRequests: [],
+    abstractsByThesis: {
+      'thesis-main': '研究面向复杂场景中的多模态知识推理方法与可信机制。',
+      'thesis-0031': '研究面向边缘环境的可信联邦学习方法。',
+    },
     fileMetadataByThesis: {
       'thesis-main': [
         {
-          kind: 'ORIGINAL',
+          id: 'file-thesis-main-original',
           purpose: 'SCHOOL_ARCHIVE',
-          fileName: '林知远-硕士学位论文.pdf',
-          sizeBytes: 3145728,
+          name: '林知远-硕士学位论文.pdf',
+          size: 3145728,
           mimeType: 'application/pdf',
           validationStatus: 'VALID',
         },
         {
-          kind: 'ANONYMOUS',
+          id: 'file-thesis-main-anonymous',
           purpose: 'EXPERT_REVIEW',
-          fileName: 'HY-2026-0042-匿名版.pdf',
-          sizeBytes: 2988441,
+          name: 'HY-2026-0042-匿名版.pdf',
+          size: 2988441,
           mimeType: 'application/pdf',
           validationStatus: 'VALID',
         },
       ],
       'thesis-0031': [
         {
-          kind: 'ORIGINAL',
+          id: 'file-thesis-0031-original',
           purpose: 'SCHOOL_ARCHIVE',
-          fileName: '20260042-联邦学习.pdf',
-          sizeBytes: 2675510,
+          name: '20260042-联邦学习.pdf',
+          size: 2675510,
           mimeType: 'application/pdf',
           validationStatus: 'VALID',
         },
         {
-          kind: 'ANONYMOUS',
+          id: 'file-thesis-0031-anonymous',
           purpose: 'EXPERT_REVIEW',
-          fileName: 'HY-2025-0031-匿名版.pdf',
-          sizeBytes: 2516582,
+          name: 'HY-2025-0031-匿名版.pdf',
+          size: 2516582,
           mimeType: 'application/pdf',
           validationStatus: 'VALID',
         },

@@ -4,7 +4,6 @@ import type {
   DemoThesisSummary,
   StudentAction,
   StudentDraftInput,
-  StudentFileMetadata,
   StudentNotification,
   StudentObjectionInput,
   StudentPortalService,
@@ -13,6 +12,7 @@ import type {
   StudentThesisDetail,
   StudentThesisQuery,
   StudentTimelineEvent,
+  ThesisFileMeta,
   StudentVisibleStage,
   StudentWithdrawalRequest,
 } from '@/demo/types'
@@ -66,6 +66,17 @@ function actionsFor(thesis: DemoThesisSummary): StudentAction[] {
   return []
 }
 
+function persistedFileMeta(file: ThesisFileMeta): ThesisFileMeta {
+  return {
+    id: file.id,
+    name: file.name,
+    size: file.size,
+    mimeType: file.mimeType,
+    purpose: file.purpose,
+    validationStatus: file.validationStatus,
+  }
+}
+
 export function createStudentPortalService(deps: StudentPortalDependencies): StudentPortalService {
   const findThesis = (id: string) => {
     const thesis = deps.getTheses().find((item) => item.id === id)
@@ -86,6 +97,7 @@ export function createStudentPortalService(deps: StudentPortalDependencies): Stu
       id: thesis.id,
       anonymousId: thesis.anonymousId,
       title: thesis.title,
+      abstract: state.abstractsByThesis[thesis.id] ?? '',
       studentId: thesis.studentId,
       studentName: thesis.studentName,
       batchId: thesis.batchId,
@@ -102,6 +114,7 @@ export function createStudentPortalService(deps: StudentPortalDependencies): Stu
       student: { id: thesis.studentId, name: thesis.studentName, tenantName: '海岳大学' },
       form: {
         title: thesis.title,
+        abstract: state.abstractsByThesis[thesis.id] ?? '',
         discipline: thesis.discipline,
         keywords: thesis.keywords,
       },
@@ -169,44 +182,52 @@ export function createStudentPortalService(deps: StudentPortalDependencies): Stu
     saveStudentDraft: async (id: string, input: StudentDraftInput) => {
       const thesis = findThesis(id)
       ensureAction(thesis, 'EDIT_THESIS')
+      const originalFile = input.files.find((file) => file.purpose === 'SCHOOL_ARCHIVE')
+      const anonymousFile = input.files.find((file) => file.purpose === 'EXPERT_REVIEW')
       const updated = {
         ...thesis,
         title: input.title,
         discipline: { ...input.discipline },
         keywords: [...input.keywords],
-        originalFileName: input.originalFileName,
-        anonymousFileName: input.anonymousFileName,
+        originalFileName: originalFile?.name ?? '',
+        anonymousFileName: anonymousFile?.name ?? '',
         updatedAt: timestamp,
       }
       deps.replaceThesis(updated)
       const state = deps.getState()
-      const files: StudentFileMetadata[] = [
-        {
-          kind: 'ORIGINAL',
-          purpose: 'SCHOOL_ARCHIVE',
-          fileName: input.originalFileName,
-          sizeBytes: 0,
-          mimeType: 'application/pdf',
-          validationStatus: 'PENDING',
-        },
-        {
-          kind: 'ANONYMOUS',
-          purpose: 'EXPERT_REVIEW',
-          fileName: input.anonymousFileName,
-          sizeBytes: 0,
-          mimeType: 'application/pdf',
-          validationStatus: 'PENDING',
-        },
-      ]
       deps.setState({
         ...state,
-        fileMetadataByThesis: { ...state.fileMetadataByThesis, [id]: files },
+        abstractsByThesis: { ...state.abstractsByThesis, [id]: input.abstract },
+        fileMetadataByThesis: {
+          ...state.fileMetadataByThesis,
+          [id]: input.files.map(persistedFileMeta),
+        },
       })
       return detail(updated)
     },
     submitStudentThesis: async (id: string) => {
       const thesis = findThesis(id)
       ensureAction(thesis, 'EDIT_THESIS')
+      const state = deps.getState()
+      const files = state.fileMetadataByThesis[id] ?? []
+      const hasOriginal = files.some(
+        (file) => file.purpose === 'SCHOOL_ARCHIVE' && file.validationStatus === 'VALID',
+      )
+      const hasAnonymous = files.some(
+        (file) =>
+          file.purpose === 'EXPERT_REVIEW' &&
+          ['VALID', 'REVIEW_REQUIRED'].includes(file.validationStatus),
+      )
+      if (
+        !thesis.title.trim() ||
+        !(state.abstractsByThesis[id] ?? '').trim() ||
+        !thesis.discipline.code ||
+        thesis.keywords.length === 0 ||
+        !hasOriginal ||
+        !hasAnonymous
+      ) {
+        throw new StudentPortalError('ILLEGAL_ACTION', '论文材料不完整或文件尚未通过校验。')
+      }
       const updated = { ...thesis, stage: 'SUBMITTED' as const, updatedAt: timestamp }
       deps.replaceThesis(updated)
       if (id === 'thesis-main') deps.setMainStage('SUBMITTED')
@@ -230,8 +251,9 @@ export function createStudentPortalService(deps: StudentPortalDependencies): Stu
       ensureAction(thesis, 'DELETE_DRAFT')
       const state = deps.getState()
       const { [id]: _removedFiles, ...fileMetadataByThesis } = state.fileMetadataByThesis
+      const { [id]: _removedAbstract, ...abstractsByThesis } = state.abstractsByThesis
       const { [id]: _removedTimeline, ...timelines } = state.timelines
-      deps.setState({ ...state, fileMetadataByThesis, timelines })
+      deps.setState({ ...state, abstractsByThesis, fileMetadataByThesis, timelines })
       deps.removeThesis(id)
     },
     withdrawStudentThesis: async (id: string, reason: string) => {

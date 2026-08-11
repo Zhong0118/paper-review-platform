@@ -141,4 +141,16 @@ describe('discipline and keyword inputs', () => {
 
     expect(wrapper.emitted('update:modelValue')?.[0]).toEqual([['多模态推理']])
   })
+
+  it('stops at five keywords with an actionable message', async () => {
+    const wrapper = mount(KeywordTagInput, {
+      props: { modelValue: ['一', '二', '三', '四', '五'] },
+    })
+
+    await wrapper.get('input').setValue('六')
+    await wrapper.get('input').trigger('keydown.enter')
+
+    expect(wrapper.emitted('update:modelValue')).toBeUndefined()
+    expect(wrapper.text()).toContain('最多填写 5 个关键词')
+  })
 })

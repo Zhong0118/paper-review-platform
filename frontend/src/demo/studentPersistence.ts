@@ -1,6 +1,6 @@
 import { createInitialScenarioState, type DemoScenarioState } from './fixtures'
 import { createInitialStudentPortalState, type StudentPortalState } from './studentFixtures'
-import type { DemoThesisSummary, StorageLike, StudentFileMetadata } from './types'
+import type { DemoThesisSummary, StorageLike, ThesisFileMeta } from './types'
 
 export const studentPersistenceKey = 'baijie-demo-student:v1'
 
@@ -16,15 +16,15 @@ export interface LoadedStudentDemo {
   reset: boolean
 }
 
-function defaultFileMetadata(thesis: DemoThesisSummary): StudentFileMetadata[] {
+function defaultFileMetadata(thesis: DemoThesisSummary): ThesisFileMeta[] {
   return [
     ...(thesis.originalFileName
       ? [
           {
-            kind: 'ORIGINAL' as const,
+            id: `file-${thesis.id}-original`,
             purpose: 'SCHOOL_ARCHIVE' as const,
-            fileName: thesis.originalFileName,
-            sizeBytes: 0,
+            name: thesis.originalFileName,
+            size: 0,
             mimeType: 'application/pdf',
             validationStatus: 'PENDING' as const,
           },
@@ -33,10 +33,10 @@ function defaultFileMetadata(thesis: DemoThesisSummary): StudentFileMetadata[] {
     ...(thesis.anonymousFileName
       ? [
           {
-            kind: 'ANONYMOUS' as const,
+            id: `file-${thesis.id}-anonymous`,
             purpose: 'EXPERT_REVIEW' as const,
-            fileName: thesis.anonymousFileName,
-            sizeBytes: 0,
+            name: thesis.anonymousFileName,
+            size: 0,
             mimeType: 'application/pdf',
             validationStatus: 'PENDING' as const,
           },
@@ -47,6 +47,57 @@ function defaultFileMetadata(thesis: DemoThesisSummary): StudentFileMetadata[] {
 
 function deriveFileMetadata(theses: DemoThesisSummary[]) {
   return Object.fromEntries(theses.map((thesis) => [thesis.id, defaultFileMetadata(thesis)]))
+}
+
+function normalizeFileMetadata(thesisId: string, value: unknown): ThesisFileMeta[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((entry, index) => {
+    if (!entry || typeof entry !== 'object') return []
+    const source = entry as Record<string, unknown>
+    const purpose =
+      source.purpose === 'SCHOOL_ARCHIVE' || source.purpose === 'EXPERT_REVIEW'
+        ? source.purpose
+        : source.kind === 'ANONYMOUS'
+          ? 'EXPERT_REVIEW'
+          : 'SCHOOL_ARCHIVE'
+    const name = typeof source.name === 'string' ? source.name : source.fileName
+    if (typeof name !== 'string') return []
+    const validationStatus = ['VALID', 'REVIEW_REQUIRED', 'PENDING', 'INVALID'].includes(
+      String(source.validationStatus),
+    )
+      ? (source.validationStatus as ThesisFileMeta['validationStatus'])
+      : 'PENDING'
+    return [
+      {
+        id:
+          typeof source.id === 'string'
+            ? source.id
+            : `file-${thesisId}-${purpose === 'EXPERT_REVIEW' ? 'anonymous' : 'original'}${
+                index > 1 ? `-${index}` : ''
+              }`,
+        name,
+        size:
+          typeof source.size === 'number'
+            ? source.size
+            : typeof source.sizeBytes === 'number'
+              ? source.sizeBytes
+              : 0,
+        mimeType: typeof source.mimeType === 'string' ? source.mimeType : 'application/pdf',
+        purpose,
+        validationStatus,
+      },
+    ]
+  })
+}
+
+function normalizeFileMetadataByThesis(value: unknown): Record<string, ThesisFileMeta[]> {
+  if (!value || typeof value !== 'object') return {}
+  return Object.fromEntries(
+    Object.entries(value).map(([thesisId, files]) => [
+      thesisId,
+      normalizeFileMetadata(thesisId, files),
+    ]),
+  )
 }
 
 function deriveNextDraftSequence(theses: DemoThesisSummary[]) {
@@ -74,14 +125,16 @@ export function loadStudentDemo(storage: StorageLike): LoadedStudentDemo {
       throw new Error('unsupported')
     const fixture = createInitialStudentPortalState()
     const derivedFileMetadata = deriveFileMetadata(saved.scenario.theses)
+    const savedFileMetadata = normalizeFileMetadataByThesis(saved.student.fileMetadataByThesis)
     return {
       scenario: saved.scenario,
       student: {
         ...fixture,
         ...saved.student,
+        abstractsByThesis: saved.student.abstractsByThesis ?? fixture.abstractsByThesis,
         fileMetadataByThesis: {
           ...derivedFileMetadata,
-          ...(saved.student.fileMetadataByThesis ?? {}),
+          ...savedFileMetadata,
         },
         resultsByThesis: saved.student.resultsByThesis ?? fixture.resultsByThesis,
         nextDraftSequence:
