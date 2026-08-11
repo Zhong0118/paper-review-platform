@@ -33,6 +33,7 @@ const submitting = ref(false)
 const cancelConfirmation = ref<HTMLButtonElement>()
 const confirmSubmission = ref<HTMLButtonElement>()
 const overlayOpener = ref<HTMLElement | null>(null)
+const pageRoot = ref<HTMLElement>()
 
 const selectedThesisId = computed(() => selectedThesis.value?.id ?? '')
 const latestPublicEvent = computed(() => selectedThesis.value?.timeline.at(-1))
@@ -102,15 +103,20 @@ function requestObjectionConfirmation(input: StudentObjectionInput) {
   void nextTick(() => cancelConfirmation.value?.focus())
 }
 
-function closeConfirmation() {
+async function closeConfirmation() {
   confirmationInput.value = null
-  void nextTick(() => overlayOpener.value?.focus())
+  await nextTick()
+  const focusTarget =
+    pageRoot.value?.querySelector<HTMLElement>('[data-objection-status]') ??
+    (overlayOpener.value?.isConnected ? overlayOpener.value : null)
+  focusTarget?.focus()
+  overlayOpener.value = null
 }
 
 function trapConfirmationFocus(event: KeyboardEvent) {
   if (event.key === 'Escape') {
     event.preventDefault()
-    closeConfirmation()
+    void closeConfirmation()
     return
   }
   if (event.key !== 'Tab') return
@@ -131,14 +137,13 @@ async function confirmObjection() {
   const thesisId = selectedThesis.value.id
   try {
     await service.submitStudentObjection(thesisId, confirmationInput.value)
-    confirmationInput.value = null
     await loadSelected(thesisId)
     feedback.value = '异议已提交，学校受理后会更新处理状态。'
   } catch (submitError) {
-    confirmationInput.value = null
     feedback.value = errorMessage(submitError)
   } finally {
     submitting.value = false
+    await closeConfirmation()
   }
 }
 
@@ -160,7 +165,7 @@ onMounted(() => void loadPage())
     :user-name="authStore.user?.displayName ?? '林知远'"
     :background-locked="Boolean(confirmationInput)"
   >
-    <div class="student-result-page">
+    <div ref="pageRoot" class="student-result-page">
       <PageHeader
         eyebrow="PAGE-012 · STUDENT RESULT"
         title="评审结果与异议"

@@ -118,11 +118,22 @@ describe('student result and objection workflow', () => {
     await wrapper.get('[data-action="submit-objection"]').trigger('click')
     expect(wrapper.text()).toContain('请填写异议理由')
     expect(wrapper.find('[data-action="confirm-objection"]').exists()).toBe(false)
+    const reason = wrapper.get<HTMLTextAreaElement>('textarea[name="reason"]')
+    const request = wrapper.get<HTMLTextAreaElement>('textarea[name="request"]')
+    expect(reason.attributes('aria-invalid')).toBe('true')
+    expect(request.attributes('aria-invalid')).toBe('true')
+    expect(reason.attributes('aria-describedby')).toBe(
+      wrapper.get('[data-error-for="reason"]').attributes('id'),
+    )
+    expect(document.activeElement).toBe(reason.element)
 
-    await wrapper.get('textarea[name="reason"]').setValue('对评价依据存在疑问')
+    await reason.setValue('对评价依据存在疑问')
     await wrapper.get('[data-action="submit-objection"]').trigger('click')
     expect(wrapper.text()).toContain('请填写处理诉求')
     expect(wrapper.find('[data-action="confirm-objection"]').exists()).toBe(false)
+    expect(reason.attributes('aria-invalid')).toBeUndefined()
+    expect(request.attributes('aria-invalid')).toBe('true')
+    expect(document.activeElement).toBe(request.element)
   })
 
   it('keeps entered text when an attachment fails and blocks submission until replacement', async () => {
@@ -174,6 +185,9 @@ describe('student result and objection workflow', () => {
 
     expect(wrapper.text()).toContain('异议已提交')
     expect(wrapper.get('[data-objection-status="SUBMITTED"]').text()).toContain('已提交')
+    expect(wrapper.get('[data-objection-status="SUBMITTED"]').attributes('tabindex')).toBe('-1')
+    expect(document.activeElement).toBe(wrapper.get('[data-objection-status="SUBMITTED"]').element)
+    expect(wrapper.get('.portal-layout__background').attributes('inert')).toBeUndefined()
     expect(wrapper.find('[data-action="submit-objection"]').exists()).toBe(false)
     const thesis = await service.getStudentThesis('thesis-main')
     expect(thesis.stage).toBe('COMPLETED')
@@ -188,6 +202,61 @@ describe('student result and objection workflow', () => {
         attachments: [],
       }),
     ).rejects.toMatchObject({ code: 'STATE_CONFLICT' })
+  })
+
+  it('closes a failed confirmation through the same focus restoration path', async () => {
+    const service = createScenarioService({ storage: createMemoryStorage(), demoMode: true })
+    await service.loadStudentScenario('COMPLETED')
+    vi.spyOn(service, 'submitStudentObjection').mockRejectedValueOnce(new Error('提交暂时失败'))
+    const { wrapper } = await mountStudentResult(service, '/student/results?thesisId=thesis-main')
+
+    await wrapper.get('textarea[name="reason"]').setValue('对评价依据存在疑问')
+    await wrapper.get('textarea[name="request"]').setValue('申请学校复核处理')
+    const opener = wrapper.get('[data-action="submit-objection"]')
+    ;(opener.element as HTMLButtonElement).focus()
+    await opener.trigger('click')
+    await wrapper.get('[data-action="confirm-objection"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
+    expect(wrapper.get('.portal-layout__background').attributes('inert')).toBeUndefined()
+    expect(document.activeElement).toBe(opener.element)
+    expect(wrapper.text()).toContain('提交暂时失败')
+    expect(wrapper.get('textarea[name="reason"]').element).toHaveProperty(
+      'value',
+      '对评价依据存在疑问',
+    )
+    expect(wrapper.get('textarea[name="request"]').element).toHaveProperty(
+      'value',
+      '申请学校复核处理',
+    )
+  })
+
+  it('notifies the school reviewer without exposing that internal notification to the student', async () => {
+    const service = createScenarioService({ storage: createMemoryStorage(), demoMode: true })
+    await service.loadStudentScenario('COMPLETED')
+
+    await service.submitStudentObjection('thesis-main', {
+      reason: '对评价依据存在疑问',
+      request: '申请学校复核处理',
+      attachments: [],
+    })
+
+    const studentNotifications = await service.listStudentNotifications()
+    const schoolNotifications = await service.listSchoolNotifications()
+    expect(studentNotifications).toContainEqual(
+      expect.objectContaining({ kind: 'OBJECTION_SUBMITTED' }),
+    )
+    expect(studentNotifications).not.toContainEqual(
+      expect.objectContaining({ recipientRole: 'school_reviewer' }),
+    )
+    expect(schoolNotifications).toContainEqual(
+      expect.objectContaining({
+        kind: 'OBJECTION_RECEIVED',
+        recipientRole: 'school_reviewer',
+      }),
+    )
+    expect(JSON.stringify(schoolNotifications)).not.toMatch(/周明远|phone|email/i)
   })
 
   it('projects a resolved objection timeline without changing the completed thesis stage', async () => {

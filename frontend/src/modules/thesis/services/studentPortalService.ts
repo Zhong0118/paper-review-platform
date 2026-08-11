@@ -404,30 +404,50 @@ export function createStudentPortalService(deps: StudentPortalDependencies): Stu
       notify({
         id: `notification-${id}-objection`,
         kind: 'OBJECTION_SUBMITTED',
+        recipientRole: 'student',
         message: '异议已提交，等待处理。',
+        createdAt: timestamp,
+        read: false,
+      })
+      notify({
+        id: `notification-${id}-objection-school`,
+        kind: 'OBJECTION_RECEIVED',
+        recipientRole: 'school_reviewer',
+        message: '收到新的学生异议，请及时受理。',
         createdAt: timestamp,
         read: false,
       })
       return immutable(objection)
     },
-    listStudentNotifications: async () => immutable(deps.getState().notifications),
+    listStudentNotifications: async () =>
+      immutable(
+        deps.getState().notifications.filter((item) => item.recipientRole !== 'school_reviewer'),
+      ),
     markStudentNotificationRead: async (id: string) => {
       const state = deps.getState()
       deps.setState({
         ...state,
         notifications: state.notifications.map((item) =>
-          item.id === id ? { ...item, read: true } : item,
+          item.id === id && item.recipientRole !== 'school_reviewer'
+            ? { ...item, read: true }
+            : item,
         ),
       })
-      return immutable(deps.getState().notifications)
+      return immutable(
+        deps.getState().notifications.filter((item) => item.recipientRole !== 'school_reviewer'),
+      )
     },
     markAllStudentNotificationsRead: async () => {
       const state = deps.getState()
       deps.setState({
         ...state,
-        notifications: state.notifications.map((item) => ({ ...item, read: true })),
+        notifications: state.notifications.map((item) =>
+          item.recipientRole === 'school_reviewer' ? item : { ...item, read: true },
+        ),
       })
-      return immutable(deps.getState().notifications)
+      return immutable(
+        deps.getState().notifications.filter((item) => item.recipientRole !== 'school_reviewer'),
+      )
     },
     loadStudentScenario: async (preset: StudentScenarioPreset) => {
       if (!deps.demoMode) {

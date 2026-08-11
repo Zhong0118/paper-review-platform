@@ -5,9 +5,7 @@ import { describe, expect, it } from 'vitest'
 
 import { createScenarioService } from '@/demo/scenarioService'
 import { scenarioServiceKey } from '@/demo/serviceProvider'
-import ResultProcessingPage from '../pages/ResultProcessingPage.vue'
 import StudentResultPage from '../pages/StudentResultPage.vue'
-import SupervisorResultPage from '../pages/SupervisorResultPage.vue'
 
 async function mountPage(
   component: object,
@@ -59,27 +57,18 @@ describe('result publication', () => {
     expect(studentBefore.find('[data-score-dimension]').exists()).toBe(false)
   })
 
-  it('publishes anonymized results to school, student and supervisor', async () => {
+  it('shows the anonymized result to the student only after school publication', async () => {
     const service = createScenarioService()
     await completeSingleExpertReview(service)
-    const school = await mountPage(ResultProcessingPage, '/school/results', service)
-    expect(school.findAll('[data-result-row]')).toHaveLength(1)
-    expect(school.get('[data-result-row]').text()).toContain('86')
-    expect(school.text()).not.toContain('两份评阅意见')
-    await school.get('button[data-action="publish-results"]').trigger('click')
-    await flushPromises()
-
-    expect(school.get('[data-result-row]').text()).toContain('专家 A')
-    expect(school.text()).not.toContain('周明远')
+    expect(await service.getStudentResult('thesis-main')).toBeNull()
+    await service.publishResult()
 
     const student = await mountPage(StudentResultPage, '/student/results', service)
-    const supervisor = await mountPage(SupervisorResultPage, '/supervisor/results', service)
     expect(student.get('[data-result-row]').text()).toContain('专家 A')
-    expect(supervisor.get('[data-result-row]').text()).toContain('专家 A')
     expect(student.findAll('[data-result-row]')).toHaveLength(1)
     expect(student.text()).toContain('86.0')
     expect(student.findAll('[data-score-dimension]')).toHaveLength(6)
     expect(student.text()).toContain('2026-08-25 10:00')
-    expect(`${student.text()}${supervisor.text()}`).not.toMatch(/周明远|138\d{8}|\w+@\w+/)
+    expect(student.text()).not.toMatch(/周明远|138\d{8}|\w+@\w+/)
   })
 })

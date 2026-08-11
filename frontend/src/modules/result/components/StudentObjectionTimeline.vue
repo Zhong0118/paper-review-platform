@@ -15,6 +15,7 @@ const labels: Record<StudentObjectionStatus, string> = {
     class="objection-timeline"
     :data-objection-status="objection.status"
     aria-labelledby="objection-status-title"
+    tabindex="-1"
   >
     <header>
       <div>

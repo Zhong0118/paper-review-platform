@@ -289,6 +289,12 @@ export function createScenarioService(
 
   return {
     ...studentPortal,
+    listSchoolNotifications: async () =>
+      deepFreeze(
+        structuredClone(
+          studentState.notifications.filter((item) => item.recipientRole === 'school_reviewer'),
+        ),
+      ),
     loginAs: async (role: RoleCode) => {
       state = { ...state, activeRole: role }
       return snapshot()

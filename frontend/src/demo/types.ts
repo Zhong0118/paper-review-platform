@@ -213,7 +213,9 @@ export interface StudentNotification {
     | 'THESIS_WITHDRAWN'
     | 'WITHDRAWAL_REQUESTED'
     | 'OBJECTION_SUBMITTED'
+    | 'OBJECTION_RECEIVED'
     | 'DEMO_DATA_RESET'
+  recipientRole?: 'student' | 'school_reviewer'
   message: string
   createdAt: string
   read: boolean
@@ -400,6 +402,7 @@ export interface DemoScenarioSnapshot {
 }
 
 export interface ScenarioService extends StudentPortalService {
+  listSchoolNotifications(): Promise<StudentNotification[]>
   loginAs(role: RoleCode): Promise<DemoScenarioSnapshot>
   submitThesis(input?: StudentSubmissionInput): Promise<DemoScenarioSnapshot>
   confirmAnonymization(): Promise<DemoScenarioSnapshot>

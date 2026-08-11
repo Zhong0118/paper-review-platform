@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, useId } from 'vue'
 
 import type { StudentObjectionInput, ThesisFileMeta } from '@/demo/types'
 
@@ -9,9 +9,15 @@ const emit = defineEmits<{ 'request-submit': [input: StudentObjectionInput] }>()
 const reason = ref('')
 const request = ref('')
 const attachment = ref<ThesisFileMeta | null>(null)
-const error = ref('')
+const reasonError = ref('')
+const requestError = ref('')
 const progress = ref(0)
 const input = ref<HTMLInputElement>()
+const reasonField = ref<HTMLTextAreaElement>()
+const requestField = ref<HTMLTextAreaElement>()
+const errorId = useId()
+const reasonErrorId = `${errorId}-reason`
+const requestErrorId = `${errorId}-request`
 let validationRun = 0
 let validationTimer: number | undefined
 
@@ -35,7 +41,6 @@ function chooseFile(event: Event) {
   if (!file) return
   cancelValidation()
   const currentRun = validationRun
-  error.value = ''
   progress.value = 50
   attachment.value = {
     id: createId(),
@@ -61,15 +66,16 @@ function chooseFile(event: Event) {
 
 function requestSubmission() {
   if (submissionDisabled.value) return
-  if (!reason.value.trim()) {
-    error.value = '请填写异议理由。'
+  reasonError.value = reason.value.trim() ? '' : '请填写异议理由。'
+  requestError.value = request.value.trim() ? '' : '请填写处理诉求。'
+  if (reasonError.value) {
+    void nextTick(() => reasonField.value?.focus())
     return
   }
-  if (!request.value.trim()) {
-    error.value = '请填写处理诉求。'
+  if (requestError.value) {
+    void nextTick(() => requestField.value?.focus())
     return
   }
-  error.value = ''
   emit('request-submit', {
     reason: reason.value.trim(),
     request: request.value.trim(),
@@ -83,7 +89,8 @@ function reset() {
   request.value = ''
   attachment.value = null
   progress.value = 0
-  error.value = ''
+  reasonError.value = ''
+  requestError.value = ''
   if (input.value) input.value.value = ''
 }
 
@@ -102,11 +109,45 @@ onBeforeUnmount(cancelValidation)
     <div class="objection-form__fields">
       <label>
         <span>异议理由 <b>*</b></span>
-        <textarea v-model="reason" name="reason" rows="4"></textarea>
+        <textarea
+          ref="reasonField"
+          v-model="reason"
+          name="reason"
+          rows="4"
+          :aria-invalid="reasonError ? 'true' : undefined"
+          :aria-describedby="reasonError ? reasonErrorId : undefined"
+          @input="reasonError = ''"
+        ></textarea>
+        <p
+          v-if="reasonError"
+          :id="reasonErrorId"
+          class="objection-form__error"
+          data-error-for="reason"
+          role="alert"
+        >
+          {{ reasonError }}
+        </p>
       </label>
       <label>
         <span>处理诉求 <b>*</b></span>
-        <textarea v-model="request" name="request" rows="4"></textarea>
+        <textarea
+          ref="requestField"
+          v-model="request"
+          name="request"
+          rows="4"
+          :aria-invalid="requestError ? 'true' : undefined"
+          :aria-describedby="requestError ? requestErrorId : undefined"
+          @input="requestError = ''"
+        ></textarea>
+        <p
+          v-if="requestError"
+          :id="requestErrorId"
+          class="objection-form__error"
+          data-error-for="request"
+          role="alert"
+        >
+          {{ requestError }}
+        </p>
       </label>
     </div>
 
@@ -134,8 +175,6 @@ onBeforeUnmount(cancelValidation)
       <b v-else-if="attachment.validationStatus === 'VALID'">校验通过</b>
       <b v-else>校验中</b>
     </p>
-    <p v-if="error" class="objection-form__error" role="alert">{{ error }}</p>
-
     <footer>
       <button type="submit" data-action="submit-objection" :disabled="submissionDisabled">
         {{ pending ? '正在提交…' : '提交异议' }}

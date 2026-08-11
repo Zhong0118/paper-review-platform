@@ -33,6 +33,7 @@ function createUnavailableService(): ScenarioService {
     getStudentResult: unavailable,
     submitStudentObjection: unavailable,
     listStudentNotifications: unavailable,
+    listSchoolNotifications: unavailable,
     markStudentNotificationRead: unavailable,
     markAllStudentNotificationsRead: unavailable,
     loadStudentScenario: unavailable,
