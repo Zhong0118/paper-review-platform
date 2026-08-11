@@ -143,6 +143,7 @@ export interface StudentThesisDetail {
   studentVisibleStage: StudentVisibleStage
   allowedActions: StudentAction[]
   timeline: StudentTimelineEvent[]
+  publicReason?: string
   submissionSource: SubmissionSource
   student: Readonly<{ id: string; name: string; tenantName: string }>
   form: {
@@ -206,6 +207,7 @@ export interface StudentNotification {
 export type StudentScenarioPreset = DemoStage
 
 export interface StudentPortalService {
+  getStudentEligibility(): Promise<StudentEligibility>
   listStudentTheses(query?: StudentThesisQuery): Promise<StudentThesisDetail[]>
   getStudentThesis(id: string): Promise<StudentThesisDetail>
   createStudentDraft(): Promise<StudentThesisDetail>
@@ -231,6 +233,7 @@ export class StudentPortalError extends Error {
       | 'NOT_FOUND'
       | 'FORBIDDEN'
       | 'INVALID_INPUT'
+      | 'STATE_CONFLICT'
       | 'DEMO_MODE_DISABLED',
     message: string,
   ) {

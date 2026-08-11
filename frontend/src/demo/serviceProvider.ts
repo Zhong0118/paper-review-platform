@@ -1,7 +1,7 @@
 import { inject, type InjectionKey } from 'vue'
 
 import { createScenarioService } from './scenarioService'
-import type { ScenarioService } from './types'
+import type { ScenarioService, StudentPortalService } from './types'
 
 function browserStorage() {
   return typeof window === 'undefined' ? undefined : window.localStorage
@@ -13,6 +13,7 @@ function createUnavailableService(): ScenarioService {
   }
 
   return {
+    getStudentEligibility: unavailable,
     loginAs: unavailable,
     submitThesis: unavailable,
     confirmAnonymization: unavailable,
@@ -67,4 +68,8 @@ export function useScenarioService(): ScenarioService {
   const service = inject(scenarioServiceKey)
   if (!service) throw new Error('场景服务尚未注入')
   return service
+}
+
+export function useStudentPortalService(): StudentPortalService {
+  return useScenarioService()
 }

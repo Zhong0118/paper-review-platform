@@ -12,6 +12,7 @@ export interface StudentPortalState {
   eligibility: StudentEligibility
   notifications: StudentNotification[]
   timelines: Record<string, StudentTimelineEvent[]>
+  publicReasonsByThesis: Record<string, string>
   objections: StudentObjection[]
   withdrawalRequests: StudentWithdrawalRequest[]
   abstractsByThesis: Record<string, string>
@@ -41,6 +42,7 @@ export function createInitialStudentPortalState(): StudentPortalState {
         },
       ],
     },
+    publicReasonsByThesis: {},
     objections: [],
     withdrawalRequests: [],
     abstractsByThesis: {

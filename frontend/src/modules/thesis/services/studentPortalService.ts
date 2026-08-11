@@ -120,6 +120,7 @@ export function createStudentPortalService(deps: StudentPortalDependencies): Stu
       studentVisibleStage: toStudentVisibleStage(thesis.stage),
       allowedActions: actionsFor(thesis),
       timeline: state.timelines[thesis.id] ?? [],
+      publicReason: state.publicReasonsByThesis[thesis.id],
       submissionSource: thesis.submissionSource,
       student: { id: thesis.studentId, name: thesis.studentName, tenantName: '海岳大学' },
       form: {
@@ -146,6 +147,7 @@ export function createStudentPortalService(deps: StudentPortalDependencies): Stu
   const timestamp = '2026-08-11 09:00'
 
   return {
+    getStudentEligibility: async () => immutable(deps.getState().eligibility),
     listStudentTheses: async (query?: StudentThesisQuery) =>
       immutable(
         deps

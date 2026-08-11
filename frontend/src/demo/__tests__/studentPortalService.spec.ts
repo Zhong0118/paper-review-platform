@@ -13,6 +13,49 @@ function createMemoryStorage() {
 }
 
 describe('student portal service', () => {
+  it('projects the current public student eligibility before draft creation', async () => {
+    const storage = createMemoryStorage()
+    const seed = createScenarioService({ storage, demoMode: true })
+    await seed.resetStudentDemo()
+    const persisted = JSON.parse(storage.getItem('baijie-demo-student:v1')!)
+    persisted.student.eligibility = {
+      ...persisted.student.eligibility,
+      eligible: false,
+      status: 'SUSPENDED',
+      reason: '学校已暂停本批次提交资格。',
+    }
+    storage.setItem('baijie-demo-student:v1', JSON.stringify(persisted))
+
+    const eligibility = await createScenarioService({
+      storage,
+      demoMode: true,
+    }).getStudentEligibility()
+
+    expect(eligibility).toMatchObject({
+      eligible: false,
+      status: 'SUSPENDED',
+      reason: '学校已暂停本批次提交资格。',
+    })
+    expect(Object.isFrozen(eligibility)).toBe(true)
+  })
+
+  it('projects a school-provided public reason without exposing internal state', async () => {
+    const storage = createMemoryStorage()
+    const seed = createScenarioService({ storage, demoMode: true })
+    await seed.resetStudentDemo()
+    const persisted = JSON.parse(storage.getItem('baijie-demo-student:v1')!)
+    persisted.student.publicReasonsByThesis = {
+      'thesis-main': '匿名版文件仍包含可识别身份信息，请修改后重新提交。',
+    }
+    storage.setItem('baijie-demo-student:v1', JSON.stringify(persisted))
+
+    const detail = await createScenarioService({ storage, demoMode: true }).getStudentThesis(
+      'thesis-main',
+    )
+
+    expect(detail.publicReason).toBe('匿名版文件仍包含可识别身份信息，请修改后重新提交。')
+  })
+
   it('normalizes keyword whitespace and duplicates at the save boundary', async () => {
     const service = createScenarioService({ storage: createMemoryStorage(), demoMode: true })
     const current = await service.getStudentThesis('thesis-main')
