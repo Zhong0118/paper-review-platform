@@ -30,7 +30,17 @@ export function loadStudentDemo(storage: StorageLike): LoadedStudentDemo {
     const saved = JSON.parse(raw) as PersistedStudentDemo
     if (saved.schemaVersion !== 1 || !saved.scenario || !saved.student)
       throw new Error('unsupported')
-    return { scenario: saved.scenario, student: saved.student, reset: false }
+    const fixture = createInitialStudentPortalState()
+    return {
+      scenario: saved.scenario,
+      student: {
+        ...fixture,
+        ...saved.student,
+        fileMetadataByThesis: saved.student.fileMetadataByThesis ?? fixture.fileMetadataByThesis,
+        resultsByThesis: saved.student.resultsByThesis ?? fixture.resultsByThesis,
+      },
+      reset: false,
+    }
   } catch {
     return {
       scenario: createInitialScenarioState(),

@@ -96,4 +96,89 @@ describe('student portal service', () => {
     const restored = createScenarioService({ storage, demoMode: true })
     expect((await restored.getStudentThesis('thesis-main')).stage).toBe('SUBMITTED')
   })
+
+  it('rejects student scenario loading when demo mode is disabled', async () => {
+    const service = createScenarioService({ storage: createMemoryStorage(), demoMode: false })
+
+    await expect(service.loadStudentScenario('UNDER_REVIEW')).rejects.toMatchObject({
+      name: 'StudentPortalError',
+      code: 'DEMO_MODE_DISABLED',
+    })
+  })
+
+  it('rejects all thesis-specific reads and mutations outside the current student ownership', async () => {
+    const service = createScenarioService({ storage: createMemoryStorage(), demoMode: true })
+    const foreignThesisId = 'thesis-0048'
+    const draftInput = {
+      title: '不应写入的论文',
+      discipline: { code: '0812', name: '计算机科学与技术' },
+      keywords: ['越权'],
+      originalFileName: 'foreign.pdf',
+      anonymousFileName: 'foreign-anonymous.pdf',
+    }
+
+    expect((await service.listStudentTheses()).map((thesis) => thesis.id)).not.toContain(
+      foreignThesisId,
+    )
+    for (const operation of [
+      () => service.getStudentThesis(foreignThesisId),
+      () => service.saveStudentDraft(foreignThesisId, draftInput),
+      () => service.submitStudentThesis(foreignThesisId),
+      () => service.deleteStudentDraft(foreignThesisId),
+      () => service.withdrawStudentThesis(foreignThesisId, '越权撤回'),
+      () => service.requestStudentWithdrawal(foreignThesisId, '越权申请'),
+      () => service.getStudentResult(foreignThesisId),
+      () => service.submitStudentObjection(foreignThesisId, { reason: '越权异议' }),
+    ]) {
+      await expect(operation()).rejects.toMatchObject({
+        name: 'StudentPortalError',
+        code: 'FORBIDDEN',
+      })
+    }
+  })
+
+  it('projects and persists file metadata without retaining file binaries', async () => {
+    const storage = createMemoryStorage()
+    const service = createScenarioService({ storage, demoMode: true })
+
+    expect((await service.getStudentThesis('thesis-main')).files).toContainEqual({
+      kind: 'ORIGINAL',
+      purpose: 'SCHOOL_ARCHIVE',
+      fileName: '林知远-硕士学位论文.pdf',
+      sizeBytes: 3145728,
+      mimeType: 'application/pdf',
+      validationStatus: 'VALID',
+    })
+
+    const restored = createScenarioService({ storage, demoMode: true })
+    expect((await restored.getStudentThesis('thesis-main')).files[1]).toMatchObject({
+      kind: 'ANONYMOUS',
+      purpose: 'EXPERT_REVIEW',
+      sizeBytes: 2988441,
+      mimeType: 'application/pdf',
+      validationStatus: 'VALID',
+    })
+  })
+
+  it('returns results associated with the requested completed thesis only', async () => {
+    const service = createScenarioService({ storage: createMemoryStorage(), demoMode: true })
+    await service.loadStudentScenario('COMPLETED')
+
+    expect(await service.getStudentResult('thesis-main')).toMatchObject({
+      thesisId: 'thesis-main',
+      results: [expect.objectContaining({ expertAlias: '专家 A', score: 86 })],
+    })
+    expect(await service.getStudentResult('thesis-0031')).toEqual({
+      thesisId: 'thesis-0031',
+      results: [
+        {
+          expertAlias: '专家 B',
+          score: 82,
+          recommendation: '建议通过',
+          comment: '历史论文评阅结果。',
+          submittedAt: '2026-01-18 09:35',
+        },
+      ],
+    })
+  })
 })

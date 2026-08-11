@@ -215,6 +215,7 @@ export function createScenarioService(
       persist()
     },
     getResults: currentReviewResults,
+    demoMode: options.demoMode ?? true,
     loadScenario: (preset: StudentScenarioPreset) => {
       state = {
         ...state,

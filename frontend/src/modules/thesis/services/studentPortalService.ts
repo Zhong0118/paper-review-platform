@@ -4,6 +4,7 @@ import type {
   DemoThesisSummary,
   StudentAction,
   StudentDraftInput,
+  StudentFileMetadata,
   StudentNotification,
   StudentObjectionInput,
   StudentPortalService,
@@ -35,6 +36,7 @@ interface StudentPortalDependencies {
   getState: () => StudentPortalState
   setState: (state: StudentPortalState) => void
   getResults: () => DemoPublishedResult[]
+  demoMode: boolean
   loadScenario: (preset: StudentScenarioPreset) => void
   reset: () => void
 }
@@ -68,6 +70,9 @@ export function createStudentPortalService(deps: StudentPortalDependencies): Stu
   const findThesis = (id: string) => {
     const thesis = deps.getTheses().find((item) => item.id === id)
     if (!thesis) throw new StudentPortalError('NOT_FOUND', '未找到该论文记录。')
+    if (thesis.studentId !== '20260042') {
+      throw new StudentPortalError('FORBIDDEN', '无权访问其他学生的论文记录。')
+    }
     return thesis
   }
   const ensureAction = (thesis: DemoThesisSummary, action: StudentAction) => {
@@ -100,10 +105,7 @@ export function createStudentPortalService(deps: StudentPortalDependencies): Stu
         discipline: thesis.discipline,
         keywords: thesis.keywords,
       },
-      files: [
-        { kind: 'ORIGINAL' as const, fileName: thesis.originalFileName },
-        { kind: 'ANONYMOUS' as const, fileName: thesis.anonymousFileName },
-      ],
+      files: state.fileMetadataByThesis[thesis.id] ?? [],
       updatedAt: thesis.updatedAt,
     })
   }
@@ -176,6 +178,29 @@ export function createStudentPortalService(deps: StudentPortalDependencies): Stu
         updatedAt: timestamp,
       }
       deps.replaceThesis(updated)
+      const state = deps.getState()
+      const files: StudentFileMetadata[] = [
+        {
+          kind: 'ORIGINAL',
+          purpose: 'SCHOOL_ARCHIVE',
+          fileName: input.originalFileName,
+          sizeBytes: 0,
+          mimeType: 'application/pdf',
+          validationStatus: 'PENDING',
+        },
+        {
+          kind: 'ANONYMOUS',
+          purpose: 'EXPERT_REVIEW',
+          fileName: input.anonymousFileName,
+          sizeBytes: 0,
+          mimeType: 'application/pdf',
+          validationStatus: 'PENDING',
+        },
+      ]
+      deps.setState({
+        ...state,
+        fileMetadataByThesis: { ...state.fileMetadataByThesis, [id]: files },
+      })
       return detail(updated)
     },
     submitStudentThesis: async (id: string) => {
@@ -254,7 +279,9 @@ export function createStudentPortalService(deps: StudentPortalDependencies): Stu
     getStudentResult: async (id: string): Promise<StudentResult | null> => {
       const thesis = findThesis(id)
       if (thesis.stage !== 'COMPLETED') return null
-      return immutable({ thesisId: id, results: deps.getResults() })
+      const results =
+        deps.getState().resultsByThesis[id] ?? (id === 'thesis-main' ? deps.getResults() : [])
+      return immutable({ thesisId: id, results })
     },
     submitStudentObjection: async (id: string, input: StudentObjectionInput) => {
       const thesis = findThesis(id)
@@ -296,7 +323,17 @@ export function createStudentPortalService(deps: StudentPortalDependencies): Stu
       return immutable(deps.getState().notifications)
     },
     loadStudentScenario: async (preset: StudentScenarioPreset) => {
+      if (!deps.demoMode) {
+        throw new StudentPortalError('DEMO_MODE_DISABLED', '演示模式未启用，无法装载学生场景。')
+      }
       deps.loadScenario(preset)
+      if (preset === 'COMPLETED') {
+        const state = deps.getState()
+        deps.setState({
+          ...state,
+          resultsByThesis: { ...state.resultsByThesis, 'thesis-main': deps.getResults() },
+        })
+      }
       return detail(findThesis('thesis-main'))
     },
     resetStudentDemo: async () => deps.reset(),

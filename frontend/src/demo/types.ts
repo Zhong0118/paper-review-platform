@@ -116,7 +116,11 @@ export interface StudentTimelineEvent {
 
 export interface StudentFileMetadata {
   kind: 'ORIGINAL' | 'ANONYMOUS'
+  purpose: 'SCHOOL_ARCHIVE' | 'EXPERT_REVIEW'
   fileName: string
+  sizeBytes: number
+  mimeType: string
+  validationStatus: 'VALID' | 'PENDING' | 'INVALID'
 }
 
 export interface StudentThesisDetail {
@@ -212,7 +216,12 @@ export interface StudentPortalService {
 
 export class StudentPortalError extends Error {
   constructor(
-    public readonly code: 'NOT_ELIGIBLE' | 'ILLEGAL_ACTION' | 'NOT_FOUND',
+    public readonly code:
+      | 'NOT_ELIGIBLE'
+      | 'ILLEGAL_ACTION'
+      | 'NOT_FOUND'
+      | 'FORBIDDEN'
+      | 'DEMO_MODE_DISABLED',
     message: string,
   ) {
     super(message)
