@@ -1,0 +1,26 @@
+/**
+ * @file Element Plus 主题映射
+ * @description 只把平台设计令牌映射为组件库变量，不覆盖组件内部结构。
+ */
+
+:root {
+  --el-color-primary: #1b4f8a;
+  --el-color-primary-light-3: #2a63a6;
+  --el-color-primary-light-5: #6d95bf;
+  --el-color-primary-light-7: #a9c0da;
+  --el-color-primary-light-8: #c7d6e6;
+  --el-color-primary-light-9: #e8f0f9;
+  --el-color-primary-dark-2: #123d6b;
+  --el-color-success: #2e7d32;
+  --el-color-warning: #e65100;
+  --el-color-danger: #c62828;
+  --el-color-info: #0288d1;
+  --el-font-family: var(--font-body);
+  --el-font-size-base: 14px;
+  --el-border-radius-base: 6px;
+  --el-text-color-primary: #212121;
+  --el-text-color-regular: #616161;
+  --el-border-color: #e0e0e0;
+  --el-bg-color-page: #f2f5f8;
+  --el-fill-color-blank: #fbfcfe;
+}

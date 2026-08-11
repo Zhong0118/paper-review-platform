@@ -38,6 +38,7 @@ interface StudentPortalDependencies {
   getState: () => StudentPortalState
   setState: (state: StudentPortalState) => void
   getResults: () => DemoPublishedResult[]
+  currentStudentId: string
   demoMode: boolean
   loadScenario: (preset: StudentScenarioPreset) => void
   setEligibilityScenario: (preset: StudentEligibilityScenario) => void
@@ -102,7 +103,7 @@ export function createStudentPortalService(deps: StudentPortalDependencies): Stu
   const findThesis = (id: string) => {
     const thesis = deps.getTheses().find((item) => item.id === id)
     if (!thesis) throw new StudentPortalError('NOT_FOUND', '未找到该论文记录。')
-    if (thesis.studentId !== '20260042') {
+    if (thesis.studentId !== deps.currentStudentId) {
       throw new StudentPortalError('FORBIDDEN', '无权访问其他学生的论文记录。')
     }
     return thesis
@@ -162,7 +163,7 @@ export function createStudentPortalService(deps: StudentPortalDependencies): Stu
     const ownThesisIds = new Set(
       deps
         .getTheses()
-        .filter((thesis) => thesis.studentId === '20260042')
+        .filter((thesis) => thesis.studentId === deps.currentStudentId)
         .map((thesis) => thesis.id),
     )
     return deps
@@ -178,7 +179,7 @@ export function createStudentPortalService(deps: StudentPortalDependencies): Stu
       immutable(
         deps
           .getTheses()
-          .filter((thesis) => thesis.studentId === '20260042')
+          .filter((thesis) => thesis.studentId === deps.currentStudentId)
           .filter((thesis) => !query?.stage || thesis.stage === query.stage)
           .map(detail),
       ),
@@ -194,7 +195,7 @@ export function createStudentPortalService(deps: StudentPortalDependencies): Stu
         id: `thesis-draft-${sequence}`,
         anonymousId: `HY-2026-${sequence}`,
         title: '',
-        studentId: '20260042',
+        studentId: deps.currentStudentId,
         studentName: '林知远',
         batchId: eligibility.batchId,
         batchName: eligibility.batchName,

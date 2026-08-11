@@ -5,3 +5,30 @@
  */
 @import 'tailwindcss';
 @import './theme.css';
+@import './element.css';
+
+html,
+body,
+#app {
+  width: 100%;
+  min-width: 320px;
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  min-height: 100vh;
+  background: var(--color-page);
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+#app-root {
+  width: 100%;
+  min-height: 100vh;
+}

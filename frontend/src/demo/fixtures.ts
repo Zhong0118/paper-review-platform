@@ -26,6 +26,9 @@ export const demoIdentity = {
   expertName: '周明远教授',
 } as const
 
+/** 演示学生账号（学校主数据同步示例）。学生服务通过依赖注入读取，见 createStudentPortalService。 */
+export const demoStudentId = '20260042'
+
 export const demoThesis = {
   id: 'thesis-main',
   anonymousId: 'HY-2026-0042',
@@ -35,7 +38,7 @@ export const demoThesis = {
 export const demoTheses: DemoThesisSummary[] = [
   {
     ...demoThesis,
-    studentId: '20260042',
+    studentId: demoStudentId,
     studentName: demoIdentity.studentName,
     batchId: 'batch-2026-spring',
     batchName: demoIdentity.batchName,
@@ -52,7 +55,7 @@ export const demoTheses: DemoThesisSummary[] = [
     id: 'thesis-0031',
     anonymousId: 'HY-2025-0031',
     title: '面向边缘环境的可信联邦学习方法研究',
-    studentId: '20260042',
+    studentId: demoStudentId,
     studentName: demoIdentity.studentName,
     batchId: 'batch-2025-autumn',
     batchName: '2025 年秋季硕士论文盲审',

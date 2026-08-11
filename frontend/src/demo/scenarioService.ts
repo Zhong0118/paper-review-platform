@@ -1,6 +1,6 @@
 import type { RoleCode } from '@/types/roles'
 
-import { createInitialScenarioState, demoIdentity, demoThesis } from './fixtures'
+import { createInitialScenarioState, demoIdentity, demoStudentId, demoThesis } from './fixtures'
 import { createStudentPortalService } from '@/modules/thesis/services/studentPortalService'
 import { createInitialStudentPortalState, type StudentPortalState } from './studentFixtures'
 import { loadStudentDemo, saveStudentDemo } from './studentPersistence'
@@ -408,6 +408,7 @@ export function createScenarioService(
       persist()
     },
     getResults: currentReviewResults,
+    currentStudentId: demoStudentId,
     demoMode: options.demoMode ?? true,
     loadScenario: (preset: StudentScenarioPreset) => {
       const stage = scenarioStage[preset]
