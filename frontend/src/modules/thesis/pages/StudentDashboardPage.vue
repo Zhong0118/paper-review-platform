@@ -255,6 +255,7 @@ async function confirmAction() {
       await service.deleteStudentDraft(thesisId)
       confirmationAction.value = null
       await loadWorkspaceData(false)
+      keepSelectionVisible(matchingTheses())
       feedback.value = '草稿已删除。'
       return
     }

@@ -183,6 +183,22 @@ describe('student thesis workspace', () => {
     expect(document.activeElement).toBe(wrapper.get('[data-thesis-id="thesis-0031"]').element)
   })
 
+  it('clears the selected projection when deleting the only thesis matching the search', async () => {
+    const { wrapper } = await mountWorkspace()
+
+    await wrapper.get('[data-search-theses]').setValue('面向复杂场景')
+    expect(wrapper.findAll('[data-thesis-id]')).toHaveLength(1)
+    expect(wrapper.get('[data-thesis-id="thesis-main"]').exists()).toBe(true)
+
+    await wrapper.get('[data-action="delete-draft"]').trigger('click')
+    await wrapper.get('[data-action="confirm-delete-draft"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.findAll('[data-thesis-id]')).toHaveLength(0)
+    expect(wrapper.find('[data-selected-thesis]').exists()).toBe(false)
+    expect(wrapper.find('[aria-label="流程进度"]').exists()).toBe(false)
+  })
+
   it('traps confirmation focus, closes on Escape and restores the action opener', async () => {
     const { wrapper } = await mountWorkspace()
     const opener = wrapper.get('[data-action="delete-draft"]')
