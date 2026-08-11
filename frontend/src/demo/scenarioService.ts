@@ -12,11 +12,15 @@ import {
   initialAuditEntries,
   type PlatformState as FixturePlatformState,
 } from './platformFixtures'
+import { PlatformOperationError } from './types'
 import type {
   DemoAction,
   BatchImportRow,
   DemoRoleContext,
   DemoPublishedResult,
+  DispatchThesisSeed,
+  ExpertScenarioPreset,
+  ExpertTaskAction,
   ExpertTaskSummary,
   DemoScenarioSnapshot,
   DemoStage,
@@ -285,6 +289,23 @@ function deepFreeze<T>(value: T): T {
   return value
 }
 
+/** 专家端演示人格：任务仅投影本人（expert-17 周明远，与专家端页面身份一致）。 */
+const EXPERT_PERSONA_ID = 'expert-17'
+
+/** 接单截止：演示时钟 2026-08-12 09:00 起 14 天（与运营派单 ASSIGNMENT_DUE_DAYS 一致）。 */
+const ACCEPT_BY = '2026-08-26 18:00'
+
+/** 评审费用含说明（接单详情 PAGE-009；演示文案，不宣称真实结算）。 */
+const FEE_NOTE = '最终意见有效提交后进入结算'
+
+/** 六维评审模板说明（与设计 §4.4 演示批次快照一致，页面动态渲染）。 */
+const TEMPLATE_NOTE =
+  '六维评审模板（合计 100 分）：选题价值 15、文献与理论基础 15、研究设计与方法 20、研究内容与创新 25、写作规范 10、综合学术水平 15；另含总体评价、主要问题、修改建议与评审结论。'
+
+/** 匿名化摘要（接单前可见的匿名基本信息，不读取论文正文）。 */
+const ANONYMOUS_ABSTRACT =
+  '匿名化摘要：面向复杂场景的多模态知识推理研究。作者与学校身份已匿名化，接单前不展示论文正文。'
+
 /** 场景装载用的演示任务（固定演示时间，不做真实时限调度）。 */
 function createDemoTask(
   status: 'INVITED' | 'IN_REVIEW' | 'REJECTED' | 'SUBMITTED',
@@ -293,7 +314,7 @@ function createDemoTask(
   return {
     id: 'task-e-2026-042',
     thesisId: 'thesis-main',
-    expertId: 'expert-31',
+    expertId: EXPERT_PERSONA_ID,
     anonymousId: 'HY-2026-0042',
     anonymousTitle: '面向复杂场景的多模态知识推理研究',
     discipline: { code: '0812', name: '计算机科学与技术' },
@@ -302,7 +323,44 @@ function createDemoTask(
     dueAt: status === 'IN_REVIEW' ? '2026-08-28 18:00' : '2026-08-26 18:00',
     overdue: false,
     round: 1,
+    acceptBy: ACCEPT_BY,
+    abstract: ANONYMOUS_ABSTRACT,
+    matchNote: '学科匹配：计算机科学与技术；关键词命中：多模态推理、知识图谱。',
+    templateNote: TEMPLATE_NOTE,
+    feeNote: FEE_NOTE,
+    materialsVisible: false,
+    allowedActions: expertTaskActionsFor(status),
     ...overrides,
+  }
+}
+
+/** 允许动作由任务状态派生（服务端规则；页面按钮据此渲染，不自行推断）。 */
+function expertTaskActionsFor(status: ExpertTaskSummary['status']): ExpertTaskAction[] {
+  if (status === 'INVITED') return ['ACCEPT_TASK', 'REJECT_TASK']
+  if (status === 'IN_REVIEW') return ['CONTINUE_REVIEW']
+  // 最终提交为终态：只读查看；有更正申请时列表附加「需要更正」标记（不影响动作）。
+  if (status === 'SUBMITTED') return ['VIEW_SUBMITTED']
+  return []
+}
+
+/** 专家任务投影（PAGE-008 列表与接单详情数据源）：补全派生字段，保持不可变快照。 */
+function projectExpertTask(task: ExpertTaskSummary): ExpertTaskSummary {
+  const overdue =
+    task.overdue ||
+    (['INVITED', 'IN_REVIEW'].includes(task.status) &&
+      task.dueAt !== undefined &&
+      task.dueAt < '2026-08-12 09:00')
+  return {
+    ...task,
+    overdue,
+    acceptBy: task.acceptBy ?? ACCEPT_BY,
+    abstract: task.abstract ?? ANONYMOUS_ABSTRACT,
+    matchNote: task.matchNote ?? '学科匹配：计算机科学与技术；关键词命中：多模态推理、知识图谱。',
+    templateNote: task.templateNote ?? TEMPLATE_NOTE,
+    feeNote: task.feeNote ?? FEE_NOTE,
+    // 接单前（INVITED）匿名材料不可见；接受后可见。动作始终按状态派生，不依赖存档。
+    materialsVisible: task.materialsVisible === true || task.status === 'IN_REVIEW',
+    allowedActions: expertTaskActionsFor(task.status),
   }
 }
 
@@ -327,6 +385,83 @@ export function createScenarioService(
 
   const persist = () => saveStudentDemo(storage, state, studentState)
   const persistPlatform = () => savePlatformDemo(storage, platformState)
+
+  /** 平台状态中属于专家端演示人格（本人）的任务；接单/拒绝仅在其上校验与更新。 */
+  const platformTasksForPersona = () =>
+    platformState.expertTasks.filter((task) => task.expertId === EXPERT_PERSONA_ID)
+
+  /** 专家端接单（INVITED→IN_REVIEW）：仅本人任务；接受后匿名材料可见。 */
+  const acceptExpertTask = async (taskId: string): Promise<ExpertTaskSummary> => {
+    const personaTask = platformTasksForPersona().find((task) => task.id === taskId)
+    if (!personaTask) {
+      // 任务存在但不属于本人：他人任务禁止操作（双盲红线）。
+      if (platformState.expertTasks.some((task) => task.id === taskId)) {
+        throw new PlatformOperationError('FORBIDDEN', '他人任务不可操作。')
+      }
+      throw new PlatformOperationError('NOT_FOUND', '未找到该专家任务。')
+    }
+    if (personaTask.status !== 'INVITED') {
+      throw new PlatformOperationError(
+        'STATE_CONFLICT',
+        personaTask.status === 'IN_REVIEW'
+          ? '该任务已在评阅中，请直接进入工作台。'
+          : '该任务已过期或已处理，不能再次接单。',
+      )
+    }
+    const updated: ExpertTaskSummary = {
+      ...personaTask,
+      status: 'IN_REVIEW',
+      materialsVisible: true,
+    }
+    platformState = {
+      ...platformState,
+      expertTasks: platformState.expertTasks.map((task) =>
+        task.id === taskId ? updated : task,
+      ),
+    }
+    persistPlatform()
+    return projectExpertTask(updated)
+  }
+
+  /** 专家端拒绝（INVITED→REJECTED）：原因必填；拒绝后等待平台改派（本地演示投影）。 */
+  const rejectExpertTask = async (taskId: string, reason: string): Promise<ExpertTaskSummary> => {
+    if (!reason.trim()) {
+      throw new PlatformOperationError('INVALID_INPUT', '拒绝原因不能为空。')
+    }
+    const personaTask = platformTasksForPersona().find((task) => task.id === taskId)
+    if (!personaTask) {
+      if (platformState.expertTasks.some((task) => task.id === taskId)) {
+        throw new PlatformOperationError('FORBIDDEN', '他人任务不可操作。')
+      }
+      throw new PlatformOperationError('NOT_FOUND', '未找到该专家任务。')
+    }
+    if (personaTask.status !== 'INVITED') {
+      throw new PlatformOperationError('STATE_CONFLICT', '仅待接受任务可以拒绝。')
+    }
+    const updated: ExpertTaskSummary = { ...personaTask, status: 'REJECTED' }
+    platformState = {
+      ...platformState,
+      expertTasks: platformState.expertTasks.map((task) =>
+        task.id === taskId ? updated : task,
+      ),
+      auditLog: [
+        {
+          id: `audit-expert-reject-${Date.now()}`,
+          action: 'REJECT',
+          thesisId: personaTask.thesisId,
+          expertId: personaTask.expertId,
+          taskId,
+          detail: `专家拒绝接单（原因：${reason.trim()}），等待平台改派。`,
+          operator: '周明远',
+          occurredAt: '2026-08-12 09:00',
+        },
+        ...platformState.auditLog,
+      ],
+    }
+    persistPlatform()
+    return projectExpertTask(updated)
+  }
+
   if (loaded.reset) {
     studentState = {
       ...studentState,
@@ -637,15 +772,12 @@ export function createScenarioService(
         (item) => item.thesisId === demoThesis.id && ['INVITED', 'IN_REVIEW'].includes(item.status),
       )
       if (!task) {
-        // 历史流程兼容：取第一位未命中回避且可接单的已过审专家。
-        const expert = platformState.experts.find(
-          (item) =>
-            item.qualification === 'APPROVED' &&
-            item.serviceStatus === 'ACTIVE' &&
-            !item.avoidSchools.includes(platformState.dispatchTheses.find((thesis) => thesis.id === demoThesis.id)?.tenantName ?? ''),
-        )
-        if (expert) {
-          await platformOperation.assignExpertToThesis(demoThesis.id, expert.id)
+        // 学生端流程兼容：指派给专家端演示人格（expert-17 周明远），保证专家端
+        // 接单闭环与学生端流程共用同一篇 thesis-main。此入口是演示流程叙述简化，
+        // 跳过资格校验；平台运营台（PAGE-007）候选表仍按规则排除 REVIEWING 专家。
+        const persona = platformState.experts.find((item) => item.id === EXPERT_PERSONA_ID)
+        if (persona) {
+          await platformOperation.assignExpertToThesis(demoThesis.id, persona.id)
         }
       }
       syncDispatchToThesisStage(demoThesis.id)
@@ -653,7 +785,28 @@ export function createScenarioService(
       return snapshot()
     },
     acceptTask: async () => {
-      state = { ...state, taskStatus: 'IN_REVIEW' }
+      // 学生端流程（Task 2 及更早）兼容入口：接受 thesis-main 当前在评任务并同步学生端阶段。
+      // 与 submitFinalReview 的传播方式一致（按论文而非专家人格匹配）；专家页面的
+      // acceptExpertTask 才执行「仅本人任务」守卫。
+      const current = platformState.expertTasks.find(
+        (task) =>
+          task.thesisId === demoThesis.id && ['INVITED', 'IN_REVIEW'].includes(task.status),
+      )
+      if (!current) {
+        throw new Error('未找到本人待接受任务，无法完成接单。')
+      }
+      let accepted = current
+      if (current.status === 'INVITED') {
+        accepted = { ...current, status: 'IN_REVIEW', materialsVisible: true }
+        platformState = {
+          ...platformState,
+          expertTasks: platformState.expertTasks.map((task) =>
+            task.id === current.id ? accepted : task,
+          ),
+        }
+        persistPlatform()
+      }
+      state = { ...state, taskStatus: accepted.status as import('./types').ReviewTaskStatus }
       persist()
       return snapshot()
     },
@@ -790,34 +943,54 @@ export function createScenarioService(
       return deepFreeze(structuredClone(currentReviewResults()))
     },
     listReviewResults: async () => deepFreeze(structuredClone(currentReviewResults())),
-    listExpertTasks: async () => {
+    listExpertTasks: async (query?: import('./types').ExpertTaskQuery) => {
       // 平台派生任务为权威数据源；仅当平台尚无 thesis-main 的在评任务时，
       // 以学生端任务状态补充演示任务，保证学生端流程（Task 2 及更早）兼容。
       // 已完成论文（stage COMPLETED）同样返回任务，专家端「已完成」列表依赖它。
-      const platformTasks: ExpertTaskSummary[] = platformState.expertTasks.map((task) => ({
-        ...task,
-      }))
+      // `own`（专家端任务列表传入）：仅本人任务——专家端投影只包含专家端演示人格
+      // 的任务，运营派单给其他专家的任务在专家端不可见（他人任务对本人 FORBIDDEN）。
+      const pendingCorrections = new Set(
+        platformState.correctionRequests
+          .filter((request) => request.status === 'PENDING')
+          .map((request) => request.taskId),
+      )
+      const platformTasks: ExpertTaskSummary[] = platformState.expertTasks
+        .filter((task) => (query?.own ? task.expertId === EXPERT_PERSONA_ID : true))
+        .map((task) => projectExpertTask(task))
       const hasMainTask = platformTasks.some(
         (task) =>
           task.thesisId === demoThesis.id &&
           ['INVITED', 'IN_REVIEW', 'SUBMITTED'].includes(task.status),
       )
       if (state.taskStatus && !hasMainTask) {
-        platformTasks.push({
-          id: 'task-e-2026-042',
-          thesisId: demoThesis.id,
-          expertId: 'expert-31',
-          anonymousId: demoThesis.anonymousId,
-          anonymousTitle: '多模态知识推理方向匿名论文',
-          discipline: { code: '0812', name: '计算机科学与技术' },
-          status: state.taskStatus,
-          fee: dispatchFeeStandard,
-          dueAt: '2026-08-28 18:00',
-          overdue: false,
-          round: 1,
-        })
+        platformTasks.push(
+          projectExpertTask({
+            id: 'task-e-2026-042',
+            thesisId: demoThesis.id,
+            expertId: EXPERT_PERSONA_ID,
+            anonymousId: demoThesis.anonymousId,
+            anonymousTitle: '多模态知识推理方向匿名论文',
+            discipline: { code: '0812', name: '计算机科学与技术' },
+            status: state.taskStatus,
+            fee: dispatchFeeStandard,
+            dueAt: '2026-08-28 18:00',
+            overdue: false,
+            round: 1,
+            materialsVisible: false,
+            allowedActions: [],
+          }),
+        )
       }
-      return deepFreeze(structuredClone(platformTasks))
+      // 有更正申请的任务在投影上附加「需要更正」标记（页面据此渲染辅助 Tab 与列表标记）。
+      return deepFreeze(
+        structuredClone(
+          platformTasks.map((task) =>
+            pendingCorrections.has(task.id)
+              ? { ...task, correctionPending: true as const }
+              : task,
+          ),
+        ),
+      )
     },
     listOperationsItems: async () => {
       const queue: OperationsItem['queue'] =
@@ -845,6 +1018,8 @@ export function createScenarioService(
     getSchoolAccount: async () => deepFreeze(structuredClone(state.schoolAccount)),
     getSchoolBills: async () => deepFreeze(structuredClone(state.schoolBills)),
     getExpertAccount: async () => deepFreeze(structuredClone(state.expertAccount)),
+    acceptExpertTask,
+    rejectExpertTask,
     loadPlatformScenario: async (preset: PlatformScenarioPreset) => {
       // 演示时钟固定 2026-08-12 09:00（与平台服务一致），时限派生以此为准。
       const NOW = new Date('2026-08-12T09:00:00')
@@ -890,6 +1065,45 @@ export function createScenarioService(
       platformState = {
         ...scenario,
         expertTasks: task,
+        auditLog: initialAuditEntries(),
+      }
+      persistPlatform()
+      syncThesisStageToDispatch('thesis-main')
+    },
+    loadExpertScenario: async (preset: ExpertScenarioPreset) => {
+      // 专家端演示场景：原子替换本人任务与匿名材料投影（演示装载，不模拟真实时限调度）。
+      const NOW = new Date('2026-08-12T09:00:00')
+      const at = (day: number, hour = 18, minute = 0) =>
+        `${NOW.getFullYear()}-${String(NOW.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')} ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`
+      const taskForPreset = (): ExpertTaskSummary[] => {
+        if (preset === 'CORRECTION_PENDING') {
+          return [
+            createDemoTask('SUBMITTED', { dueAt: at(28), materialsVisible: true }),
+          ]
+        }
+        if (preset === 'REJECTED') {
+          return [createDemoTask('REJECTED', { dueAt: at(26) })]
+        }
+        if (preset === 'OVERDUE') {
+          return [createDemoTask('IN_REVIEW', { dueAt: at(10), overdue: true })]
+        }
+        if (preset === 'IN_REVIEW') {
+          return [createDemoTask('IN_REVIEW', { dueAt: at(28) })]
+        }
+        if (preset === 'SUBMITTED') {
+          return [createDemoTask('SUBMITTED', { dueAt: at(28), materialsVisible: true })]
+        }
+        return [createDemoTask('INVITED', { dueAt: at(26) })]
+      }
+      const dispatchStatus: DispatchThesisSeed['status'] =
+        preset === 'CORRECTION_PENDING' || preset === 'SUBMITTED' ? 'COMPLETED' : 'PENDING_ACCEPTANCE'
+      const scenario: FixturePlatformState =
+        preset === 'CORRECTION_PENDING'
+          ? createCorrectionSettlementScenario()
+          : createDispatchScenario([{ thesisId: 'thesis-main', status: dispatchStatus }])
+      platformState = {
+        ...scenario,
+        expertTasks: taskForPreset(),
         auditLog: initialAuditEntries(),
       }
       persistPlatform()

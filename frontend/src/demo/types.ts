@@ -400,6 +400,9 @@ export interface SchoolBill {
   consumedAt?: string
 }
 
+/** Task 5 专家任务允许动作（由任务状态与服务端规则派生，页面按钮据此渲染）。 */
+export type ExpertTaskAction = 'ACCEPT_TASK' | 'REJECT_TASK' | 'CONTINUE_REVIEW' | 'VIEW_SUBMITTED'
+
 export interface ExpertTaskSummary {
   id: string
   thesisId?: string
@@ -412,6 +415,27 @@ export interface ExpertTaskSummary {
   dueAt: string
   overdue: boolean
   round?: number
+  /** Task 5 起：接单截止（INVITED 任务显示；评阅截止与接单截止均按租户时区绝对时间展示）。 */
+  acceptBy?: string
+  /** 接单前材料不可见；接受后（IN_REVIEW）才可见（双盲红线）。专家端投影始终派生。 */
+  materialsVisible?: boolean
+  /** 匿名化摘要（接单前可展示的匿名基本信息）。 */
+  abstract?: string
+  /** 专业匹配说明（接单详情 PAGE-009）。 */
+  matchNote?: string
+  /** 评审模板说明（六维快照说明，演示文案）。 */
+  templateNote?: string
+  /** 评审费用说明（接单详情 PAGE-009 展示；正式结算规则以后端为准）。 */
+  feeNote?: string
+  /** 存在待审批更正申请时置 true（列表「需要更正」标记与辅助 Tab 依据）。 */
+  correctionPending?: boolean
+  /** 允许动作：状态按钮由服务端派生，页面不自行推断。专家端投影始终派生。 */
+  allowedActions?: ExpertTaskAction[]
+}
+
+/** Task 5 专家任务列表查询：`own` 表示仅投影当前专家端演示人格（本人）的任务。 */
+export interface ExpertTaskQuery {
+  own?: boolean
 }
 
 export interface OperationsItem {
@@ -543,6 +567,8 @@ export interface AuditLogEntry {
     | 'CORRECTION_DECIDED'
     | 'WITHDRAWAL_REVIEWED'
     | 'PAYMENT_RECORDED'
+    /** Task 5：专家拒绝接单（触发运营改派队列）。 */
+    | 'REJECT'
   thesisId?: string
   expertId?: string
   taskId?: string
@@ -561,8 +587,15 @@ export type PlatformScenarioPreset =
   | 'COMPLETED'
   /** Task 4：待审批更正申请与待审核提现的结算演示快照。 */
   | 'CORRECTION_PENDING'
-  /** Task 4：待审批更正申请 + 待审核提现的结算演示快照。 */
+
+/** Task 5 专家端演示场景预设（PAGE-008 任务列表装载）。 */
+export type ExpertScenarioPreset =
+  | 'INVITED'
+  | 'IN_REVIEW'
+  | 'OVERDUE'
+  | 'SUBMITTED'
   | 'CORRECTION_PENDING'
+  | 'REJECTED'
 
 /** Task 4 更正申请的投影（PAGE-020）。 */
 export interface CorrectionRequest {
@@ -739,11 +772,17 @@ export interface ScenarioService extends StudentPortalService, PlatformOperation
   previewBatchImport(): Promise<BatchImportRow[]>
   listPublishedResults(): Promise<DemoPublishedResult[]>
   listReviewResults(): Promise<DemoPublishedResult[]>
-  listExpertTasks(): Promise<ExpertTaskSummary[]>
+  listExpertTasks(query?: ExpertTaskQuery): Promise<ExpertTaskSummary[]>
   listOperationsItems(): Promise<OperationsItem[]>
   getSchoolAccount(): Promise<SchoolAccountSummary>
   getSchoolBills(): Promise<SchoolBill[]>
   getExpertAccount(): Promise<ExpertAccountSummary>
+  /** Task 5 专家端接单（INVITED→IN_REVIEW，仅本人任务；接受后匿名材料可见）。 */
+  acceptExpertTask(taskId: string): Promise<ExpertTaskSummary>
+  /** Task 5 专家端拒绝（INVITED→REJECTED，原因必填；触发运营改派提示，不模拟真实通知）。 */
+  rejectExpertTask(taskId: string, reason: string): Promise<ExpertTaskSummary>
+  /** Task 5 专家端演示场景装载（任务列表/接单详情/逾期/已完成/需要更正/已拒绝）。 */
+  loadExpertScenario(preset: ExpertScenarioPreset): Promise<void>
   loadPlatformScenario(preset: PlatformScenarioPreset): Promise<void>
   reset(): Promise<DemoScenarioSnapshot>
 }
