@@ -77,6 +77,16 @@ function persistedFileMeta(file: ThesisFileMeta): ThesisFileMeta {
   }
 }
 
+function normalizeKeywords(keywords: string[]) {
+  return [...new Set(keywords.map((keyword) => keyword.trim()).filter(Boolean))]
+}
+
+function ensureKeywordLimit(keywords: string[]) {
+  if (keywords.length > 5) {
+    throw new StudentPortalError('INVALID_INPUT', '关键词最多填写 5 个。')
+  }
+}
+
 export function createStudentPortalService(deps: StudentPortalDependencies): StudentPortalService {
   const findThesis = (id: string) => {
     const thesis = deps.getTheses().find((item) => item.id === id)
@@ -182,13 +192,15 @@ export function createStudentPortalService(deps: StudentPortalDependencies): Stu
     saveStudentDraft: async (id: string, input: StudentDraftInput) => {
       const thesis = findThesis(id)
       ensureAction(thesis, 'EDIT_THESIS')
+      const keywords = normalizeKeywords(input.keywords)
+      ensureKeywordLimit(keywords)
       const originalFile = input.files.find((file) => file.purpose === 'SCHOOL_ARCHIVE')
       const anonymousFile = input.files.find((file) => file.purpose === 'EXPERT_REVIEW')
       const updated = {
         ...thesis,
         title: input.title,
         discipline: { ...input.discipline },
-        keywords: [...input.keywords],
+        keywords,
         originalFileName: originalFile?.name ?? '',
         anonymousFileName: anonymousFile?.name ?? '',
         updatedAt: timestamp,
@@ -210,6 +222,8 @@ export function createStudentPortalService(deps: StudentPortalDependencies): Stu
       ensureAction(thesis, 'EDIT_THESIS')
       const state = deps.getState()
       const files = state.fileMetadataByThesis[id] ?? []
+      const keywords = normalizeKeywords(thesis.keywords)
+      ensureKeywordLimit(keywords)
       const hasOriginal = files.some(
         (file) => file.purpose === 'SCHOOL_ARCHIVE' && file.validationStatus === 'VALID',
       )
@@ -222,7 +236,7 @@ export function createStudentPortalService(deps: StudentPortalDependencies): Stu
         !thesis.title.trim() ||
         !(state.abstractsByThesis[id] ?? '').trim() ||
         !thesis.discipline.code ||
-        thesis.keywords.length === 0 ||
+        keywords.length === 0 ||
         !hasOriginal ||
         !hasAnonymous
       ) {

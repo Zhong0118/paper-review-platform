@@ -237,6 +237,36 @@ describe('student thesis material editor', () => {
     expect(router.currentRoute.value.path).toBe('/student/dashboard')
   })
 
+  it('contains keyboard focus in the confirmation dialog and restores it on Escape', async () => {
+    const { wrapper } = await mountEditor()
+    const opener = wrapper.get('[data-action="open-submit-confirmation"]')
+    ;(opener.element as HTMLButtonElement).focus()
+
+    await opener.trigger('click')
+    await flushPromises()
+
+    const dialog = wrapper.get('[role="dialog"]')
+    const cancel = wrapper.get('[data-action="close-submit-confirmation"]')
+    const confirm = wrapper.get('[data-action="confirm-submit"]')
+    expect(document.activeElement).toBe(cancel.element)
+    expect(wrapper.get('.edit-page').attributes('inert')).toBeDefined()
+    expect(wrapper.get('.edit-page').attributes('aria-hidden')).toBe('true')
+
+    await dialog.trigger('keydown', { key: 'Tab' })
+    expect(document.activeElement).toBe(confirm.element)
+    await dialog.trigger('keydown', { key: 'Tab' })
+    expect(document.activeElement).toBe(cancel.element)
+    await dialog.trigger('keydown', { key: 'Tab', shiftKey: true })
+    expect(document.activeElement).toBe(confirm.element)
+
+    await dialog.trigger('keydown', { key: 'Escape' })
+    await flushPromises()
+
+    expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
+    expect(document.activeElement).toBe(opener.element)
+    expect(wrapper.get('.edit-page').attributes('inert')).toBeUndefined()
+  })
+
   it.each(['PENDING', 'INVALID'] as const)(
     'blocks %s file metadata in the matching validation slot',
     async (validationStatus) => {

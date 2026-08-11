@@ -230,6 +230,7 @@ export class StudentPortalError extends Error {
       | 'ILLEGAL_ACTION'
       | 'NOT_FOUND'
       | 'FORBIDDEN'
+      | 'INVALID_INPUT'
       | 'DEMO_MODE_DISABLED',
     message: string,
   ) {

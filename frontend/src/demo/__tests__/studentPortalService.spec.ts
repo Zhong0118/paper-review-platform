@@ -13,6 +13,70 @@ function createMemoryStorage() {
 }
 
 describe('student portal service', () => {
+  it('normalizes keyword whitespace and duplicates at the save boundary', async () => {
+    const service = createScenarioService({ storage: createMemoryStorage(), demoMode: true })
+    const current = await service.getStudentThesis('thesis-main')
+
+    await service.saveStudentDraft('thesis-main', {
+      title: current.title,
+      abstract: current.abstract,
+      discipline: current.discipline,
+      keywords: ['  知识图谱 ', '多模态推理', '知识图谱', '   '],
+      files: current.files,
+    })
+
+    expect((await service.getStudentThesis('thesis-main')).keywords).toEqual([
+      '知识图谱',
+      '多模态推理',
+    ])
+  })
+
+  it('rejects more than five normalized keywords at the save boundary', async () => {
+    const service = createScenarioService({ storage: createMemoryStorage(), demoMode: true })
+    const current = await service.getStudentThesis('thesis-main')
+
+    await expect(
+      service.saveStudentDraft('thesis-main', {
+        title: current.title,
+        abstract: current.abstract,
+        discipline: current.discipline,
+        keywords: ['一', '二', '三', '四', '五', '六'],
+        files: current.files,
+      }),
+    ).rejects.toMatchObject({
+      name: 'StudentPortalError',
+      code: 'INVALID_INPUT',
+      message: '关键词最多填写 5 个。',
+    })
+  })
+
+  it('rejects submission when restored state bypasses the keyword limit', async () => {
+    const storage = createMemoryStorage()
+    const service = createScenarioService({ storage, demoMode: true })
+    const current = await service.getStudentThesis('thesis-main')
+    await service.saveStudentDraft('thesis-main', {
+      title: current.title,
+      abstract: current.abstract,
+      discipline: current.discipline,
+      keywords: ['一', '二', '三', '四', '五'],
+      files: current.files,
+    })
+    const persisted = JSON.parse(storage.getItem('baijie-demo-student:v1')!)
+    const savedThesis = persisted.scenario.theses.find(
+      (thesis: { id: string }) => thesis.id === 'thesis-main',
+    )
+    savedThesis.keywords = ['一', '二', '三', '四', '五', '六']
+    storage.setItem('baijie-demo-student:v1', JSON.stringify(persisted))
+
+    const restored = createScenarioService({ storage, demoMode: true })
+
+    await expect(restored.submitStudentThesis('thesis-main')).rejects.toMatchObject({
+      name: 'StudentPortalError',
+      code: 'INVALID_INPUT',
+      message: '关键词最多填写 5 个。',
+    })
+  })
+
   it('persists the abstract and exact file metadata across service reconstruction', async () => {
     const storage = createMemoryStorage()
     const service = createScenarioService({ storage, demoMode: true })

@@ -22,6 +22,9 @@ const router = useRouter()
 const authStore = useAuthStore()
 const service = useScenarioService()
 const editor = ref<InstanceType<typeof ThesisMaterialEditor>>()
+const submitOpener = ref<HTMLButtonElement>()
+const confirmDialog = ref<HTMLElement>()
+const cancelConfirmation = ref<HTMLButtonElement>()
 const thesisId = ref('')
 const anonymousId = ref('')
 const loading = ref(true)
@@ -166,6 +169,40 @@ async function openSubmitConfirmation() {
   }
   validationError.value = ''
   showConfirmation.value = true
+  await nextTick()
+  cancelConfirmation.value?.focus()
+}
+
+async function closeSubmitConfirmation() {
+  if (submitting.value) return
+  showConfirmation.value = false
+  submitError.value = ''
+  await nextTick()
+  submitOpener.value?.focus()
+}
+
+function handleConfirmationKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    void closeSubmitConfirmation()
+    return
+  }
+  if (event.key !== 'Tab') return
+
+  const focusable = Array.from(
+    confirmDialog.value?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') ?? [],
+  )
+  if (focusable.length === 0) return
+  const activeIndex = focusable.indexOf(document.activeElement as HTMLButtonElement)
+  const nextIndex = event.shiftKey
+    ? activeIndex <= 0
+      ? focusable.length - 1
+      : activeIndex - 1
+    : activeIndex < 0 || activeIndex === focusable.length - 1
+      ? 0
+      : activeIndex + 1
+  event.preventDefault()
+  focusable[nextIndex]?.focus()
 }
 
 async function confirmSubmit() {
@@ -211,7 +248,11 @@ void loadDraft()
     context-label="学生端 · 海岳大学"
     :user-name="authStore.user?.displayName ?? '林知远'"
   >
-    <div class="edit-page">
+    <div
+      class="edit-page"
+      :inert="showConfirmation || undefined"
+      :aria-hidden="showConfirmation ? 'true' : undefined"
+    >
       <PageHeader
         eyebrow="PAGE-003 · THESIS SUBMISSION"
         title="论文信息与材料提交"
@@ -271,6 +312,7 @@ void loadDraft()
               {{ saving ? '保存中…' : saveFailed ? '重新保存' : '保存草稿' }}
             </button>
             <button
+              ref="submitOpener"
               class="button button--primary"
               data-action="open-submit-confirmation"
               type="button"
@@ -285,10 +327,12 @@ void loadDraft()
 
     <div v-if="showConfirmation" class="dialog-backdrop">
       <section
+        ref="confirmDialog"
         class="confirm-dialog"
         role="dialog"
         aria-modal="true"
         aria-labelledby="confirm-title"
+        @keydown="handleConfirmationKeydown"
       >
         <span class="confirm-dialog__mark" aria-hidden="true">审</span>
         <h2 id="confirm-title">确认提交论文？</h2>
@@ -309,7 +353,13 @@ void loadDraft()
           </div>
         </dl>
         <footer>
-          <button class="button button--quiet" type="button" @click="showConfirmation = false">
+          <button
+            ref="cancelConfirmation"
+            class="button button--quiet"
+            data-action="close-submit-confirmation"
+            type="button"
+            @click="closeSubmitConfirmation"
+          >
             继续检查
           </button>
           <button
