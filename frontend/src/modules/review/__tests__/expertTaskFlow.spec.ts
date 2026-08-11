@@ -65,6 +65,40 @@ describe('expert task service', () => {
     expect(
       (await service.listExpertTasks({ own: true })).find((t) => t.id === invited!.id)?.status,
     ).toBe('REJECTED')
+    // 拒绝原因写入审计（演示投影：拒绝后等待平台改派）
+    const audit = await service.listPlatformAuditLog()
+    expect(audit[0]).toMatchObject({
+      action: 'REJECT',
+      taskId: invited!.id,
+      detail: '专家拒绝接单（原因：时间不足），等待平台改派。',
+    })
+  })
+
+  it('accepts 其他 with a mandatory explanation and rejects without one', async () => {
+    const service = createScenarioService({ storage: createMemoryStorage(), demoMode: true })
+    await service.loadExpertScenario('INVITED')
+    const invited = (await service.listExpertTasks({ own: true })).find(
+      (t) => t.status === 'INVITED',
+    )!
+
+    // 未选原因：拦截
+    await expect(service.rejectExpertTask(invited.id, '')).rejects.toMatchObject({
+      code: 'INVALID_INPUT',
+    })
+    // 选择「其他」但未填说明：拦截
+    await expect(service.rejectExpertTask(invited.id, '其他')).rejects.toMatchObject({
+      code: 'INVALID_INPUT',
+    })
+    // 其他 + 说明：reason 以「其他：」开头，审计携带完整说明
+    await service.rejectExpertTask(invited.id, '其他：研究方向与本课题仅部分重叠')
+    expect(
+      (await service.listExpertTasks({ own: true })).find((t) => t.id === invited.id)?.status,
+    ).toBe('REJECTED')
+    const audit = await service.listPlatformAuditLog()
+    expect(audit[0]).toMatchObject({
+      action: 'REJECT',
+      detail: '专家拒绝接单（原因：其他：研究方向与本课题仅部分重叠），等待平台改派。',
+    })
   })
 
   it('hides materials before acceptance and reveals them after', async () => {
@@ -127,16 +161,32 @@ describe('expert task service', () => {
     expect(task.status).toBe('IN_REVIEW')
     expect(task.materialsVisible).toBe(true)
   })
+
+  it('keeps the student-flow fallback task non-interactive on the expert page', async () => {
+    // 学生端流程兼容回退：学生端已进入评阅（taskStatus 存在）但平台尚无任务时，
+    // 专家页补充一条投影任务；该任务不得成为可接受的死胡同（平台无记录，接单必 NOT_FOUND）。
+    const service = createScenarioService({ storage: createMemoryStorage(), demoMode: true })
+    await service.loadStudentScenario('EXPERT_REVIEW')
+    const tasks = await service.listExpertTasks({ own: true })
+    expect(tasks.length).toBeGreaterThan(0)
+    expect(tasks.every((t) => t.expertId === 'expert-17')).toBe(true)
+    const fallback = tasks.find((t) => t.id === 'task-e-2026-042')
+    expect(fallback).toBeDefined()
+    // 非待接受状态（学生端已进入评阅）：无接单/拒绝动作，不渲染可点击入口
+    expect(fallback!.status).toBe('IN_REVIEW')
+    expect(fallback!.allowedActions).toEqual(['CONTINUE_REVIEW'])
+    // 平台无该任务记录：接单必然被服务端拒绝
+    await expect(service.acceptExpertTask(fallback!.id)).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    })
+  })
 })
 
 describe('expert task list page (PAGE-008)', () => {
   it('renders three main tabs, auxiliary tabs, and a stats row', async () => {
-    const { service, wrapper } = await mountPage(
-      ExpertTasksPage,
-      createScenarioService({ storage: createMemoryStorage(), demoMode: true }),
-    )
+    const service = createScenarioService({ storage: createMemoryStorage(), demoMode: true })
     await service.loadExpertScenario('CORRECTION_PENDING')
-    await flushPromises()
+    const { wrapper } = await mountPage(ExpertTasksPage, service)
 
     const tabs = wrapper.findAll('[data-tab]')
     expect(tabs.map((tab) => tab.attributes('data-tab'))).toEqual([
@@ -151,6 +201,12 @@ describe('expert task list page (PAGE-008)', () => {
     const stats = wrapper.findAll('[data-tab-count]')
     expect(stats.length).toBeGreaterThan(0)
     expect(stats.some((s) => s.text() === '0')).toBe(true)
+
+    // CORRECTION_PENDING 场景：需要更正标记只挂在本人任务（任务与申请均 expertId 匹配），
+    // 更正申请属于他人（expert-31）时不误标，辅助 Tab 计数为 0。
+    const pendingCount = wrapper.get('[data-tab="CORRECTION_PENDING"] [data-tab-count]')
+    expect(pendingCount.text()).toBe('0')
+    expect(wrapper.findAll('[data-correction-tag]')).toHaveLength(0)
   })
 
   it('lists own tasks with columns and drives actions from allowedActions', async () => {
@@ -205,7 +261,7 @@ describe('expert task list page (PAGE-008)', () => {
     expect(wrapper.findAll('[data-action="continue-review"]').length).toBeGreaterThan(0)
   })
 
-  it('rejects an invitation with a mandatory reason from the dropdown', async () => {
+  it('rejects an invitation with a mandatory reason; 其他 requires an explanation', async () => {
     const service = createScenarioService({ storage: createMemoryStorage(), demoMode: true })
     await service.loadExpertScenario('INVITED')
     const { wrapper } = await mountPage(InvitationPage, service)
@@ -221,9 +277,19 @@ describe('expert task list page (PAGE-008)', () => {
       .map((option) => option.attributes('value'))
     expect(options).toEqual(['', '方向不符', '时间不足', '利益冲突', '其他'])
 
-    await wrapper.get('[data-reject-reason]').setValue('时间不足')
+    // 选中「其他」时出现必填说明输入框；未填说明时确认按钮仍禁用
+    await wrapper.get('[data-reject-reason]').setValue('其他')
+    await flushPromises()
+    const detail = wrapper.get('[data-reject-reason-detail]')
+    expect(detail.exists()).toBe(true)
+    expect(wrapper.get('[data-action="confirm-reject-task"]').attributes('disabled')).toBeDefined()
+
+    // 填写说明后可确认；服务层收到的原因是「其他：说明」
+    const rejectSpy = vi.spyOn(service, 'rejectExpertTask')
+    await detail.setValue('研究方向与本课题仅部分重叠')
     await wrapper.get('[data-action="confirm-reject-task"]').trigger('click')
     await flushPromises()
+    expect(rejectSpy).toHaveBeenCalledWith(task.id, '其他：研究方向与本课题仅部分重叠')
     expect((await service.listExpertTasks({ own: true })).find((t) => t.id === task.id)?.status).toBe(
       'REJECTED',
     )

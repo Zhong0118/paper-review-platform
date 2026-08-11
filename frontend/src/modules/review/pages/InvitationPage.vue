@@ -18,6 +18,7 @@ const error = ref('')
 
 const rejectReasons = ['', '方向不符', '时间不足', '利益冲突', '其他']
 const rejectReason = ref('')
+const rejectOtherDetail = ref('')
 const rejectOpen = ref(false)
 const rejectPending = ref(false)
 const rejectError = ref('')
@@ -31,7 +32,18 @@ const acceptError = ref('')
 const acceptDialog = ref<HTMLElement | null>(null)
 const acceptDialogOpener = ref<HTMLElement | null>(null)
 
-const canConfirmReject = computed(() => !rejectPending.value && rejectReason.value !== '')
+const isOtherReason = computed(() => rejectReason.value === '其他')
+// 提交原因：选择「其他」时必须以「其他：说明」提交（设计规格 §5.6 下拉+说明）。
+const submittedReason = computed(() =>
+  rejectReason.value === '其他' ? `其他：${rejectOtherDetail.value.trim()}` : rejectReason.value,
+)
+
+const canConfirmReject = computed(
+  () =>
+    !rejectPending.value &&
+    rejectReason.value !== '' &&
+    (rejectReason.value !== '其他' || rejectOtherDetail.value.trim() !== ''),
+)
 
 onMounted(async () => {
   try {
@@ -104,6 +116,7 @@ async function confirmAccept() {
 
 async function openRejectDialog() {
   rejectReason.value = ''
+  rejectOtherDetail.value = ''
   rejectError.value = ''
   rejectOpen.value = true
   if (document.activeElement instanceof HTMLElement) {
@@ -148,11 +161,11 @@ function handleRejectKeydown(event: KeyboardEvent) {
 }
 
 async function confirmReject() {
-  if (!task.value || rejectPending.value || rejectReason.value === '') return
+  if (!task.value || rejectPending.value || !canConfirmReject.value) return
   rejectPending.value = true
   rejectError.value = ''
   try {
-    await service.rejectExpertTask(task.value.id, rejectReason.value)
+    await service.rejectExpertTask(task.value.id, submittedReason.value)
     rejectOpen.value = false
     task.value = null
   } catch (err) {
@@ -322,6 +335,15 @@ async function confirmReject() {
                 {{ reason === '' ? '请选择原因' : reason }}
               </option>
             </select>
+          </label>
+          <label v-if="isOtherReason" class="reject-detail">
+            <span>拒绝说明（必填）</span>
+            <textarea
+              v-model="rejectOtherDetail"
+              data-reject-reason-detail
+              rows="3"
+              placeholder="请说明具体拒绝原因"
+            />
           </label>
           <p v-if="rejectError" class="action-dialog__error" role="alert">{{ rejectError }}</p>
           <footer>
@@ -540,6 +562,21 @@ async function confirmReject() {
   background: #fff;
   color: #344550;
   font-size: 0.75rem;
+}
+
+.action-dialog .reject-detail {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.action-dialog textarea {
+  width: 100%;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid #cbd4dc;
+  border-radius: 0.3rem;
+  color: #344550;
+  font-size: 0.75rem;
+  font-family: inherit;
 }
 
 .action-dialog__error {

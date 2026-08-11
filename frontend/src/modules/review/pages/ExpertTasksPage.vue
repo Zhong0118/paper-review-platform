@@ -16,7 +16,7 @@ const service = useScenarioService()
 const tabs: Array<{ value: string; label: string; matcher: (t: ExpertTaskSummary) => boolean }> = [
   {
     value: 'INVITED',
-    label: '待接单',
+    label: '待接受',
     matcher: (t) => t.status === 'INVITED',
   },
   {
@@ -163,7 +163,7 @@ async function confirmAccept() {
       <BlindRail
         audience="匿名论文概要与本人任务"
         hidden-from="学生姓名、学号、导师、学校原始论文和其他专家意见"
-        stage="待接单"
+        stage="待接受"
       />
 
       <nav class="task-tabs" aria-label="任务分组">

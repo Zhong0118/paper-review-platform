@@ -360,6 +360,7 @@ function projectExpertTask(task: ExpertTaskSummary): ExpertTaskSummary {
     feeNote: task.feeNote ?? FEE_NOTE,
     // 接单前（INVITED）匿名材料不可见；接受后可见。动作始终按状态派生，不依赖存档。
     materialsVisible: task.materialsVisible === true || task.status === 'IN_REVIEW',
+    // 允许动作始终按当前状态派生：与请求时刻的存档无关，避免残留过期动作。
     allowedActions: expertTaskActionsFor(task.status),
   }
 }
@@ -423,10 +424,14 @@ export function createScenarioService(
     return projectExpertTask(updated)
   }
 
-  /** 专家端拒绝（INVITED→REJECTED）：原因必填；拒绝后等待平台改派（本地演示投影）。 */
+  /** 专家端拒绝（INVITED→REJECTED）：原因必填；「其他」需附带说明；拒绝后等待平台改派（本地演示投影）。 */
   const rejectExpertTask = async (taskId: string, reason: string): Promise<ExpertTaskSummary> => {
     if (!reason.trim()) {
       throw new PlatformOperationError('INVALID_INPUT', '拒绝原因不能为空。')
+    }
+    // 选择「其他」时说明必填（原因以「其他：」前缀提交，见设计规格 §5.6 下拉+说明）。
+    if (reason.startsWith('其他') && !reason.includes('：')) {
+      throw new PlatformOperationError('INVALID_INPUT', '选择「其他」时请填写拒绝说明。')
     }
     const personaTask = platformTasksForPersona().find((task) => task.id === taskId)
     if (!personaTask) {
@@ -957,12 +962,16 @@ export function createScenarioService(
       const platformTasks: ExpertTaskSummary[] = platformState.expertTasks
         .filter((task) => (query?.own ? task.expertId === EXPERT_PERSONA_ID : true))
         .map((task) => projectExpertTask(task))
-      const hasMainTask = platformTasks.some(
+      // 学生端流程兼容回退：仅当平台尚无本人 thesis-main 在评任务、且查询为本人视图时补充。
+      // 回退任务动作仍由状态派生：学生端任务状态为 INVITED 时出现可接受任务（学生端 acceptTask 路径），
+      // 非 INVITED 时无接受入口，避免死胡同（状态已进入评阅/提交，专家端不再接单）。
+      const hasOwnMainTask = platformTasks.some(
         (task) =>
           task.thesisId === demoThesis.id &&
+          task.expertId === EXPERT_PERSONA_ID &&
           ['INVITED', 'IN_REVIEW', 'SUBMITTED'].includes(task.status),
       )
-      if (state.taskStatus && !hasMainTask) {
+      if (state.taskStatus && !hasOwnMainTask && query?.own) {
         platformTasks.push(
           projectExpertTask({
             id: 'task-e-2026-042',
@@ -981,11 +990,18 @@ export function createScenarioService(
           }),
         )
       }
-      // 有更正申请的任务在投影上附加「需要更正」标记（页面据此渲染辅助 Tab 与列表标记）。
+      // 有更正申请的任务在投影上附加「需要更正」标记（页面据此渲染辅助 Tab 与列表标记）：
+      // 仅限本人任务（任务与更正申请均需 expertId 匹配），他人任务的申请不误标。
       return deepFreeze(
         structuredClone(
           platformTasks.map((task) =>
-            pendingCorrections.has(task.id)
+            pendingCorrections.has(task.id) &&
+            platformState.correctionRequests.some(
+              (request) =>
+                request.taskId === task.id &&
+                request.expertId === task.expertId &&
+                request.status === 'PENDING',
+            )
               ? { ...task, correctionPending: true as const }
               : task,
           ),
