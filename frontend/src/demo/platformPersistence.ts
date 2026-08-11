@@ -1,6 +1,6 @@
 import { createInitialPlatformState } from './platformFixtures'
 import type { PlatformState } from './platformFixtures'
-import type { ExpertProfile, StorageLike } from './types'
+import type { ExpertProfile, ExpertProfileAction, StorageLike } from './types'
 
 /**
  * 平台演示状态使用独立持久化 key（与学生端 `baijie-demo-student:v1` 分离）。
@@ -34,12 +34,28 @@ function normalizeExpert(value: unknown): ExpertProfile | null {
       ? { code: (source.discipline as Record<string, string>).code, name: (source.discipline as Record<string, string>).name }
       : { code: '', name: '' }
   const fixture = createInitialPlatformState().experts.find((item) => item.id === source.id)
+  const isFixtureExpert = fixture !== undefined
   const qualification = ['APPROVED', 'REVIEWING', 'REJECTED'].includes(String(source.qualification))
     ? (source.qualification as ExpertProfile['qualification'])
     : 'REVIEWING'
   const serviceStatus = ['ACTIVE', 'DISABLED'].includes(String(source.serviceStatus))
     ? (source.serviceStatus as ExpertProfile['serviceStatus'])
     : 'ACTIVE'
+  // 驳回/停用原因随状态一起持久化，是原因的唯一样本数据：只要存档中存在即无条件携带，
+  // 不依赖 fixture（fixture 中无这两个字段，靠 fixture 兜底会让原因在重载时丢失）。
+  const qualificationNote =
+    typeof source.qualificationNote === 'string' ? source.qualificationNote : undefined
+  const serviceNote = typeof source.serviceNote === 'string' ? source.serviceNote : undefined
+  // 允许动作是资格/服务状态的实时派生（见 platformOperationService.actionsFor）。
+  // 存档中的动作列表总是由服务在每次变更后写入，因此以存档为准：新建档案（expert-new-*）
+  // 没有 fixture，回退到 fixture 会把动作清空；回退到陈旧 fixture 会让重载后的已变更
+  // 专家保留过期的允许动作。仅当存档缺失该字段（更早版本写入的 blob）时才回退 fixture。
+  const savedActions = Array.isArray(source.allowedActions)
+    ? source.allowedActions.filter(
+        (action): action is ExpertProfileAction =>
+          action === 'UPDATE_PROFILE' || action === 'SET_SERVICE_STATUS' || action === 'REVIEW_QUALIFICATION',
+      )
+    : undefined
   return {
     ...(fixture ?? {}),
     id: source.id,
@@ -54,9 +70,9 @@ function normalizeExpert(value: unknown): ExpertProfile | null {
       ? source.reviewableTypes.filter((item): item is string => typeof item === 'string')
       : fixture?.reviewableTypes ?? [],
     qualification,
-    ...(typeof source.qualificationNote === 'string' ? { qualificationNote: source.qualificationNote } : {}),
+    ...(qualificationNote !== undefined ? { qualificationNote } : {}),
     serviceStatus,
-    ...(typeof source.serviceNote === 'string' ? { serviceNote: source.serviceNote } : {}),
+    ...(serviceNote !== undefined ? { serviceNote } : {}),
     avoidSchools: Array.isArray(source.avoidSchools)
       ? source.avoidSchools.filter((item): item is string => typeof item === 'string')
       : fixture?.avoidSchools ?? [],
@@ -73,7 +89,10 @@ function normalizeExpert(value: unknown): ExpertProfile | null {
       typeof source.qualitySummary === 'string' ? source.qualitySummary : fixture?.qualitySummary ?? '',
     feeStandard: typeof source.feeStandard === 'number' ? source.feeStandard : fixture?.feeStandard ?? 0,
     payoutStatus: source.payoutStatus === 'PENDING' ? 'PENDING' : 'BOUND',
-    allowedActions: fixture?.allowedActions ?? [],
+    // fixture 专家首次加载（无存档动作）沿用 fixture 动作；非 fixture 专家无 fixture 可回退，
+    // 而本服务始终写入完整 v1 序列化数据，存档缺失动作视为空列表而非错误。
+    allowedActions:
+      savedActions ?? (isFixtureExpert && fixture?.allowedActions ? fixture.allowedActions : []),
   }
 }
 

@@ -95,6 +95,24 @@ describe('platform operation service', () => {
     })
   })
 
+  it('keeps rejection and disable reasons across save, reload and reconstruction', async () => {
+    const storage = createMemoryStorage()
+    const service = createScenarioService({ storage, demoMode: true })
+    const target = (await service.listExpertProfiles())[0]
+    await service.reviewExpertQualification(target.id, 'REJECTED', '学科方向不符')
+    await service.setExpertServiceStatus(target.id, 'DISABLED', '暂时满负载')
+
+    const restored = createScenarioService({ storage, demoMode: true })
+    const profile = (await restored.listExpertProfiles()).find((p) => p.id === target.id)
+    // 驳回/停用原因随状态一起持久化：重载后原因必须仍在，不能回退到 fixture 缺省。
+    expect(profile).toMatchObject({
+      qualification: 'REJECTED',
+      qualificationNote: '学科方向不符',
+      serviceStatus: 'DISABLED',
+      serviceNote: '暂时满负载',
+    })
+  })
+
   it('returns immutable expert profile snapshots', async () => {
     const service = createScenarioService({ storage: createMemoryStorage(), demoMode: true })
     const profiles = await service.listExpertProfiles()
@@ -176,6 +194,42 @@ describe('platform operation service', () => {
     expect((await service.listExpertProfiles())).toHaveLength(4)
   })
 
+  it('keeps a created expert profile intact across save, reload and reconstruction', async () => {
+    const storage = createMemoryStorage()
+    const service = createScenarioService({ storage, demoMode: true })
+
+    const created = await service.createExpertProfile({
+      name: '林晚晴',
+      unit: '东江理工大学',
+      title: '副教授',
+      discipline: { code: '0835', name: '软件工程' },
+      researchTags: ['可信软件'],
+      avoidSchools: ['海岳大学'],
+    })
+
+    // 重建的服务从同一 storage 读回：新建档案的完整 v1 序列化数据不能依赖 fixture 兜底。
+    const restored = createScenarioService({ storage, demoMode: true })
+    const profile = (await restored.listExpertProfiles()).find((p) => p.id === created.id)
+    expect(profile).toBeDefined()
+    expect(profile).toMatchObject({
+      name: '林晚晴',
+      unit: '东江理工大学',
+      title: '副教授',
+      discipline: { code: '0835', name: '软件工程' },
+      researchTags: ['可信软件'],
+      reviewableTypes: ['硕士学位论文'],
+      avoidSchools: ['海岳大学'],
+      qualification: 'REVIEWING',
+      serviceStatus: 'ACTIVE',
+      payoutStatus: 'PENDING',
+    })
+    // 允许动作是资格/服务状态的实时派生：重载后仍需保持可操作，而非回退为空列表。
+    expect(profile?.allowedActions).toEqual(['UPDATE_PROFILE', 'SET_SERVICE_STATUS', 'REVIEW_QUALIFICATION'])
+    await expect(
+      restored.reviewExpertQualification(created.id, 'REJECTED', '材料不齐'),
+    ).resolves.toMatchObject({ qualification: 'REJECTED', qualificationNote: '材料不齐' })
+  })
+
   it('filters the expert library by qualification and service status', async () => {
     const service = createScenarioService({ storage: createMemoryStorage(), demoMode: true })
 
@@ -241,6 +295,27 @@ describe('platform operation service', () => {
       code: 'DEMO_MODE_DISABLED',
     })
     await expect(service.reviewExpertQualification('expert-17', 'APPROVED', '原因')).rejects.toMatchObject({
+      name: 'PlatformOperationError',
+      code: 'DEMO_MODE_DISABLED',
+    })
+    await expect(
+      service.createExpertProfile({
+        name: '林晚晴',
+        unit: '东江理工大学',
+        title: '副教授',
+        discipline: { code: '0835', name: '软件工程' },
+        researchTags: ['可信软件'],
+        avoidSchools: [],
+      }),
+    ).rejects.toMatchObject({
+      name: 'PlatformOperationError',
+      code: 'DEMO_MODE_DISABLED',
+    })
+    await expect(service.updateExpertProfile('expert-17', { feeStandard: 400 })).rejects.toMatchObject({
+      name: 'PlatformOperationError',
+      code: 'DEMO_MODE_DISABLED',
+    })
+    await expect(service.listExpertMatches('thesis-main')).rejects.toMatchObject({
       name: 'PlatformOperationError',
       code: 'DEMO_MODE_DISABLED',
     })
