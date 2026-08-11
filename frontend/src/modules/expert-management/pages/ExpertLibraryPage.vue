@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import BlindRail from '@/components/app/BlindRail.vue'
@@ -42,6 +42,8 @@ const saving = ref(false)
 const actionPending = ref(false)
 const isMobile = ref(false)
 
+const expertFormDialog = ref<HTMLElement>()
+const formCancelButton = ref<HTMLButtonElement>()
 const confirmationAction = ref<ConfirmationKind | null>(null)
 const reason = ref('')
 const confirmDialog = ref<HTMLElement>()
@@ -153,6 +155,31 @@ function openForm(row?: ExpertProfile) {
   rememberOverlayOpener()
   editingExpert.value = row ?? null
   formOpen.value = true
+  void nextTick(() => formCancelButton.value?.focus())
+}
+
+function handleFormKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    void closeForm()
+    return
+  }
+  if (event.key !== 'Tab') return
+  const focusable = Array.from(
+    expertFormDialog.value?.querySelectorAll<HTMLElement>('input, textarea, button:not(:disabled)') ??
+      [],
+  )
+  if (focusable.length === 0) return
+  const activeIndex = focusable.indexOf(document.activeElement as HTMLElement)
+  const nextIndex = event.shiftKey
+    ? activeIndex <= 0
+      ? focusable.length - 1
+      : activeIndex - 1
+    : activeIndex < 0 || activeIndex === focusable.length - 1
+      ? 0
+      : activeIndex + 1
+  event.preventDefault()
+  focusable[nextIndex]?.focus()
 }
 
 async function closeForm() {
@@ -169,10 +196,10 @@ async function openConfirmation(kind: ConfirmationKind) {
   cancelConfirm.value?.focus()
 }
 
-async function closeConfirmation() {
-  if (actionPending.value) return
+async function closeConfirmation(force = false) {
+  if (actionPending.value && !force) return
   confirmationAction.value = null
-  reason.value = ''
+  if (!force) reason.value = ''
   await restoreOverlayOpener()
 }
 
@@ -203,7 +230,11 @@ async function confirmAction() {
   const action = confirmationAction.value
   const expert = selectedExpert.value ?? editingExpert.value
   if (!action || !expert || actionPending.value) return
-  if (action !== 'PAUSE' && action !== 'RESUME' && !reason.value.trim()) return
+  if (
+    (action === 'PAUSE' || action === 'RESUME' || action === 'REJECT_QUALIFICATION') &&
+    !reason.value.trim()
+  )
+    return
 
   actionPending.value = true
   feedback.value = ''
@@ -231,11 +262,12 @@ async function confirmAction() {
         feeStandard: editingExpert.value.feeStandard,
       })
       await refreshRows()
+      editingExpert.value = null
       feedback.value = '专家档案已更新。'
     }
-    confirmationAction.value = null
+    await closeConfirmation(true)
   } catch (error) {
-    confirmationAction.value = null
+    await closeConfirmation(true)
     if (error instanceof Error && 'code' in error && String((error as { code: unknown }).code) === 'STATE_CONFLICT') {
       await refreshRows()
       feedback.value = '专家状态已更新，本次操作未执行。'
@@ -262,6 +294,7 @@ async function saveExpert() {
         avoidSchools: draft.avoidSchools,
         feeStandard: draft.feeStandard,
       }
+      formOpen.value = false
       await openConfirmation('SAVE_EXPERT')
     } else {
       const create = createForm.value
@@ -301,6 +334,7 @@ function handleTableAction(
   } else if (action === 'dispatch') {
     void router.push({ path: '/platform/dispatch', query: { expertId: row.id } })
   } else {
+    rememberOverlayOpener()
     selectedExpert.value = row
     void openConfirmation(
       action === 'pause'
@@ -396,6 +430,8 @@ onMounted(() => {
   window.addEventListener('resize', updateMobileFlag)
   void loadLibrary()
 })
+
+onUnmounted(() => window.removeEventListener('resize', updateMobileFlag))
 </script>
 
 <template>
@@ -541,7 +577,15 @@ onMounted(() => {
       />
 
       <div v-if="formOpen" class="dialog-backdrop" @click.self="closeForm">
-        <section class="expert-form" role="dialog" aria-modal="true" aria-labelledby="expert-form-title" data-expert-form>
+        <section
+          ref="expertFormDialog"
+          class="expert-form"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="expert-form-title"
+          data-expert-form
+          @keydown="handleFormKeydown"
+        >
           <header>
             <div>
               <span>EXPERT PROFILE</span>
@@ -643,7 +687,14 @@ onMounted(() => {
           </template>
 
           <footer>
-            <button type="button" data-action="cancel-expert-form" @click="closeForm">取消</button>
+            <button
+              ref="formCancelButton"
+              type="button"
+              data-action="cancel-expert-form"
+              @click="closeForm"
+            >
+              取消
+            </button>
             <button
               type="button"
               class="is-primary"
@@ -713,7 +764,7 @@ onMounted(() => {
               ref="cancelConfirm"
               type="button"
               data-action="cancel-confirmation"
-              @click="closeConfirmation"
+              @click="() => closeConfirmation()"
             >
               取消
             </button>
@@ -726,7 +777,9 @@ onMounted(() => {
                     ? 'confirm-resume'
                     : confirmationAction === 'REJECT_QUALIFICATION'
                       ? 'confirm-qualification-reject'
-                      : 'confirm-save-expert'
+                      : confirmationAction === 'APPROVE_QUALIFICATION'
+                        ? 'confirm-qualification-approve'
+                        : 'confirm-save-expert'
               "
               :disabled="
                 actionPending ||

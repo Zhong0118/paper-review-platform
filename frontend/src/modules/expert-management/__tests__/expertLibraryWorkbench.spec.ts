@@ -156,4 +156,42 @@ describe('platform expert library workbench', () => {
     expect(wrapper.find('.expert-library-table__mobile').exists()).toBe(true)
     expect(wrapper.get('[data-expert-card="expert-17"]').text()).toContain('周明远')
   })
+
+  it('edits an expert profile with confirmation and closes the form', async () => {
+    const service = createScenarioService({ storage: createMemoryStorage(), demoMode: true })
+    const updateSpy = vi.spyOn(service, 'updateExpertProfile')
+    const { wrapper } = await mountWorkbench(service)
+
+    await wrapper.get('[data-action="edit-expert"]').trigger('click')
+    expect(wrapper.get('[data-expert-form]').exists()).toBe(true)
+
+    await wrapper.get('input[type="number"]').setValue('350')
+    await wrapper.get('[data-form-action="save-expert"]').trigger('click')
+
+    // 编辑保存进入二次确认：表单已关闭，仅剩确认对话框这一层
+    expect(wrapper.find('[data-expert-form]').exists()).toBe(false)
+    expect(wrapper.get('[data-action="confirm-save-expert"]').exists()).toBe(true)
+
+    await wrapper.get('[data-action="confirm-save-expert"]').trigger('click')
+    await flushPromises()
+    expect(updateSpy).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ feeStandard: 350 }),
+    )
+    expect(wrapper.find('[data-action="confirm-save-expert"]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('专家档案已更新')
+  })
+
+  it('approves qualification with its own confirmation action', async () => {
+    const service = createScenarioService({ storage: createMemoryStorage(), demoMode: true })
+    const reviewSpy = vi.spyOn(service, 'reviewExpertQualification')
+    const { wrapper } = await mountWorkbench(service)
+
+    await wrapper.get('[data-action="review-qualification"]').trigger('click')
+    const confirm = wrapper.get('[data-action="confirm-qualification-approve"]')
+    expect(confirm.attributes('disabled')).toBeUndefined()
+    await confirm.trigger('click')
+    await flushPromises()
+    expect(reviewSpy).toHaveBeenCalledWith(expect.any(String), 'APPROVED', expect.any(String))
+  })
 })
