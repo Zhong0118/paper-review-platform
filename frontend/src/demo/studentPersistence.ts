@@ -1,6 +1,12 @@
 import { createInitialScenarioState, type DemoScenarioState } from './fixtures'
 import { createInitialStudentPortalState, type StudentPortalState } from './studentFixtures'
-import type { DemoThesisSummary, StorageLike, StudentObjection, ThesisFileMeta } from './types'
+import type {
+  DemoThesisSummary,
+  StorageLike,
+  StudentNotification,
+  StudentObjection,
+  ThesisFileMeta,
+} from './types'
 
 export const studentPersistenceKey = 'baijie-demo-student:v1'
 
@@ -139,6 +145,62 @@ function normalizeObjections(value: unknown): StudentObjection[] {
   })
 }
 
+function normalizeNotifications(
+  value: unknown,
+  theses: DemoThesisSummary[],
+): StudentNotification[] {
+  if (!Array.isArray(value)) return []
+  const businessKinds = new Set<StudentNotification['kind']>([
+    'THESIS_SUBMITTED',
+    'THESIS_WITHDRAWN',
+    'WITHDRAWAL_REQUESTED',
+    'RESULT_PUBLISHED',
+    'OBJECTION_SUBMITTED',
+    'OBJECTION_RECEIVED',
+  ])
+
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object') return []
+    const source = entry as Record<string, unknown>
+    if (
+      typeof source.id !== 'string' ||
+      typeof source.kind !== 'string' ||
+      typeof source.message !== 'string' ||
+      typeof source.createdAt !== 'string' ||
+      typeof source.read !== 'boolean'
+    ) {
+      return []
+    }
+    const notificationId = source.id
+    const recipientRole = ['student', 'school_reviewer'].includes(String(source.recipientRole))
+      ? (source.recipientRole as 'student' | 'school_reviewer')
+      : undefined
+    const base = {
+      id: notificationId,
+      message: source.message,
+      createdAt: source.createdAt,
+      read: source.read,
+      ...(recipientRole ? { recipientRole } : {}),
+    }
+    if (source.kind === 'DEMO_DATA_RESET') {
+      return [{ ...base, kind: 'DEMO_DATA_RESET' as const }]
+    }
+    if (!businessKinds.has(source.kind as StudentNotification['kind'])) return []
+    const thesisId =
+      typeof source.thesisId === 'string'
+        ? source.thesisId
+        : theses.find((thesis) => notificationId.startsWith(`notification-${thesis.id}-`))?.id
+    if (!thesisId) return []
+    return [
+      {
+        ...base,
+        kind: source.kind as Exclude<StudentNotification['kind'], 'DEMO_DATA_RESET'>,
+        thesisId,
+      } as StudentNotification,
+    ]
+  })
+}
+
 function deriveNextDraftSequence(theses: DemoThesisSummary[]) {
   const usedSequences = theses.flatMap((thesis) =>
     [thesis.id, thesis.anonymousId]
@@ -170,6 +232,7 @@ export function loadStudentDemo(storage: StorageLike): LoadedStudentDemo {
       student: {
         ...fixture,
         ...saved.student,
+        notifications: normalizeNotifications(saved.student.notifications, saved.scenario.theses),
         objections: normalizeObjections(saved.student.objections),
         abstractsByThesis: saved.student.abstractsByThesis ?? fixture.abstractsByThesis,
         fileMetadataByThesis: {

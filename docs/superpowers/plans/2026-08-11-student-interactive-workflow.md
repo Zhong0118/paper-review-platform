@@ -476,7 +476,7 @@ it('marks a notification read and navigates to its thesis target', async () => {
 
 - [ ] **Step 2: 运行消息测试并确认失败**
 
-Run: `npm run test:unit:run -- src/modules/shared/__tests__/studentNotifications.spec.ts`
+Run: `npm run test:unit -- --run src/modules/shared/__tests__/studentNotifications.spec.ts`
 
 Expected: FAIL，当前通知由页面常量生成，按钮不改变服务状态也不导航。
 
@@ -486,7 +486,7 @@ Expected: FAIL，当前通知由页面常量生成，按钮不改变服务状态
 
 - [ ] **Step 4: 运行消息及路由回归**
 
-Run: `npm run test:unit:run -- src/modules/shared/__tests__/studentNotifications.spec.ts src/router/__tests__/routes.spec.ts`
+Run: `npm run test:unit -- --run src/modules/shared/__tests__/studentNotifications.spec.ts src/router/__tests__/routes.spec.ts`
 
 Expected: PASS；消息目标始终携带本人论文标识。
 

@@ -149,6 +149,18 @@ export function createStudentPortalService(deps: StudentPortalDependencies): Stu
     const state = deps.getState()
     deps.setState({ ...state, notifications: [notification, ...state.notifications] })
   }
+  const studentNotifications = () => {
+    const ownThesisIds = new Set(
+      deps
+        .getTheses()
+        .filter((thesis) => thesis.studentId === '20260042')
+        .map((thesis) => thesis.id),
+    )
+    return deps
+      .getState()
+      .notifications.filter((item) => item.recipientRole !== 'school_reviewer')
+      .filter((item) => !item.thesisId || ownThesisIds.has(item.thesisId))
+  }
   const timestamp = '2026-08-11 09:00'
 
   return {
@@ -266,6 +278,7 @@ export function createStudentPortalService(deps: StudentPortalDependencies): Stu
       notify({
         id: `notification-${id}-submitted`,
         kind: 'THESIS_SUBMITTED',
+        thesisId: id,
         message: '论文已提交，等待学校审核。',
         createdAt: timestamp,
         read: false,
@@ -297,6 +310,7 @@ export function createStudentPortalService(deps: StudentPortalDependencies): Stu
       notify({
         id: `notification-${id}-withdrawn`,
         kind: 'THESIS_WITHDRAWN',
+        thesisId: id,
         message: `论文已撤回：${reason}`,
         createdAt: timestamp,
         read: false,
@@ -323,6 +337,7 @@ export function createStudentPortalService(deps: StudentPortalDependencies): Stu
       notify({
         id: `notification-${id}-withdrawal-requested`,
         kind: 'WITHDRAWAL_REQUESTED',
+        thesisId: id,
         message: '已提交撤回申请，等待处理。',
         createdAt: timestamp,
         read: false,
@@ -404,6 +419,7 @@ export function createStudentPortalService(deps: StudentPortalDependencies): Stu
       notify({
         id: `notification-${id}-objection`,
         kind: 'OBJECTION_SUBMITTED',
+        thesisId: id,
         recipientRole: 'student',
         message: '异议已提交，等待处理。',
         createdAt: timestamp,
@@ -412,6 +428,7 @@ export function createStudentPortalService(deps: StudentPortalDependencies): Stu
       notify({
         id: `notification-${id}-objection-school`,
         kind: 'OBJECTION_RECEIVED',
+        thesisId: id,
         recipientRole: 'school_reviewer',
         message: '收到新的学生异议，请及时受理。',
         createdAt: timestamp,
@@ -419,35 +436,28 @@ export function createStudentPortalService(deps: StudentPortalDependencies): Stu
       })
       return immutable(objection)
     },
-    listStudentNotifications: async () =>
-      immutable(
-        deps.getState().notifications.filter((item) => item.recipientRole !== 'school_reviewer'),
-      ),
+    listStudentNotifications: async () => immutable(studentNotifications()),
     markStudentNotificationRead: async (id: string) => {
       const state = deps.getState()
+      const visibleIds = new Set(studentNotifications().map((item) => item.id))
       deps.setState({
         ...state,
         notifications: state.notifications.map((item) =>
-          item.id === id && item.recipientRole !== 'school_reviewer'
-            ? { ...item, read: true }
-            : item,
+          item.id === id && visibleIds.has(item.id) ? { ...item, read: true } : item,
         ),
       })
-      return immutable(
-        deps.getState().notifications.filter((item) => item.recipientRole !== 'school_reviewer'),
-      )
+      return immutable(studentNotifications())
     },
     markAllStudentNotificationsRead: async () => {
       const state = deps.getState()
+      const visibleIds = new Set(studentNotifications().map((item) => item.id))
       deps.setState({
         ...state,
         notifications: state.notifications.map((item) =>
-          item.recipientRole === 'school_reviewer' ? item : { ...item, read: true },
+          visibleIds.has(item.id) ? { ...item, read: true } : item,
         ),
       })
-      return immutable(
-        deps.getState().notifications.filter((item) => item.recipientRole !== 'school_reviewer'),
-      )
+      return immutable(studentNotifications())
     },
     loadStudentScenario: async (preset: StudentScenarioPreset) => {
       if (!deps.demoMode) {

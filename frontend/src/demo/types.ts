@@ -206,20 +206,29 @@ export interface StudentObjection {
   publicResolution?: string
 }
 
-export interface StudentNotification {
+interface StudentNotificationBase {
   id: string
-  kind:
-    | 'THESIS_SUBMITTED'
-    | 'THESIS_WITHDRAWN'
-    | 'WITHDRAWAL_REQUESTED'
-    | 'OBJECTION_SUBMITTED'
-    | 'OBJECTION_RECEIVED'
-    | 'DEMO_DATA_RESET'
   recipientRole?: 'student' | 'school_reviewer'
   message: string
   createdAt: string
   read: boolean
 }
+
+export type StudentNotification =
+  | (StudentNotificationBase & {
+      kind:
+        | 'THESIS_SUBMITTED'
+        | 'THESIS_WITHDRAWN'
+        | 'WITHDRAWAL_REQUESTED'
+        | 'RESULT_PUBLISHED'
+        | 'OBJECTION_SUBMITTED'
+        | 'OBJECTION_RECEIVED'
+      thesisId: string
+    })
+  | (StudentNotificationBase & {
+      kind: 'DEMO_DATA_RESET'
+      thesisId?: never
+    })
 
 export type StudentScenarioPreset = DemoStage
 
