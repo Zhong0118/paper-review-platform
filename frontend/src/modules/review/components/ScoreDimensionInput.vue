@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { REVIEW_SCORE_TEMPLATE } from '@/demo/types'
 import type { ReviewDimensionKey } from '@/demo/types'
 
 const props = defineProps<{
+  /** 维度 key：与 REVIEW_SCORE_TEMPLATE 一一对应（组件不再反向按 label 查找）。 */
+  dimensionKey: ReviewDimensionKey
   label: string
   max: number
   guide: string
@@ -15,9 +16,7 @@ const emit = defineEmits<{
   'update:evaluation': [value: string]
 }>()
 
-const key = computed<ReviewDimensionKey>(
-  () => REVIEW_SCORE_TEMPLATE.find((item) => item.label === props.label)?.key ?? 'topicValue',
-)
+const guideId = computed(() => `dimension-guide-${props.dimensionKey}`)
 const hasError = computed(() => {
   const value = props.modelValue
   if (!Number.isFinite(value)) return true
@@ -27,7 +26,7 @@ const errorMessage = computed(() => `分值应在 0–${props.max} 之间（满�
 </script>
 
 <template>
-  <fieldset class="dimension" data-dimension :data-dimension-key="key">
+  <fieldset class="dimension" data-dimension :data-dimension-key="dimensionKey">
     <legend>
       {{ label }} <small>满分 {{ max }}</small>
     </legend>
@@ -38,10 +37,10 @@ const errorMessage = computed(() => `分值应在 0–${props.max} 之间（满�
           type="number"
           min="0"
           :max="max"
-          :name="key"
+          :name="dimensionKey"
           :value="modelValue"
           :disabled="locked"
-          aria-describedby="dimension-guide"
+          :aria-describedby="guideId"
           @input="
             emit('update:modelValue', Number(($event.target as HTMLInputElement).value))
           "
@@ -51,7 +50,7 @@ const errorMessage = computed(() => `分值应在 0–${props.max} 之间（满�
         {{ errorMessage }}
       </p>
     </div>
-    <p class="dimension__guide" data-dimension-guide>{{ guide }}</p>
+    <p class="dimension__guide" :id="guideId" data-dimension-guide>{{ guide }}</p>
     <label class="dimension__evaluation">
       <span>可选评价</span>
       <textarea

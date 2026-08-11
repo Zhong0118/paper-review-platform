@@ -21,6 +21,7 @@ function createUnavailableService(): ScenarioService {
     assignExperts: unavailable,
     acceptTask: unavailable,
     saveReviewDraft: unavailable,
+    getSnapshot: unavailable,
     submitFinalReview: unavailable,
     publishResult: unavailable,
     getStudentThesis: unavailable,

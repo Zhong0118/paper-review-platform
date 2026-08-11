@@ -182,6 +182,28 @@ describe('review workspace service', () => {
     })
     expect(await service.listCorrectionRequests()).toHaveLength(0)
   })
+
+  it('is idempotent on repeated final submission: no double accounting', async () => {
+    const service = createScenarioService({ storage: createMemoryStorage(), demoMode: true })
+    await service.loadExpertScenario('IN_REVIEW')
+    const accountBefore = await service.getExpertAccount()
+    const schoolBefore = await service.getSchoolAccount()
+    const versionsBefore = await service.listReviewVersions('task-e-2026-042')
+
+    await service.submitFinalReview(completeInput)
+    // 同一输入重复提交（防重复提交）：服务端幂等空操作，不重复计账。
+    await service.submitFinalReview(completeInput)
+    await service.submitFinalReview({ ...completeInput, overallComment: '第二次提交的评语' })
+
+    const accountAfter = await service.getExpertAccount()
+    const schoolAfter = await service.getSchoolAccount()
+    const versionsAfter = await service.listReviewVersions('task-e-2026-042')
+    expect(accountAfter.availableAmount).toBe(accountBefore.availableAmount + 300)
+    expect(schoolAfter.consumedAmount).toBe(schoolBefore.consumedAmount + 300)
+    // 平台 fixture 已预置 R1（只读初始版本）；重复提交不再追加新版本
+    expect(versionsAfter).toHaveLength(versionsBefore.length)
+    expect((await service.listExpertTasks())[0].status).toBe('SUBMITTED')
+  })
 })
 
 describe('review workspace page (PAGE-010)', () => {
@@ -281,6 +303,35 @@ describe('review workspace page (PAGE-010)', () => {
     expect(wrapper.get('[data-review-locked="true"]').exists()).toBe(true)
   })
 
+  it('restores the saved draft into the form after a page reload', async () => {
+    const service = createScenarioService({ storage: createMemoryStorage(), demoMode: true })
+    await service.loadExpertScenario('IN_REVIEW')
+    // 刷新后 activeRole 重置为 student，评阅草稿按角色投影隐藏；先恢复专家视角再读回草稿。
+    await service.loginAs('expert')
+    await service.saveReviewDraft(completeInput)
+    const first = await mountWorkspace(service)
+    // 刷新后：表单回填已保存草稿（六维分值 + 必填文本 + 评审结论）
+    const scoreValues = {
+      topicValue: '13',
+      literatureTheory: '13',
+      methodology: '17',
+      innovation: '21',
+      resultsWorkload: '13',
+      writingStandards: '9',
+    }
+    for (const [name, value] of Object.entries(scoreValues)) {
+      expect(first.wrapper.get(`input[name="${name}"]`).element).toHaveProperty('value', value)
+    }
+    expect(first.wrapper.get('textarea[name="overallComment"]').element).toHaveProperty(
+      'value',
+      '论文结构完整，达到硕士学位论文要求。',
+    )
+    expect(first.wrapper.get('select[name="recommendation"]').element).toHaveProperty(
+      'value',
+      '建议通过',
+    )
+  })
+
   it('shows the overdue red warning but still allows saving and submitting', async () => {
     const service = createScenarioService({ storage: createMemoryStorage(), demoMode: true })
     await service.loadExpertScenario('OVERDUE')
@@ -310,11 +361,21 @@ describe('review workspace page (PAGE-010)', () => {
   it('shows the autosave indicator after saving a draft', async () => {
     const service = createScenarioService({ storage: createMemoryStorage(), demoMode: true })
     await service.loadExpertScenario('IN_REVIEW')
+    await service.loginAs('expert')
     const { wrapper } = await mountWorkspace(service)
 
     await fillCompleteForm(wrapper)
     await wrapper.get('[data-action="save-review-draft"]').trigger('click')
     await flushPromises()
+    expect(wrapper.get('[data-autosave]').text()).toContain('已自动保存草稿')
+
+    // 输入变化触发自动保存（表单防抖 800ms 后页面落盘）
+    await wrapper.get('textarea[name="overallComment"]').setValue('更新后的总体评价')
+    await vi.waitFor(async () => {
+      expect((await service.getSnapshot()).review?.scoreInput?.overallComment).toBe(
+        '更新后的总体评价',
+      )
+    })
     expect(wrapper.get('[data-autosave]').text()).toContain('已自动保存草稿')
   })
 })

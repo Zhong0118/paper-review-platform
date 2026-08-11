@@ -252,7 +252,7 @@ function validateReviewInput(input: ReviewScoreInput): { field: string; message:
     if (value < 0 || value > dimension.maxScore) {
       errors.push({
         field: dimension.key,
-        message: `${dimension.label}分值应在 0–${dimension.maxScore} 之间（当前 ${value}）。`,
+        message: `${dimension.label}分值应在 0–${dimension.maxScore} 之间（满分 ${dimension.maxScore}）。`,
       })
     }
   }
@@ -842,6 +842,7 @@ export function createScenarioService(
       persist()
       return snapshot()
     },
+    getSnapshot: async () => snapshot(),
     saveReviewDraft: async (input?: ReviewScoreInput) => {
       // 草稿保存同样按模板做字段级完整性检查：服务端强制，页面只读视图不提供草稿入口。
       if (input) {
@@ -868,12 +869,10 @@ export function createScenarioService(
           reviewErrors.map((item) => item.message).join('；'),
         )
       }
-      // 最终提交防重复：已提交的终态任务重复提交直接返回当前快照（幂等），不重复计账。
-      const currentTask = platformState.expertTasks.find(
-        (task) =>
-          task.thesisId === demoThesis.id && ['INVITED', 'IN_REVIEW'].includes(task.status),
-      )
-      if (currentTask?.status === 'SUBMITTED') {
+      // 最终提交防重复（服务端强制，评审要求）：论文级已提交（快照 taskStatus 为
+      // SUBMITTED）即视为终态，重复提交直接返回当前快照（幂等空操作），不重复计账、
+      // 不追加评阅版本、不重复扣减学校账户。
+      if (state.taskStatus === 'SUBMITTED') {
         return snapshot()
       }
       // 专家任务层（acceptExpertTask / rejectExpertTask）已按「仅本人任务」守卫；

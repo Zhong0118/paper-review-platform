@@ -1,12 +1,19 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { REVIEW_SCORE_TEMPLATE } from '@/demo/types'
 import type { ReviewScoreInput } from '@/demo/types'
 import ScoreDimensionInput from './ScoreDimensionInput.vue'
 
-const props = defineProps<{ locked: boolean; saving?: boolean }>()
+const props = defineProps<{
+  locked: boolean
+  saving?: boolean
+  /** 已保存草稿（刷新后回填表单；缺省/空则保持空表单）。 */
+  draft?: ReviewScoreInput | null
+}>()
 const emit = defineEmits<{
   save: [input: ReviewScoreInput]
+  /** 输入变化自动保存（表单内防抖 800ms 后发出，页面收到即落盘）。 */
+  autosave: [input: ReviewScoreInput]
   submit: [input: ReviewScoreInput]
   exit: []
 }>()
@@ -24,6 +31,29 @@ const issues = ref('')
 const revisionAdvice = ref('')
 const overallComment = ref('')
 
+/** 回填已保存草稿（页面刷新后恢复表单内容）。 */
+function applyDraft(draft: ReviewScoreInput | null | undefined) {
+  if (!draft) return
+  for (const dimension of REVIEW_SCORE_TEMPLATE) {
+    const value = draft[dimension.key]
+    if (Number.isFinite(value)) scores[dimension.key] = value
+  }
+  recommendation.value = draft.recommendation ?? '建议通过'
+  strengths.value = draft.strengths ?? ''
+  issues.value = draft.issues ?? ''
+  revisionAdvice.value = draft.revisionAdvice ?? ''
+  overallComment.value = draft.overallComment ?? ''
+  for (const dimension of REVIEW_SCORE_TEMPLATE) {
+    evaluations[dimension.key] = draft.evaluations?.[dimension.key] ?? ''
+  }
+}
+// 草稿以属性传入（页面刷新后由服务读回）；页面再次装载时也会触发回填。
+watch(
+  () => props.draft,
+  (draft) => applyDraft(draft),
+  { immediate: true },
+)
+
 const total = computed(() =>
   REVIEW_SCORE_TEMPLATE.reduce((sum, dimension) => sum + (scores[dimension.key] ?? 0), 0),
 )
@@ -39,7 +69,8 @@ const fieldErrors = computed<Array<{ field: string; message: string }>>(() => {
     if (!Number.isFinite(value) || value < 0 || value > dimension.maxScore) {
       errors.push({
         field: dimension.key,
-        message: `${dimension.label}分值应在 0–${dimension.maxScore} 之间。`,
+        // 与 ScoreDimensionInput 单维错误、服务端校验保持同一文案（评审修复：统一越界文案）。
+        message: `${dimension.label}分值应在 0–${dimension.maxScore} 之间（满分 ${dimension.maxScore}）。`,
       })
     }
   }
@@ -76,6 +107,33 @@ const payload = (): ReviewScoreInput => {
     overallComment: overallComment.value,
   }
 }
+
+// 自动保存：输入变化即触发防抖保存（评审修复：把「保存草稿」按钮扩展为真实自动保存）。
+// 锁定时（提交后只读）不自动保存；输入停止 800ms 后发出 autosave 事件，页面收到即落盘。
+// 空表单输入也会触发，由服务端强制完整性校验并报字段级错误。
+let autosaveTimer: ReturnType<typeof setTimeout> | null = null
+
+function scheduleAutosave() {
+  if (props.locked) return
+  if (autosaveTimer !== null) clearTimeout(autosaveTimer)
+  autosaveTimer = setTimeout(() => {
+    autosaveTimer = null
+    emit('autosave', payload())
+  }, 800)
+}
+
+watch(
+  [scores, evaluations, recommendation, strengths, issues, revisionAdvice, overallComment],
+  () => scheduleAutosave(),
+  { deep: true },
+)
+
+onBeforeUnmount(() => {
+  if (autosaveTimer !== null) {
+    clearTimeout(autosaveTimer)
+    autosaveTimer = null
+  }
+})
 </script>
 
 <template>
@@ -94,6 +152,7 @@ const payload = (): ReviewScoreInput => {
       <ScoreDimensionInput
         v-for="dimension in REVIEW_SCORE_TEMPLATE"
         :key="dimension.key"
+        :dimension-key="dimension.key"
         :label="dimension.label"
         :max="dimension.maxScore"
         :guide="dimension.guide"

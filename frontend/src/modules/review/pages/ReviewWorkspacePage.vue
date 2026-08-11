@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import BlindRail from '@/components/app/BlindRail.vue'
 import PageHeader from '@/components/app/PageHeader.vue'
@@ -21,8 +21,11 @@ const locked = ref(false)
 const saving = ref(false)
 const notice = ref('')
 const loadError = ref('')
+/** 已保存草稿（刷新后由服务读回并回填表单；服务投影在 expert 视角下可见）。 */
+const draft = ref<ReviewScoreInput | null>(null)
 /** 自动保存指示（演示：保存动作成功后显示，2.4s 后淡出）。 */
 const autosaveVisible = ref(false)
+let autosaveHideTimer: ReturnType<typeof setTimeout> | null = null
 
 const overdue = computed(() => task.value?.overdue === true)
 const submitted = computed(() => task.value?.status === 'SUBMITTED')
@@ -42,8 +45,19 @@ onMounted(async () => {
     }
     task.value = current
     locked.value = current.status === 'SUBMITTED'
+    // 刷新后恢复草稿：工作台在评任务（IN_REVIEW）且已保存过草稿时回填表单。
+    if (current.status === 'IN_REVIEW' && (await service.getSnapshot()).review?.scoreInput) {
+      draft.value = (await service.getSnapshot()).review?.scoreInput ?? null
+    }
   } catch (err) {
     loadError.value = err instanceof Error ? err.message : '任务加载失败。'
+  }
+})
+
+onBeforeUnmount(() => {
+  if (autosaveHideTimer !== null) {
+    clearTimeout(autosaveHideTimer)
+    autosaveHideTimer = null
   }
 })
 
@@ -61,14 +75,25 @@ async function save(input: ReviewScoreInput) {
     await service.saveReviewDraft(input)
     notice.value = '草稿已保存。'
     autosaveVisible.value = true
-    window.setTimeout(() => {
+    if (autosaveHideTimer !== null) clearTimeout(autosaveHideTimer)
+    autosaveHideTimer = setTimeout(() => {
       autosaveVisible.value = false
+      autosaveHideTimer = null
     }, 2400)
   } catch (err) {
     notice.value = err instanceof Error ? err.message : '草稿保存失败。'
   } finally {
     saving.value = false
   }
+}
+
+/** 输入变化自动保存（表单侧防抖）；手动「保存草稿」按钮仍保留（立即保存）。 */
+function onFormChange(input: ReviewScoreInput) {
+  void save(input)
+}
+
+function onManualSave(input: ReviewScoreInput) {
+  void save(input)
 }
 
 // 最终提交：二次确认对话框（防重复：提交中与提交后均无再次入口）。
@@ -252,7 +277,9 @@ async function confirmCorrection() {
             v-if="task"
             :locked="formLocked"
             :saving="saving"
-            @save="save"
+            :draft="draft"
+            @save="onManualSave"
+            @autosave="onFormChange"
             @submit="requestSubmit"
             @exit="exitToTasks"
           />

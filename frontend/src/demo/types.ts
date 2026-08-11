@@ -830,6 +830,8 @@ export interface ScenarioService extends StudentPortalService, PlatformOperation
   assignExperts(): Promise<DemoScenarioSnapshot>
   acceptTask(): Promise<DemoScenarioSnapshot>
   saveReviewDraft(input?: ReviewScoreInput): Promise<DemoScenarioSnapshot>
+  /** 读回当前角色视角快照（草稿恢复等场景：工作台刷新后读回本人已保存草稿）。 */
+  getSnapshot(): Promise<DemoScenarioSnapshot>
   submitFinalReview(input: ReviewScoreInput): Promise<DemoScenarioSnapshot>
   publishResult(): Promise<DemoScenarioSnapshot>
   listSchoolTheses(): Promise<DemoThesisSummary[]>
