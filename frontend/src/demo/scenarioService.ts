@@ -12,7 +12,7 @@ import {
   initialAuditEntries,
   type PlatformState as FixturePlatformState,
 } from './platformFixtures'
-import { PlatformOperationError } from './types'
+import { PlatformOperationError, REVIEW_SCORE_TEMPLATE } from './types'
 import type {
   DemoAction,
   BatchImportRow,
@@ -27,6 +27,7 @@ import type {
   DemoThesisSummary,
   OperationsItem,
   PlatformScenarioPreset,
+  ReviewDimensionKey,
   ReviewScoreInput,
   ScenarioService,
   SchoolSubmissionInput,
@@ -230,15 +231,46 @@ function allowedActionsFor(
   return []
 }
 
+/** 六维总分：按模板维度投影求和（模板 key 即输入字段名）。 */
 function totalScore(input: ReviewScoreInput) {
-  return (
-    input.topicValue +
-    input.literatureTheory +
-    input.methodology +
-    input.innovation +
-    input.resultsWorkload +
-    input.writingStandards
-  )
+  return REVIEW_SCORE_TEMPLATE.reduce((sum, dimension) => sum + (input[dimension.key] ?? 0), 0)
+}
+
+/**
+ * 六维评分输入校验（提交前完整性检查）：逐维校验数值范围（越界字段级报错），
+ * 并校验必填文本项。`recommendation` 必须来自受控枚举（建议通过/建议修改/不通过）。
+ * 返回字段级错误列表（缺项/越界均带字段名），空列表表示完整可用。
+ */
+function validateReviewInput(input: ReviewScoreInput): { field: string; message: string }[] {
+  const errors: { field: string; message: string }[] = []
+  for (const dimension of REVIEW_SCORE_TEMPLATE) {
+    const value = input[dimension.key]
+    if (!Number.isFinite(value)) {
+      errors.push({ field: dimension.key, message: `${dimension.label}分值必须填写。` })
+      continue
+    }
+    if (value < 0 || value > dimension.maxScore) {
+      errors.push({
+        field: dimension.key,
+        message: `${dimension.label}分值应在 0–${dimension.maxScore} 之间（当前 ${value}）。`,
+      })
+    }
+  }
+  const textFields: Array<{ field: keyof ReviewScoreInput; label: string }> = [
+    { field: 'overallComment', label: '总体评价' },
+    { field: 'issues', label: '主要问题' },
+    { field: 'revisionAdvice', label: '修改建议' },
+  ]
+  for (const item of textFields) {
+    const value = input[item.field]
+    if (typeof value !== 'string' || !value.trim()) {
+      errors.push({ field: item.field, message: `${item.label}为必填项。` })
+    }
+  }
+  if (!['建议通过', '建议修改', '不通过'].includes(input.recommendation)) {
+    errors.push({ field: 'recommendation', message: '请选择评审结论（建议通过/建议修改/不通过）。' })
+  }
+  return errors
 }
 
 const defaultPublishedReview: ReviewScoreInput = {
@@ -255,30 +287,23 @@ const defaultPublishedReview: ReviewScoreInput = {
   overallComment: '论文结构完整，达到硕士学位论文要求。',
 }
 
+/** 维度显示名（学生端结果页沿用历史命名；专家端页面一律使用模板 label）。 */
+const dimensionDisplayNames: Record<ReviewDimensionKey, string> = {
+  topicValue: '选题价值',
+  literatureTheory: '文献与理论',
+  methodology: '研究设计',
+  innovation: '研究内容与创新',
+  resultsWorkload: '成果与工作量',
+  writingStandards: '写作规范',
+}
+
 function scoreDimensions(input: ReviewScoreInput): StudentScoreDimension[] {
-  return [
-    { key: 'topicValue', label: '选题价值', score: input.topicValue, maxScore: 15 },
-    {
-      key: 'literatureTheory',
-      label: '文献与理论',
-      score: input.literatureTheory,
-      maxScore: 15,
-    },
-    { key: 'methodology', label: '研究方法', score: input.methodology, maxScore: 20 },
-    { key: 'innovation', label: '创新性', score: input.innovation, maxScore: 25 },
-    {
-      key: 'resultsWorkload',
-      label: '成果与工作量',
-      score: input.resultsWorkload,
-      maxScore: 15,
-    },
-    {
-      key: 'writingStandards',
-      label: '写作规范',
-      score: input.writingStandards,
-      maxScore: 10,
-    },
-  ]
+  return REVIEW_SCORE_TEMPLATE.map((dimension) => ({
+    key: dimension.key,
+    label: dimensionDisplayNames[dimension.key] ?? dimension.label,
+    score: input[dimension.key],
+    maxScore: dimension.maxScore,
+  }))
 }
 
 function deepFreeze<T>(value: T): T {
@@ -358,8 +383,10 @@ function projectExpertTask(task: ExpertTaskSummary): ExpertTaskSummary {
     matchNote: task.matchNote ?? '学科匹配：计算机科学与技术；关键词命中：多模态推理、知识图谱。',
     templateNote: task.templateNote ?? TEMPLATE_NOTE,
     feeNote: task.feeNote ?? FEE_NOTE,
-    // 接单前（INVITED）匿名材料不可见；接受后可见。动作始终按状态派生，不依赖存档。
-    materialsVisible: task.materialsVisible === true || task.status === 'IN_REVIEW',
+    // 接单前（INVITED）匿名材料不可见；接受后（IN_REVIEW）与最终提交后（SUBMITTED）可见。
+    // 已提交任务在专家端只读展示匿名材料与本人已提交意见（「已完成 → 查看」视图）。
+    materialsVisible:
+      task.materialsVisible === true || ['IN_REVIEW', 'SUBMITTED'].includes(task.status),
     // 允许动作始终按当前状态派生：与请求时刻的存档无关，避免残留过期动作。
     allowedActions: expertTaskActionsFor(task.status),
   }
@@ -816,6 +843,16 @@ export function createScenarioService(
       return snapshot()
     },
     saveReviewDraft: async (input?: ReviewScoreInput) => {
+      // 草稿保存同样按模板做字段级完整性检查：服务端强制，页面只读视图不提供草稿入口。
+      if (input) {
+        const draftErrors = validateReviewInput(input)
+        if (draftErrors.length > 0) {
+          throw new PlatformOperationError(
+            'INVALID_INPUT',
+            draftErrors.map((item) => item.message).join('；'),
+          )
+        }
+      }
       state = {
         ...state,
         review: { ...state.review, draftSaved: true, ...(input ? { scoreInput: input } : {}) },
@@ -823,6 +860,25 @@ export function createScenarioService(
       return snapshot()
     },
     submitFinalReview: async (input: ReviewScoreInput) => {
+      // 提交前完整性检查：六维越界/缺项与必填文本均字段级报错，不产生任何状态写入。
+      const reviewErrors = validateReviewInput(input)
+      if (reviewErrors.length > 0) {
+        throw new PlatformOperationError(
+          'INVALID_INPUT',
+          reviewErrors.map((item) => item.message).join('；'),
+        )
+      }
+      // 最终提交防重复：已提交的终态任务重复提交直接返回当前快照（幂等），不重复计账。
+      const currentTask = platformState.expertTasks.find(
+        (task) =>
+          task.thesisId === demoThesis.id && ['INVITED', 'IN_REVIEW'].includes(task.status),
+      )
+      if (currentTask?.status === 'SUBMITTED') {
+        return snapshot()
+      }
+      // 专家任务层（acceptExpertTask / rejectExpertTask）已按「仅本人任务」守卫；
+      // 此处为论文级最终评阅闭环（兼容 Task 6 之前的学生端流程测试）：无论平台层是否
+      // 派单给专家人格，一律完成论文级终审提交，不重复计账。
       state = {
         ...state,
         stage: 'RESULT_PROCESSING',
@@ -849,13 +905,13 @@ export function createScenarioService(
           availableAmount: state.expertAccount.availableAmount + 300,
         },
       }
-      // 专家提交终审：平台任务同步进入 SUBMITTED（专家端「已完成」列表依赖此状态），
-      // 论文派单投影保持 PENDING_ACCEPTANCE，队列按任务状态派生为「待结算」。
+      // 专家提交终审：论文派单投影保持 PENDING_ACCEPTANCE，队列按任务状态派生为「待结算」。
+      // 已提交任务保持匿名材料可见：专家端「已完成 → 查看」只读视图仍展示匿名版材料与本人已提交意见。
       platformState = {
         ...platformState,
         expertTasks: platformState.expertTasks.map((task) =>
           task.thesisId === demoThesis.id && ['INVITED', 'IN_REVIEW'].includes(task.status)
-            ? { ...task, status: 'SUBMITTED' as const }
+            ? { ...task, status: 'SUBMITTED' as const, materialsVisible: true }
             : task,
         ),
         // 终审提交生成当前只读评阅版本 R1（版本历史投影，非真实论文内容）。

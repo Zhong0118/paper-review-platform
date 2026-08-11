@@ -363,6 +363,63 @@ export interface DemoReview {
   scoreInput?: ReviewScoreInput
 }
 
+/** 评阅维度 key：与六维模板快照一一对应（见 `REVIEW_SCORE_TEMPLATE`）。 */
+export type ReviewDimensionKey =
+  | 'topicValue'
+  | 'literatureTheory'
+  | 'methodology'
+  | 'innovation'
+  | 'resultsWorkload'
+  | 'writingStandards'
+
+/**
+ * 六维评阅模板维度（设计规格 §4.4，版本化快照，页面按模板数据动态渲染不得写死）。
+ * `key` 即评分输入字段名（ReviewScoreInput 的同名数值字段）。
+ */
+export interface ReviewDimensionTemplate {
+  key: ReviewDimensionKey
+  label: string
+  maxScore: number
+  guide: string
+}
+
+/**
+ * 演示批次六维模板快照（合计 100 分）。
+ * 页面/服务不得写死维度与满分，一律从该模板投影读取。
+ */
+export const REVIEW_SCORE_TEMPLATE: readonly ReviewDimensionTemplate[] = [
+  { key: 'topicValue', label: '选题价值', maxScore: 15, guide: '问题意义与研究价值' },
+  {
+    key: 'literatureTheory',
+    label: '文献与理论基础',
+    maxScore: 15,
+    guide: '综述充分性与理论依据',
+  },
+  {
+    key: 'methodology',
+    label: '研究设计与方法',
+    maxScore: 20,
+    guide: '方案合理性与方法严谨性',
+  },
+  {
+    key: 'innovation',
+    label: '研究内容与创新',
+    maxScore: 25,
+    guide: '工作量与创新贡献',
+  },
+  { key: 'writingStandards', label: '写作规范', maxScore: 10, guide: '结构与规范' },
+  {
+    key: 'resultsWorkload',
+    label: '综合学术水平',
+    maxScore: 15,
+    guide: '整体学术水准',
+  },
+]
+
+/**
+ * 六维评阅输入（PAGE-010 提交载荷）。
+ * `topicValue` 等数值字段对应模板维度（key 即字段名）；`evaluations` 为每维「可选评价」。
+ */
 export interface ReviewScoreInput {
   topicValue: number
   literatureTheory: number
@@ -370,11 +427,19 @@ export interface ReviewScoreInput {
   innovation: number
   resultsWorkload: number
   writingStandards: number
+  /** 每维可选评价（key → 评语）；缺省的维度不出现该 key。 */
+  evaluations?: Partial<Record<ReviewDimensionKey, string>>
   recommendation: string
   strengths: string
   issues: string
   revisionAdvice: string
   overallComment: string
+}
+
+/** 提交前完整性/越界校验的单字段错误（服务端强制，演示实现模拟）。 */
+export interface ReviewInputError {
+  field: string
+  message: string
 }
 
 export interface SchoolAccountSummary {
@@ -700,7 +765,7 @@ export interface PlatformOperationService {
   listPlatformAuditLog(): Promise<AuditLogEntry[]>
   /** Task 4 更正审批（PAGE-020）：列表与审批；批准生成新版本，旧版本只读保留。 */
   listCorrectionRequests(): Promise<CorrectionRequest[]>
-  /** 专家端发起更正申请（演示：供审批投影装载，见专家端任务流程）。 */
+  /** 专家端发起更正申请（演示：申请专家与差异由演示装载提供）。 */
   requestCorrection(taskId: string, reason: string): Promise<CorrectionRequest>
   decideCorrection(
     id: string,
