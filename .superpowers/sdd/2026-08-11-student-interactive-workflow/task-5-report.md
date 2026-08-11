@@ -2,7 +2,7 @@
 
 ## 当前阶段
 
-学生端计划 Task 5 及 controller review fix round 1 已完成实现与验证，等待上层任务整合；未扩展 Task 6 及后续页面。
+学生端计划 Task 5 及 controller review fix round 2 已完成实现与验证，等待上层任务整合；未扩展 Task 6 及后续页面。
 
 ## 已检查内容
 
@@ -32,13 +32,19 @@
 - 异议必填错误按字段设置 `aria-invalid`/`aria-describedby`，并在校验失败后聚焦第一个缺失字段。
 - 学校审核通知使用明确 `recipientRole='school_reviewer'` 的服务投影；学生通知列表和已读操作均过滤学校内部通知，且通知不含真实专家身份或联系方式。
 
+## Fix round 2
+
+- 核对已跟踪 `frontend/package.json`：HEAD 仅定义 `test:unit` 脚本，未定义工作区脏文件中的 `test:unit:run`。
+- 将 Task 5 brief、实施计划 Task 5 和本报告的目标测试命令统一更正为 `npm run test:unit -- --run <files>`，且未修改或提交当前脏 `package.json`。
+- 验证声明收敛为从已跟踪 HEAD 可复现的 Task 5 目标测试、类型检查和生产构建。
+
 ## RED 证据
 
 首次执行：
 
 ```bash
 cd frontend
-npm run test:unit:run -- src/modules/result/__tests__/studentResultAndObjection.spec.ts src/modules/result/__tests__/resultPublication.spec.ts
+npm run test:unit -- --run src/modules/result/__tests__/studentResultAndObjection.spec.ts src/modules/result/__tests__/resultPublication.spec.ts
 ```
 
 结果为 2 个文件、9/9 失败，分别证明旧页面缺少论文选择器、五阶段/最近事件、六维与发布时间、异议表单、附件失败恢复、二次确认和状态时间线。
@@ -86,21 +92,15 @@ npm run test:unit:run -- src/modules/result/__tests__/studentResultAndObjection.
 
 ```bash
 cd frontend
-npm run test:unit:run -- src/modules/result/__tests__/studentResultAndObjection.spec.ts src/modules/result/__tests__/resultPublication.spec.ts
-npm run test:unit:run -- src/demo/__tests__/studentPortalService.spec.ts src/demo/__tests__/scenarioService.spec.ts src/demo/__tests__/goldenPath.spec.ts src/modules/thesis/__tests__/studentWorkspace.spec.ts src/modules/result/__tests__/studentResultAndObjection.spec.ts src/modules/result/__tests__/resultPublication.spec.ts
-npm run test:unit:run
+npm run test:unit -- --run src/modules/result/__tests__/studentResultAndObjection.spec.ts src/modules/result/__tests__/resultPublication.spec.ts
 npm run type-check
 VITE_DEMO_MODE=true npm run build
-npm exec prettier -- --check <Task 5 精确文件列表>
 ```
 
 - Task 5 目标测试：2 个文件，12/12 通过。
-- 相关服务、黄金路径、工作台和结果回归：6 个文件，59/59 通过。
-- 全量单元测试：27 个文件，125/125 通过。
 - `vue-tsc --build` 通过。
 - Vite 生产构建通过。
-- Task 5 精确文件 Prettier 检查通过。
-- 从 Git index 用 `git checkout-index` 生成的隔离临时检出中，`type-check`、生产构建和 Task 5 两个测试文件 12/12 均通过，仅复用已安装的 `node_modules`，不读取当前工作树未跟踪源码。
+- 从 `git archive HEAD` 生成的隔离临时检出中，使用上述 HEAD 已跟踪脚本命令执行，`type-check`、生产构建和 Task 5 两个测试文件 12/12 均通过；仅复用已安装的 `node_modules`，不读取当前工作树脏源码。
 
 ## 待确认问题
 

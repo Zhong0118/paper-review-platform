@@ -421,7 +421,7 @@ it('submits one objection and blocks a duplicate while unresolved', async () => 
 
 - [ ] **Step 2: 运行结果异议测试并确认失败**
 
-Run: `npm run test:unit:run -- src/modules/result/__tests__/studentResultAndObjection.spec.ts src/modules/result/__tests__/resultPublication.spec.ts`
+Run: `npm run test:unit -- --run src/modules/result/__tests__/studentResultAndObjection.spec.ts src/modules/result/__tests__/resultPublication.spec.ts`
 
 Expected: FAIL，当前页面没有论文选择、六维投影和异议表单。
 
@@ -435,7 +435,7 @@ Expected: FAIL，当前页面没有论文选择、六维投影和异议表单。
 
 - [ ] **Step 5: 运行结果、隐私和类型检查**
 
-Run: `npm run test:unit:run -- src/modules/result/__tests__/studentResultAndObjection.spec.ts src/modules/result/__tests__/resultPublication.spec.ts`
+Run: `npm run test:unit -- --run src/modules/result/__tests__/studentResultAndObjection.spec.ts src/modules/result/__tests__/resultPublication.spec.ts`
 
 Run: `npm run type-check`
 
