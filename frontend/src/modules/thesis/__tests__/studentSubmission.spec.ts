@@ -266,6 +266,51 @@ describe('student thesis material editor', () => {
     expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
     expect(document.activeElement).toBe(opener.element)
     expect(wrapper.get('.portal-layout__background').attributes('inert')).toBeUndefined()
+    expect(wrapper.get('.portal-layout__background').attributes('aria-hidden')).toBeUndefined()
+  })
+
+  it('restores background attributes and opener focus when Continue closes confirmation', async () => {
+    const { wrapper } = await mountEditor()
+    const opener = wrapper.get('[data-action="open-submit-confirmation"]')
+    ;(opener.element as HTMLButtonElement).focus()
+
+    await opener.trigger('click')
+    await flushPromises()
+    const background = wrapper.get('.portal-layout__background')
+    expect(background.attributes('inert')).toBeDefined()
+    expect(background.attributes('aria-hidden')).toBe('true')
+
+    await wrapper.get('[data-action="close-submit-confirmation"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
+    expect(background.attributes('inert')).toBeUndefined()
+    expect(background.attributes('aria-hidden')).toBeUndefined()
+    expect(document.activeElement).toBe(opener.element)
+  })
+
+  it('removes the modal and background lock DOM when the editor unmounts', async () => {
+    const first = await mountEditor()
+    await first.wrapper.get('[data-action="open-submit-confirmation"]').trigger('click')
+    await flushPromises()
+    const background = first.wrapper.get('.portal-layout__background').element
+    const dialog = first.wrapper.get('[role="dialog"]').element
+
+    first.wrapper.unmount()
+
+    expect(document.body.contains(background)).toBe(false)
+    expect(document.body.contains(dialog)).toBe(false)
+    expect(document.body.hasAttribute('inert')).toBe(false)
+    expect(document.body.getAttribute('aria-hidden')).toBeNull()
+    expect(document.body.querySelector('[inert]')).toBeNull()
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull()
+
+    const second = await mountEditor()
+    expect(second.wrapper.get('.portal-layout__background').attributes('inert')).toBeUndefined()
+    expect(
+      second.wrapper.get('.portal-layout__background').attributes('aria-hidden'),
+    ).toBeUndefined()
+    expect(second.wrapper.find('[role="dialog"]').exists()).toBe(false)
   })
 
   it('blocks portal navigation while the confirmation dialog is open', async () => {
