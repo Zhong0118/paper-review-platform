@@ -2,7 +2,7 @@
 
 ## 当前阶段
 
-学生端计划 Task 6 已完成实现与验证，等待上层任务整合；未扩展 Task 7 演示场景控制器或外部短信、邮件能力。
+学生端计划 Task 6 controller review round 1 已完成修复与验证，等待上层任务整合；未扩展 Task 7 演示场景控制器或外部短信、邮件能力。
 
 ## 已检查内容
 
@@ -23,6 +23,8 @@
 - 既有 `schemaVersion: 1` 快照可能含 Task 6 之前生成、缺少 `thesisId` 的通知，需要兼容迁移，不能因本轮字段扩展丢失可导航能力。
 - 已跟踪的 `frontend/package.json` 只有 `test:unit`，工作区脏文件中的 `test:unit:run` 不能作为可复现依据。
 - 非学生通知中心是现有静态演示投影，本任务必须保留，不能接入学生服务。
+- 初始 Task 6 提交未修改生产 `frontend/src/router/index.ts`，因此工作区路由测试可以通过，但从 HEAD 启动的应用没有注册消息中心、学生工作台或学生评审结果。
+- 生产路由真实引用学生工作台后，clean archive 暴露两个既存的直接构建前置依赖：`EligibilityCard.vue` 与 `StatusTag.vue` 未被此前提交跟踪；经上层任务明确授权，本轮只精确纳入这两个自包含组件，不纳入旧 24 角色 `frontend/src/router/routes.ts` 或其他旧页面。
 
 ## 修改内容
 
@@ -33,12 +35,18 @@
 - 修改 `frontend/src/modules/thesis/services/studentPortalService.ts`：所有学生/学校业务通知写入论文 ID；学生列表和已读动作只投影、更新本人通知。
 - 修改 `frontend/src/demo/studentPersistence.ts`：归一化通知并为旧 v1 业务通知从确定性旧 ID 恢复论文目标；未知或不完整通知不进入学生投影。
 - 修改 Task 6 正式计划和 brief：将不可由已跟踪 `package.json` 复现的 `test:unit:run` 更正为 `npm run test:unit -- --run ...`，未修改或暂存脏 `package.json`。
+- 新增 `frontend/src/router/studentNotificationRoutes.ts` 并由生产 `frontend/src/router/index.ts` 直接注册：消息中心、学生工作台和学生评审结果共用同一组生产 route records；测试不再自行复制路由定义。
+- 新增 `frontend/src/router/__tests__/studentNotificationRoutes.spec.ts`：覆盖生产 router 注册、角色元数据、本人论文查询参数和 router factory 复用生产记录。
+- 增强通知测试与页面：非学生演示通知显示“已读/未读”；学校接收的异议通知不进入学生列表，学生“全部已读”不修改学校未读状态；补充 `RESULT_PUBLISHED` 到学生评审结果命名路由的映射。
+- 新增 `frontend/src/styles/__tests__/notificationContrast.spec.ts`，并将通知正文、时间和读态复用 `--color-text-secondary`；该 token 在白底的小字号对比度不低于 4.5:1。
+- 精确纳入 `frontend/src/components/app/StatusTag.vue` 与 `frontend/src/modules/thesis/components/EligibilityCard.vue`，仅作为既存学生工作台的 clean-build 直接前置依赖；除 Prettier 格式化外未改功能。
 
 ## 只读审查与修复
 
 - 首轮只读审查发现两项 Important：业务目标通知只有颜色点而无可见/可感知的已读文字；无目标 `DEMO_DATA_RESET` 通知只能通过“全部已读”更新。另有一项 Minor：测试只验证最终结果，未锁定“先已读、后导航”的顺序。
 - 先补测试并取得 2/2 定向 RED，再让所有通知始终显示“已读/未读”，为无目标未读通知增加真实单条已读动作；导航测试改用延迟完成的已读 Promise，明确断言 Promise 完成前仍停留在通知页。
 - 最终复审结论为 `READY / APPROVED`，无 Critical、Important 或 Minor 遗留项。
+- Controller review round 1 复核 1 项 Critical、4 项 Important 和 1 项 Minor：生产路由改为真实注册三条目标记录；验证命令只使用 HEAD 已存在的 `test:unit`；非学生读态、跨角色已读隔离和 AA 对比度均由回归测试覆盖；`RESULT_PUBLISHED` 映射由真实命名路由测试锁定。
 
 ## RED 证据
 
@@ -59,26 +67,26 @@ npm run test:unit -- --run src/modules/shared/__tests__/studentNotifications.spe
 
 结果：1/1 失败，旧通知因缺少 `thesisId` 没有可打开动作。
 
+Controller review round 1 使用 `git archive HEAD` 加入仅本轮测试和 route records 复现 RED：3 个文件共 18 项中 4 项失败、14 项通过。失败精确证明生产 router 的 route list 为空、非学生通知没有可见读态、旧小字号颜色未使用 AA token，以及可复用生产 router factory 缺失。
+
 ## 验证结果
 
 ```bash
 cd frontend
 npm run test:unit -- --run src/modules/shared/__tests__/studentNotifications.spec.ts
-npm run test:unit -- --run src/modules/shared/__tests__/studentNotifications.spec.ts src/router/__tests__/routes.spec.ts
-npm run test:unit -- --run src/demo/__tests__/studentPortalService.spec.ts src/modules/result/__tests__/studentResultAndObjection.spec.ts src/modules/result/__tests__/resultPublication.spec.ts src/modules/thesis/__tests__/studentWorkspace.spec.ts
+npm run test:unit -- --run src/modules/shared/__tests__/studentNotifications.spec.ts src/router/__tests__/studentNotificationRoutes.spec.ts src/styles/__tests__/notificationContrast.spec.ts
 npm run test:unit -- --run
 npm run type-check
 VITE_DEMO_MODE=true npm run build
+npx prettier --check <Task 6 精确源码列表>
 ```
 
-- Task 6 目标测试：1 个文件，11/11 通过。
-- Task 6 与路由回归：2 个文件，15/15 通过。
-- Task 1/4/5 相关回归：4 个文件，51/51 通过。
-- 全量前端单元测试：28 个文件，136/136 通过。
+- Task 6 目标、真实生产路由、权限隔离与颜色回归：3 个文件，18/18 通过。
+- 全量前端单元测试：30 个文件，143/143 通过。
 - `vue-tsc --build` 通过。
 - Vite 演示模式生产构建通过。
-- 仅对 Task 6 源码执行 Prettier 写入并保持格式稳定，未运行会改写用户其他脏 `src/` 文件的全目录格式命令。
-- 从 `git archive HEAD` 解压后只覆盖 Task 6 的 6 个源码/测试文件，复用现有 `node_modules`，再次执行已跟踪脚本下的目标测试 11/11、类型检查和生产构建，三者均通过；未复制脏 `package.json`、认证、路由或其他未跟踪源码。
+- Task 6 与两个直接前置依赖的精确源码列表通过 Prettier 检查，未运行会改写用户其他脏 `src/` 文件的全目录格式命令。
+- 从 `git archive HEAD` 解压后只覆盖本轮精确源码/测试文件与两个已授权的直接前置依赖，复用现有 `node_modules`，再次执行目标测试 18/18、archive 全量测试 107/107、类型检查、演示生产构建和精确格式检查；未复制脏 `package.json`、认证、旧 24 角色路由或其他未跟踪源码。
 - `git diff --check` 对 Task 6 精确文件通过。
 
 ## 待确认问题
@@ -89,6 +97,7 @@ VITE_DEMO_MODE=true npm run build
 
 - 当前通知、已读状态和跳转均为前端演示服务与本地持久化，不代表真实 API、数据库、短信或邮件已经接入。
 - 构建保留既有第三方 `@vueuse/core` PURE annotation 警告和大 chunk 警告，不影响退出码；Vitest 保留 Node `localStorage` experimental warning。
+- `EligibilityCard.vue` 与 `StatusTag.vue` 原属于 2026-08-10 客户端计划的未跟踪工作；本轮因真实生产路由使其成为 clean-build 直链前置依赖，经明确授权后纳入，未连带纳入其旧计划测试或其他角色页面。
 - 仓库仍有大量用户既有未提交文件；本任务只精确暂存报告列出的 Task 6 文件，不清理或提交其他改动。
 
 ## 下一步建议

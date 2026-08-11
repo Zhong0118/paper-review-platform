@@ -74,6 +74,9 @@ const messages = [
               <p>{{ message.detail }}</p>
             </div>
             <time>{{ message.time }}</time>
+            <span class="message-sheet__read-state" data-notification-read-state>
+              {{ message.unread ? '未读' : '已读' }}
+            </span>
             <button type="button">查看详情</button>
           </article>
         </section>
@@ -118,7 +121,7 @@ const messages = [
 }
 .message-sheet article {
   display: grid;
-  grid-template-columns: 0.5rem minmax(0, 1fr) 7rem 5rem;
+  grid-template-columns: 0.5rem minmax(0, 1fr) 7rem 3rem 5rem;
   gap: 1rem;
   align-items: center;
   padding: 1rem;
@@ -150,11 +153,12 @@ const messages = [
 }
 .message-sheet p {
   margin: 0;
-  color: #71808b;
+  color: var(--color-text-secondary);
   font-size: 0.7rem;
 }
-.message-sheet time {
-  color: #7b8791;
+.message-sheet time,
+.message-sheet__read-state {
+  color: var(--color-text-secondary);
   font-family: var(--font-data);
   font-size: 0.65rem;
 }
@@ -170,6 +174,7 @@ const messages = [
     grid-template-columns: 0.5rem 1fr;
   }
   .message-sheet time,
+  .message-sheet__read-state,
   .message-sheet article > button {
     grid-column: 2;
   }

@@ -453,7 +453,13 @@ git commit -m "feat: add student results and objection workflow"
 **Files:**
 - Create: `frontend/src/modules/shared/components/StudentNotificationList.vue`
 - Create: `frontend/src/modules/shared/__tests__/studentNotifications.spec.ts`
+- Create: `frontend/src/router/studentNotificationRoutes.ts`
+- Create: `frontend/src/router/__tests__/studentNotificationRoutes.spec.ts`
+- Create: `frontend/src/styles/__tests__/notificationContrast.spec.ts`
+- Create: `frontend/src/components/app/StatusTag.vue`（既存学生工作台的直接构建前置依赖）
+- Create: `frontend/src/modules/thesis/components/EligibilityCard.vue`（既存学生工作台的直接构建前置依赖）
 - Modify: `frontend/src/modules/shared/pages/NotificationCenterPage.vue`
+- Modify: `frontend/src/router/index.ts`
 
 **Interfaces:**
 - Consumes: Task 1 的 `listStudentNotifications()`、`markStudentNotificationRead()`、`markAllStudentNotificationsRead()`。
@@ -486,15 +492,15 @@ Expected: FAIL，当前通知由页面常量生成，按钮不改变服务状态
 
 - [ ] **Step 4: 运行消息及路由回归**
 
-Run: `npm run test:unit -- --run src/modules/shared/__tests__/studentNotifications.spec.ts src/router/__tests__/routes.spec.ts`
+Run: `npm run test:unit -- --run src/modules/shared/__tests__/studentNotifications.spec.ts src/router/__tests__/studentNotificationRoutes.spec.ts src/styles/__tests__/notificationContrast.spec.ts`
 
-Expected: PASS；消息目标始终携带本人论文标识。
+Expected: PASS（3 个文件、18 个测试）；生产路由真实注册消息中心及两个学生目标，消息目标始终携带本人论文标识。
 
 - [ ] **Step 5: 提交学生消息交互**
 
 ```bash
-git add frontend/src/modules/shared/components/StudentNotificationList.vue frontend/src/modules/shared/pages/NotificationCenterPage.vue frontend/src/modules/shared/__tests__/studentNotifications.spec.ts
-git commit -m "feat: connect student notifications to workflow"
+git add frontend/src/components/app/StatusTag.vue frontend/src/modules/thesis/components/EligibilityCard.vue frontend/src/modules/shared/components/StudentNotificationList.vue frontend/src/modules/shared/pages/NotificationCenterPage.vue frontend/src/modules/shared/__tests__/studentNotifications.spec.ts frontend/src/router/index.ts frontend/src/router/studentNotificationRoutes.ts frontend/src/router/__tests__/studentNotificationRoutes.spec.ts frontend/src/styles/__tests__/notificationContrast.spec.ts
+git commit -m "fix: integrate student notification routes"
 ```
 
 ### Task 7: 演示场景控制器和环境隔离

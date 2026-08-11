@@ -309,13 +309,13 @@ onMounted(() => void loadNotifications())
 
 .student-notifications__list p {
   margin: 0;
-  color: #71808b;
+  color: var(--color-text-secondary);
   font-size: 0.7rem;
 }
 
 .student-notifications__list time,
 .student-notifications__read-state {
-  color: #7b8791;
+  color: var(--color-text-secondary);
   font-family: var(--font-data);
   font-size: 0.65rem;
 }

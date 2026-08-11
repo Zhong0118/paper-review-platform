@@ -7,6 +7,7 @@ import { createScenarioService } from '@/demo/scenarioService'
 import { scenarioServiceKey } from '@/demo/serviceProvider'
 import type { ScenarioService, StorageLike, StudentNotification } from '@/demo/types'
 import { useAuthStore } from '@/stores/auth'
+import { studentNotificationRoutes } from '@/router/studentNotificationRoutes'
 
 import NotificationCenterPage from '../pages/NotificationCenterPage.vue'
 
@@ -28,17 +29,10 @@ async function mountNotifications(
   const router = createRouter({
     history: createMemoryHistory(),
     routes: [
-      { path: '/notifications', name: '消息通知', component: NotificationCenterPage },
-      {
-        path: '/student/dashboard',
-        name: '学生工作台',
-        component: { template: '<div>论文工作台</div>' },
-      },
-      {
-        path: '/student/results',
-        name: '学生评审结果',
-        component: { template: '<div>评审结果与异议</div>' },
-      },
+      ...studentNotificationRoutes.map((route) => ({
+        ...route,
+        component: { template: '<div data-route-target />' },
+      })),
       { path: '/login', component: { template: '<div>登录</div>' } },
     ],
   })
@@ -139,6 +133,37 @@ describe('student notifications', () => {
     await flushPromises()
 
     expect(router.currentRoute.value).toMatchObject({
+      path: '/student/results',
+      query: { thesisId: 'thesis-main' },
+    })
+  })
+
+  it('opens a published result notification on the named student result route', async () => {
+    const storage = createMemoryStorage()
+    const seed = createScenarioService({ storage, demoMode: true })
+    await seed.loadStudentScenario('COMPLETED')
+    const persisted = JSON.parse(storage.getItem('baijie-demo-student:v1') ?? '{}')
+    persisted.student.notifications.unshift({
+      id: 'notification-thesis-main-result',
+      kind: 'RESULT_PUBLISHED',
+      thesisId: 'thesis-main',
+      message: '评审结果已发布，可查看公开评审结论。',
+      createdAt: '2026-08-11 10:30',
+      read: false,
+    })
+    storage.setItem('baijie-demo-student:v1', JSON.stringify(persisted))
+    const service = createScenarioService({ storage, demoMode: true })
+    const { router, wrapper } = await mountNotifications(service)
+
+    await wrapper
+      .get(
+        '[data-notification-id="notification-thesis-main-result"] [data-action="open-notification"]',
+      )
+      .trigger('click')
+    await flushPromises()
+
+    expect(router.currentRoute.value).toMatchObject({
+      name: '学生评审结果',
       path: '/student/results',
       query: { thesisId: 'thesis-main' },
     })
@@ -298,5 +323,31 @@ describe('student notifications', () => {
     expect(wrapper.text()).toContain('演示环境数据说明')
     expect(wrapper.find('[data-student-notification-list]').exists()).toBe(false)
     expect(listStudent).not.toHaveBeenCalled()
+    expect(wrapper.findAll('[data-notification-read-state]').map((state) => state.text())).toEqual([
+      '未读',
+      '未读',
+      '已读',
+    ])
+  })
+
+  it('keeps school notifications outside student list and unread after student mark-all', async () => {
+    const service = createScenarioService({ storage: createMemoryStorage(), demoMode: true })
+    await service.loadStudentScenario('COMPLETED')
+    await service.submitStudentObjection('thesis-main', {
+      reason: '对评价依据存在疑问',
+      request: '申请学校复核处理',
+      attachments: [],
+    })
+
+    expect((await service.listStudentNotifications()).map((item) => item.id)).not.toContain(
+      'notification-thesis-main-objection-school',
+    )
+    await service.markAllStudentNotificationsRead()
+
+    expect(
+      (await service.listSchoolNotifications()).find(
+        (item) => item.id === 'notification-thesis-main-objection-school',
+      ),
+    ).toMatchObject({ read: false, kind: 'OBJECTION_RECEIVED' })
   })
 })
