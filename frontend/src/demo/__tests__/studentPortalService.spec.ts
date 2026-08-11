@@ -317,7 +317,7 @@ describe('student portal service', () => {
 
   it('allows only a withdrawal request while a thesis is under review', async () => {
     const service = createScenarioService({ storage: createMemoryStorage(), demoMode: true })
-    await service.loadStudentScenario('UNDER_REVIEW')
+    await service.loadStudentScenario('EXPERT_REVIEW')
 
     const thesis = await service.getStudentThesis('thesis-main')
     expect(thesis.allowedActions).toEqual(['REQUEST_WITHDRAWAL'])
@@ -376,7 +376,7 @@ describe('student portal service', () => {
   it('rejects student scenario loading when demo mode is disabled', async () => {
     const service = createScenarioService({ storage: createMemoryStorage(), demoMode: false })
 
-    await expect(service.loadStudentScenario('UNDER_REVIEW')).rejects.toMatchObject({
+    await expect(service.loadStudentScenario('EXPERT_REVIEW')).rejects.toMatchObject({
       name: 'StudentPortalError',
       code: 'DEMO_MODE_DISABLED',
     })

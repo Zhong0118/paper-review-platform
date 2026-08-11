@@ -13,6 +13,7 @@ import { useAuthStore } from '@/stores/auth'
 import StudentIdentityPanel, {
   type StudentIdentityView,
 } from '../components/StudentIdentityPanel.vue'
+import StudentDemoScenarioController from '../components/StudentDemoScenarioController.vue'
 import ThesisMaterialEditor from '../components/ThesisMaterialEditor.vue'
 
 type ValidationField = 'title' | 'abstract' | 'discipline' | 'keywords' | 'original' | 'anonymous'
@@ -20,6 +21,7 @@ type ValidationField = 'title' | 'abstract' | 'discipline' | 'keywords' | 'origi
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
+const demoEnabled = import.meta.env.VITE_DEMO_MODE === 'true'
 const service = useScenarioService()
 const editor = ref<InstanceType<typeof ThesisMaterialEditor>>()
 const submitOpener = ref<HTMLButtonElement>()
@@ -38,6 +40,7 @@ const validationError = ref('')
 const submitError = ref('')
 const showConfirmation = ref(false)
 const submitting = ref(false)
+const demoDialogOpen = ref(false)
 const form = ref<StudentDraftInput>({
   title: '',
   abstract: '',
@@ -247,7 +250,7 @@ void loadDraft()
     active-path="/student/dashboard"
     context-label="学生端 · 海岳大学"
     :user-name="authStore.user?.displayName ?? '林知远'"
-    :background-locked="showConfirmation"
+    :background-locked="showConfirmation || demoDialogOpen"
   >
     <div class="edit-page">
       <PageHeader
@@ -321,6 +324,12 @@ void loadDraft()
         </footer>
       </form>
     </div>
+
+    <StudentDemoScenarioController
+      :enabled="demoEnabled"
+      @changed="loadDraft"
+      @reset-dialog-change="demoDialogOpen = $event"
+    />
 
     <template #modal>
       <div v-if="showConfirmation" class="dialog-backdrop">

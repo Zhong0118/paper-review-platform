@@ -18,7 +18,9 @@ interface StudentNotificationTarget {
 const presentationByKind: Record<StudentNotification['kind'], NotificationPresentation> = {
   THESIS_SUBMITTED: { type: '流程提醒', title: '论文已提交' },
   THESIS_WITHDRAWN: { type: '流程提醒', title: '论文已撤回' },
+  THESIS_RETURNED: { type: '学校退回', title: '论文材料已退回' },
   WITHDRAWAL_REQUESTED: { type: '流程提醒', title: '撤回申请已提交' },
+  EXPERT_REVIEW_STARTED: { type: '流程提醒', title: '已进入送审评阅' },
   RESULT_PUBLISHED: { type: '结果通知', title: '评审结果已发布' },
   OBJECTION_SUBMITTED: { type: '异议消息', title: '异议已提交' },
   OBJECTION_RECEIVED: { type: '异议消息', title: '收到新的异议' },

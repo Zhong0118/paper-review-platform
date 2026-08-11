@@ -10,6 +10,7 @@ import PortalLayout from '@/layouts/PortalLayout.vue'
 import { menusByRole } from '@/router/menus'
 import { useAuthStore } from '@/stores/auth'
 import StudentProgressTimeline from '@/modules/thesis/components/StudentProgressTimeline.vue'
+import StudentDemoScenarioController from '@/modules/thesis/components/StudentDemoScenarioController.vue'
 
 import AnonymousResultTable from '../components/AnonymousResultTable.vue'
 import StudentObjectionForm from '../components/StudentObjectionForm.vue'
@@ -21,6 +22,7 @@ const service = useStudentPortalService()
 const authStore = useAuthStore()
 const route = useRoute()
 const router = useRouter()
+const demoEnabled = import.meta.env.VITE_DEMO_MODE === 'true'
 
 const theses = ref<StudentThesisDetail[]>([])
 const selectedThesis = ref<StudentThesisDetail | null>(null)
@@ -34,6 +36,7 @@ const cancelConfirmation = ref<HTMLButtonElement>()
 const confirmSubmission = ref<HTMLButtonElement>()
 const overlayOpener = ref<HTMLElement | null>(null)
 const pageRoot = ref<HTMLElement>()
+const demoDialogOpen = ref(false)
 
 const selectedThesisId = computed(() => selectedThesis.value?.id ?? '')
 const latestPublicEvent = computed(() => selectedThesis.value?.timeline.at(-1))
@@ -163,7 +166,7 @@ onMounted(() => void loadPage())
     active-path="/student/results"
     context-label="学生端 · 海岳大学"
     :user-name="authStore.user?.displayName ?? '林知远'"
-    :background-locked="Boolean(confirmationInput)"
+    :background-locked="Boolean(confirmationInput) || demoDialogOpen"
   >
     <div ref="pageRoot" class="student-result-page">
       <PageHeader
@@ -234,6 +237,12 @@ onMounted(() => void loadPage())
         </template>
       </template>
     </div>
+
+    <StudentDemoScenarioController
+      :enabled="demoEnabled"
+      @changed="loadPage"
+      @reset-dialog-change="demoDialogOpen = $event"
+    />
 
     <template #modal>
       <div v-if="confirmationInput" class="student-result-page__modal-backdrop">

@@ -292,7 +292,7 @@ describe('student thesis workspace', () => {
 
   it('creates an under-review withdrawal request without changing the thesis stage', async () => {
     const service = createScenarioService()
-    await service.loadStudentScenario('UNDER_REVIEW')
+    await service.loadStudentScenario('EXPERT_REVIEW')
     const requestSpy = vi.spyOn(service, 'requestStudentWithdrawal')
     const { wrapper } = await mountWorkspace(service)
 

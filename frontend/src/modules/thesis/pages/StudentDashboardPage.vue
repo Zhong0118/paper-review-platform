@@ -17,6 +17,7 @@ import { useAuthStore } from '@/stores/auth'
 
 import EligibilityCard from '../components/EligibilityCard.vue'
 import StudentProgressTimeline from '../components/StudentProgressTimeline.vue'
+import StudentDemoScenarioController from '../components/StudentDemoScenarioController.vue'
 import StudentThesisDetailDrawer from '../components/StudentThesisDetailDrawer.vue'
 import StudentThesisFilters, {
   type StudentThesisFilter,
@@ -26,6 +27,7 @@ import StudentThesisTable from '../components/StudentThesisTable.vue'
 type ConfirmationAction = 'DELETE_DRAFT' | 'WITHDRAW_BEFORE_DISPATCH' | 'REQUEST_WITHDRAWAL'
 
 const authStore = useAuthStore()
+const demoEnabled = import.meta.env.VITE_DEMO_MODE === 'true'
 const router = useRouter()
 const service = useStudentPortalService()
 const theses = ref<StudentThesisDetail[]>([])
@@ -42,6 +44,7 @@ const drawerOpen = ref(false)
 const confirmationAction = ref<ConfirmationAction | null>(null)
 const withdrawalReason = ref('')
 const actionPending = ref(false)
+const demoDialogOpen = ref(false)
 const overlayOpener = ref<HTMLElement | null>(null)
 const dashboardRoot = ref<HTMLElement>()
 const confirmationDialog = ref<HTMLElement>()
@@ -145,6 +148,10 @@ function replaceThesis(detail: StudentThesisDetail) {
 async function refreshSelectedThesis() {
   if (!selectedThesisId.value) return
   replaceThesis(await service.getStudentThesis(selectedThesisId.value))
+}
+
+async function refreshDemoProjection() {
+  await loadWorkspaceData(true)
 }
 
 function errorCode(error: unknown) {
@@ -314,7 +321,7 @@ onMounted(() => void loadWorkspaceData(false))
     active-path="/student/dashboard"
     context-label="学生端 · 海岳大学"
     :user-name="authStore.user?.displayName ?? '林知远'"
-    :background-locked="drawerOpen || Boolean(confirmationAction)"
+    :background-locked="drawerOpen || Boolean(confirmationAction) || demoDialogOpen"
   >
     <div ref="dashboardRoot" class="student-dashboard">
       <PageHeader
@@ -404,6 +411,12 @@ onMounted(() => void loadWorkspaceData(false))
         </template>
       </template>
     </div>
+
+    <StudentDemoScenarioController
+      :enabled="demoEnabled"
+      @changed="refreshDemoProjection"
+      @reset-dialog-change="demoDialogOpen = $event"
+    />
 
     <template #modal>
       <StudentThesisDetailDrawer

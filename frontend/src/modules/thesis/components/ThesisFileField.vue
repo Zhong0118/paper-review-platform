@@ -24,6 +24,7 @@ const current = computed(() => selected.value)
 const hasAnonymousRisk = computed(
   () => props.purpose === 'EXPERT_REVIEW' && current.value?.validationStatus === 'REVIEW_REQUIRED',
 )
+const hasValidationFailure = computed(() => current.value?.validationStatus === 'INVALID')
 
 watch(
   () => props.modelValue,
@@ -92,7 +93,11 @@ onBeforeUnmount(cancelValidation)
 </script>
 
 <template>
-  <section class="file-field" :class="{ 'file-field--warning': hasAnonymousRisk }">
+  <section
+    class="file-field"
+    :class="{ 'file-field--warning': hasAnonymousRisk || hasValidationFailure }"
+    :data-validation-status="current?.validationStatus"
+  >
     <div class="file-field__heading">
       <div>
         <strong>{{ label }}</strong>
@@ -110,6 +115,9 @@ onBeforeUnmount(cancelValidation)
     </div>
 
     <p v-if="error" class="file-field__error" role="alert">{{ error }}</p>
+    <p v-else-if="hasValidationFailure" class="file-field__error" role="alert">
+      文件校验失败，请重新选择 PDF。
+    </p>
 
     <div v-if="current" class="file-field__meta">
       <span aria-hidden="true">PDF</span>

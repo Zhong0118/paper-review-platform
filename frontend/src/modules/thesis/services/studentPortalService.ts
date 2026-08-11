@@ -4,6 +4,8 @@ import type {
   DemoThesisSummary,
   StudentAction,
   StudentDraftInput,
+  StudentEligibilityScenario,
+  StudentFileValidationScenario,
   StudentNotification,
   StudentObjectionInput,
   StudentPortalService,
@@ -38,6 +40,8 @@ interface StudentPortalDependencies {
   getResults: () => DemoPublishedResult[]
   demoMode: boolean
   loadScenario: (preset: StudentScenarioPreset) => void
+  setEligibilityScenario: (preset: StudentEligibilityScenario) => void
+  setFileValidationScenario: (preset: StudentFileValidationScenario) => void
   reset: () => void
 }
 
@@ -90,6 +94,11 @@ function ensureKeywordLimit(keywords: string[]) {
 }
 
 export function createStudentPortalService(deps: StudentPortalDependencies): StudentPortalService {
+  const ensureDemoMode = () => {
+    if (!deps.demoMode) {
+      throw new StudentPortalError('DEMO_MODE_DISABLED', '演示模式未启用，无法装载学生场景。')
+    }
+  }
   const findThesis = (id: string) => {
     const thesis = deps.getTheses().find((item) => item.id === id)
     if (!thesis) throw new StudentPortalError('NOT_FOUND', '未找到该论文记录。')
@@ -460,19 +469,23 @@ export function createStudentPortalService(deps: StudentPortalDependencies): Stu
       return immutable(studentNotifications())
     },
     loadStudentScenario: async (preset: StudentScenarioPreset) => {
-      if (!deps.demoMode) {
-        throw new StudentPortalError('DEMO_MODE_DISABLED', '演示模式未启用，无法装载学生场景。')
-      }
+      ensureDemoMode()
       deps.loadScenario(preset)
-      if (preset === 'COMPLETED') {
-        const state = deps.getState()
-        deps.setState({
-          ...state,
-          resultsByThesis: { ...state.resultsByThesis, 'thesis-main': deps.getResults() },
-        })
-      }
       return detail(findThesis('thesis-main'))
     },
-    resetStudentDemo: async () => deps.reset(),
+    setStudentDemoEligibility: async (preset) => {
+      ensureDemoMode()
+      deps.setEligibilityScenario(preset)
+      return immutable(deps.getState().eligibility)
+    },
+    setStudentDemoFileValidation: async (preset) => {
+      ensureDemoMode()
+      deps.setFileValidationScenario(preset)
+      return detail(findThesis('thesis-main'))
+    },
+    resetStudentDemo: async () => {
+      ensureDemoMode()
+      deps.reset()
+    },
   }
 }

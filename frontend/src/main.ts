@@ -19,11 +19,13 @@ import ElementPlus from 'element-plus'
 import zhCn from 'element-plus/es/locale/lang/zh-cn'
 
 import App from './App.vue'
+import { scenarioService, scenarioServiceKey } from './demo/serviceProvider'
 import router from './router'
 import '@/styles/main.css'
 
 const app = createApp(App)
 
+app.provide(scenarioServiceKey, scenarioService)
 app.use(createPinia())
 app.use(router)
 app.use(ElementPlus, { locale: zhCn })

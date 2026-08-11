@@ -153,7 +153,9 @@ function normalizeNotifications(
   const businessKinds = new Set<StudentNotification['kind']>([
     'THESIS_SUBMITTED',
     'THESIS_WITHDRAWN',
+    'THESIS_RETURNED',
     'WITHDRAWAL_REQUESTED',
+    'EXPERT_REVIEW_STARTED',
     'RESULT_PUBLISHED',
     'OBJECTION_SUBMITTED',
     'OBJECTION_RECEIVED',

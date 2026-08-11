@@ -108,7 +108,10 @@ export interface StudentTimelineEvent {
     | 'DRAFT_CREATED'
     | 'THESIS_SUBMITTED'
     | 'THESIS_WITHDRAWN'
+    | 'THESIS_RETURNED'
     | 'WITHDRAWAL_REQUESTED'
+    | 'EXPERT_REVIEW_STARTED'
+    | 'RESULT_PROCESSING_STARTED'
     | 'RESULT_PUBLISHED'
   occurredAt: string
   message: string
@@ -219,7 +222,9 @@ export type StudentNotification =
       kind:
         | 'THESIS_SUBMITTED'
         | 'THESIS_WITHDRAWN'
+        | 'THESIS_RETURNED'
         | 'WITHDRAWAL_REQUESTED'
+        | 'EXPERT_REVIEW_STARTED'
         | 'RESULT_PUBLISHED'
         | 'OBJECTION_SUBMITTED'
         | 'OBJECTION_RECEIVED'
@@ -230,7 +235,16 @@ export type StudentNotification =
       thesisId?: never
     })
 
-export type StudentScenarioPreset = DemoStage
+export type StudentScenarioPreset =
+  | 'DRAFT'
+  | 'RETURNED'
+  | 'SCHOOL_REVIEW'
+  | 'EXPERT_REVIEW'
+  | 'RESULT_PROCESSING'
+  | 'COMPLETED'
+
+export type StudentEligibilityScenario = 'ELIGIBLE' | 'SUSPENDED' | 'EXPIRED'
+export type StudentFileValidationScenario = 'VALID' | 'INVALID'
 
 export interface StudentPortalService {
   getStudentEligibility(): Promise<StudentEligibility>
@@ -248,6 +262,8 @@ export interface StudentPortalService {
   markStudentNotificationRead(id: string): Promise<StudentNotification[]>
   markAllStudentNotificationsRead(): Promise<StudentNotification[]>
   loadStudentScenario(preset: StudentScenarioPreset): Promise<StudentThesisDetail>
+  setStudentDemoEligibility(preset: StudentEligibilityScenario): Promise<StudentEligibility>
+  setStudentDemoFileValidation(preset: StudentFileValidationScenario): Promise<StudentThesisDetail>
   resetStudentDemo(): Promise<void>
 }
 

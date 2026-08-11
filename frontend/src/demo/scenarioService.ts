@@ -2,7 +2,7 @@ import type { RoleCode } from '@/types/roles'
 
 import { createInitialScenarioState, demoIdentity, demoThesis } from './fixtures'
 import { createStudentPortalService } from '@/modules/thesis/services/studentPortalService'
-import { createInitialStudentPortalState } from './studentFixtures'
+import { createInitialStudentPortalState, type StudentPortalState } from './studentFixtures'
 import { loadStudentDemo, saveStudentDemo } from './studentPersistence'
 import type {
   DemoAction,
@@ -19,9 +19,156 @@ import type {
   SchoolSubmissionInput,
   StorageLike,
   StudentPortalService,
+  StudentEligibilityScenario,
+  StudentFileValidationScenario,
   StudentScenarioPreset,
   StudentScoreDimension,
 } from './types'
+
+const scenarioStage: Record<StudentScenarioPreset, DemoStage> = {
+  DRAFT: 'DRAFT',
+  RETURNED: 'DRAFT',
+  SCHOOL_REVIEW: 'SUBMITTED',
+  EXPERT_REVIEW: 'UNDER_REVIEW',
+  RESULT_PROCESSING: 'RESULT_PROCESSING',
+  COMPLETED: 'COMPLETED',
+}
+
+const scenarioTimeline: Record<
+  StudentScenarioPreset,
+  StudentPortalState['timelines']['thesis-main']
+> = {
+  DRAFT: [
+    {
+      id: 'timeline-main-created',
+      kind: 'DRAFT_CREATED',
+      occurredAt: '2026-08-10 16:20',
+      message: '已创建论文草稿。',
+    },
+  ],
+  RETURNED: [
+    {
+      id: 'timeline-main-created',
+      kind: 'DRAFT_CREATED',
+      occurredAt: '2026-08-10 16:20',
+      message: '已创建论文草稿。',
+    },
+    {
+      id: 'timeline-main-returned',
+      kind: 'THESIS_RETURNED',
+      occurredAt: '2026-08-12 10:15',
+      message: '学校已退回材料，请修改匿名版后重新提交。',
+    },
+  ],
+  SCHOOL_REVIEW: [
+    {
+      id: 'timeline-main-created',
+      kind: 'DRAFT_CREATED',
+      occurredAt: '2026-08-10 16:20',
+      message: '已创建论文草稿。',
+    },
+    {
+      id: 'timeline-main-submitted',
+      kind: 'THESIS_SUBMITTED',
+      occurredAt: '2026-08-11 09:00',
+      message: '论文已提交，等待学校审核。',
+    },
+  ],
+  EXPERT_REVIEW: [
+    {
+      id: 'timeline-main-submitted',
+      kind: 'THESIS_SUBMITTED',
+      occurredAt: '2026-08-11 09:00',
+      message: '论文已提交，等待学校审核。',
+    },
+    {
+      id: 'timeline-main-expert-review',
+      kind: 'EXPERT_REVIEW_STARTED',
+      occurredAt: '2026-08-15 14:20',
+      message: '论文已进入送审评阅。',
+    },
+  ],
+  RESULT_PROCESSING: [
+    {
+      id: 'timeline-main-expert-review',
+      kind: 'EXPERT_REVIEW_STARTED',
+      occurredAt: '2026-08-15 14:20',
+      message: '论文已进入送审评阅。',
+    },
+    {
+      id: 'timeline-main-result-processing',
+      kind: 'RESULT_PROCESSING_STARTED',
+      occurredAt: '2026-08-24 16:40',
+      message: '评阅已返回，等待学校确认发布。',
+    },
+  ],
+  COMPLETED: [
+    {
+      id: 'timeline-main-result-processing',
+      kind: 'RESULT_PROCESSING_STARTED',
+      occurredAt: '2026-08-24 16:40',
+      message: '评阅已返回，等待学校确认发布。',
+    },
+    {
+      id: 'timeline-main-result-published',
+      kind: 'RESULT_PUBLISHED',
+      occurredAt: '2026-08-25 10:00',
+      message: '学校已发布评审结果。',
+    },
+  ],
+}
+
+function scenarioNotification(preset: StudentScenarioPreset): StudentPortalState['notifications'] {
+  if (preset === 'RETURNED') {
+    return [
+      {
+        id: 'notification-main-returned',
+        kind: 'THESIS_RETURNED',
+        thesisId: 'thesis-main',
+        message: '学校已退回材料，请修改匿名版后重新提交。',
+        createdAt: '2026-08-12 10:15',
+        read: false,
+      },
+    ]
+  }
+  if (preset === 'SCHOOL_REVIEW') {
+    return [
+      {
+        id: 'notification-main-submitted',
+        kind: 'THESIS_SUBMITTED',
+        thesisId: 'thesis-main',
+        message: '论文已提交，等待学校审核。',
+        createdAt: '2026-08-11 09:00',
+        read: false,
+      },
+    ]
+  }
+  if (preset === 'EXPERT_REVIEW') {
+    return [
+      {
+        id: 'notification-main-expert-review',
+        kind: 'EXPERT_REVIEW_STARTED',
+        thesisId: 'thesis-main',
+        message: '论文已进入送审评阅。',
+        createdAt: '2026-08-15 14:20',
+        read: false,
+      },
+    ]
+  }
+  if (preset === 'COMPLETED') {
+    return [
+      {
+        id: 'notification-main-result-published',
+        kind: 'RESULT_PUBLISHED',
+        thesisId: 'thesis-main',
+        message: '学校已发布评审结果。',
+        createdAt: '2026-08-25 10:00',
+        read: false,
+      },
+    ]
+  }
+  return []
+}
 
 const roleContexts: Record<RoleCode, DemoRoleContext> = {
   system_admin: { role: 'system_admin', displayName: '系统管理员' },
@@ -263,24 +410,84 @@ export function createScenarioService(
     getResults: currentReviewResults,
     demoMode: options.demoMode ?? true,
     loadScenario: (preset: StudentScenarioPreset) => {
+      const stage = scenarioStage[preset]
+      const taskStatus =
+        preset === 'EXPERT_REVIEW'
+          ? ('IN_REVIEW' as const)
+          : ['RESULT_PROCESSING', 'COMPLETED'].includes(preset)
+            ? ('SUBMITTED' as const)
+            : undefined
+      const review =
+        preset === 'RESULT_PROCESSING' || preset === 'COMPLETED'
+          ? {
+              draftSaved: true,
+              submitted: true,
+              score: 86,
+              recommendation: '建议通过',
+              scoreInput: defaultPublishedReview,
+            }
+          : { draftSaved: false, submitted: false }
+      const initialScenario = createInitialScenarioState()
       state = {
-        ...state,
-        stage: preset,
-        taskStatus: preset === 'UNDER_REVIEW' ? 'IN_REVIEW' : state.taskStatus,
-        review:
-          preset === 'COMPLETED'
-            ? {
-                draftSaved: true,
-                submitted: true,
-                score: 86,
-                recommendation: '建议通过',
-                scoreInput: state.review.scoreInput ?? defaultPublishedReview,
-              }
-            : state.review,
+        ...initialScenario,
+        activeRole: state.activeRole,
+        stage,
+        review,
+        ...(taskStatus ? { taskStatus } : {}),
+      }
+      const initialStudent = createInitialStudentPortalState()
+      studentState = {
+        ...initialStudent,
+        notifications: scenarioNotification(preset),
+        timelines: {
+          ...initialStudent.timelines,
+          'thesis-main': structuredClone(scenarioTimeline[preset]),
+        },
+        publicReasonsByThesis:
+          preset === 'RETURNED'
+            ? { 'thesis-main': '匿名版仍包含可识别身份信息，请修改后重新提交。' }
+            : {},
+        objections: [],
+        withdrawalRequests: [],
+        resultsByThesis: {
+          ...initialStudent.resultsByThesis,
+          ...(preset === 'COMPLETED' ? { 'thesis-main': currentReviewResults() } : {}),
+        },
+      }
+      persist()
+    },
+    setEligibilityScenario: (preset: StudentEligibilityScenario) => {
+      const eligible = preset === 'ELIGIBLE'
+      const reason =
+        preset === 'ELIGIBLE'
+          ? '当前学籍和批次资格有效。'
+          : preset === 'SUSPENDED'
+            ? '学校已暂停本批次提交资格。'
+            : '当前批次已过提交截止时间。'
+      studentState = {
+        ...studentState,
+        eligibility: { ...studentState.eligibility, eligible, status: preset, reason },
+      }
+      persist()
+    },
+    setFileValidationScenario: (preset: StudentFileValidationScenario) => {
+      const fixtureFiles = createInitialStudentPortalState().fileMetadataByThesis['thesis-main']
+      const savedFiles = studentState.fileMetadataByThesis['thesis-main'] ?? []
+      const currentFiles = savedFiles.length > 0 ? savedFiles : structuredClone(fixtureFiles)
+      studentState = {
+        ...studentState,
+        fileMetadataByThesis: {
+          ...studentState.fileMetadataByThesis,
+          'thesis-main': currentFiles.map((file) => ({
+            ...file,
+            validationStatus: preset,
+          })),
+        },
       }
       persist()
     },
     reset: () => {
+      storage.removeItem?.('baijie-demo-student:v1')
       state = createInitialScenarioState()
       studentState = createInitialStudentPortalState()
       persist()

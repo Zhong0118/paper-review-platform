@@ -37,6 +37,8 @@ function createUnavailableService(): ScenarioService {
     markStudentNotificationRead: unavailable,
     markAllStudentNotificationsRead: unavailable,
     loadStudentScenario: unavailable,
+    setStudentDemoEligibility: unavailable,
+    setStudentDemoFileValidation: unavailable,
     resetStudentDemo: unavailable,
     listStudentTheses: unavailable,
     listSchoolTheses: unavailable,
@@ -64,6 +66,7 @@ export function createScenarioServiceProvider(
 export const scenarioService = createScenarioServiceProvider()
 
 export const scenarioServiceKey: InjectionKey<ScenarioService> = Symbol('scenario-service')
+export const studentPortalServiceKey: InjectionKey<StudentPortalService> = scenarioServiceKey
 
 export function useScenarioService(): ScenarioService {
   const service = inject(scenarioServiceKey)
