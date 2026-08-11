@@ -85,6 +85,8 @@ pnpm --dir frontend build
 
 Expected: 全部退出码 0。
 
+**执行记录（2026-08-11，Task 8 审查修复）：** 根容器以 `div#app-root` 落地于 `frontend/src/App.vue`（提交 9e6f437），与本计划早期约定的 `main#app-main` 不一致；该命名来自学生交互工作流计划 Task 8 的 App.spec 断言，且已由该计划回写。以提交内容为准，不再更改根容器命名。
+
 ### Task 2: 通用组件与四类页面骨架（D1）
 
 **Files:**
