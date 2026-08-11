@@ -553,6 +553,8 @@ export type PlatformScenarioPreset =
   | 'PENDING_ACCEPTANCE'
   | 'IN_REVIEW'
   | 'PENDING_REASSIGNMENT'
+  | 'DUE_SOON'
+  | 'OVERDUE'
   | 'COMPLETED'
 
 /** Task 4 更正申请的投影；本轮仅保留契约。 */

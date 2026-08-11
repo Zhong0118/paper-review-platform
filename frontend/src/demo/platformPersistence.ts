@@ -131,6 +131,7 @@ function normalizeTask(value: unknown): ExpertTaskSummary | null {
   return {
     id: source.id,
     ...(typeof source.thesisId === 'string' ? { thesisId: source.thesisId } : {}),
+    ...(typeof source.expertId === 'string' ? { expertId: source.expertId } : {}),
     anonymousId: source.anonymousId,
     anonymousTitle: typeof source.anonymousTitle === 'string' ? source.anonymousTitle : '',
     discipline,

@@ -362,6 +362,7 @@ export function createPlatformOperationService(
       const task: ExpertTaskSummary = {
         id: `task-e-2026-${String(state.expertTasks.length + 1).padStart(3, '0')}`,
         thesisId,
+        expertId,
         anonymousId: thesis.anonymousId,
         anonymousTitle: thesis.title,
         discipline: { ...thesis.discipline },
@@ -537,7 +538,7 @@ export function createPlatformOperationService(
 }
 
 /** 评阅中且临近截止（≤3 天）判定；`overdue` 是布尔时限属性，不是独立状态。 */
-function isDueSoon(task: ExpertTaskSummary) {
+export function isDueSoon(task: ExpertTaskSummary) {
   const due = new Date(task.dueAt.replace(' ', 'T')).getTime()
   const now = new Date('2026-08-12T09:00:00').getTime()
   const remainingDays = (due - now) / 86_400_000

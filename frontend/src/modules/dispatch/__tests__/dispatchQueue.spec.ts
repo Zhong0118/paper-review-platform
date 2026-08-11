@@ -214,6 +214,103 @@ describe('dispatch operations queues and assignment loop', () => {
     await service.acceptTask()
     expect((await service.loginAs('expert')).thesis.taskStatus).toBe('IN_REVIEW')
   })
+
+  it('keeps the expert task visible after the result is published', async () => {
+    const service = createScenarioService({ storage: createMemoryStorage(), demoMode: true })
+    await service.loginAs('student')
+    await service.submitThesis()
+    await service.loginAs('school_reviewer')
+    await service.confirmAnonymization()
+    await service.confirmDispatch()
+    await service.loginAs('platform_reviewer')
+    const matches = await service.listExpertMatches('thesis-main')
+    await service.assignExpertToThesis('thesis-main', matches.find((m) => !m.conflictHit)!.id)
+    await service.loginAs('expert')
+    await service.acceptTask()
+    await service.submitFinalReview({
+      topicValue: 13,
+      literatureTheory: 13,
+      methodology: 17,
+      innovation: 21,
+      resultsWorkload: 13,
+      writingStandards: 9,
+      recommendation: '建议通过',
+      strengths: '选题具有价值，研究路径完整。',
+      issues: '对最新基线的比较仍需加强。',
+      revisionAdvice: '补充消融实验与限制讨论。',
+      overallComment: '论文结构完整，达到硕士学位论文要求。',
+    })
+    await service.loginAs('school_reviewer')
+    await service.publishResult()
+
+    // 已完成论文的专家任务仍可见（SUBMITTED），专家端「已完成」列表不为空
+    const tasks = await service.listExpertTasks()
+    const main = tasks.find((task) => task.thesisId === 'thesis-main')
+    expect(main).toBeDefined()
+    expect(main?.status).toBe('SUBMITTED')
+  })
+
+  it('keeps reassigned tasks attributed to the replacement expert after reload', async () => {
+    const storage = createMemoryStorage()
+    const service = createScenarioService({ storage, demoMode: true })
+    await service.loadPlatformScenario('PENDING_DISPATCH')
+    const matches = await service.listExpertMatches('thesis-main')
+    await service.assignExpertToThesis('thesis-main', matches[0].id)
+    const task = (await service.listExpertTasks()).find((t) => t.thesisId === 'thesis-main')
+    await service.reassignExpertTask(task!.id, matches[1].id, '专家出差无法接单')
+
+    // 重新构造（模拟刷新页面）：同一 storage 读回持久化状态
+    const restored = createScenarioService({ storage, demoMode: true })
+    const restoredTasks = await restored.listExpertTasks()
+    const reopened = restoredTasks.find(
+      (t) => t.thesisId === 'thesis-main' && ['INVITED', 'IN_REVIEW'].includes(t.status),
+    )
+    expect(reopened).toBeDefined()
+    expect(reopened?.expertId).toBe(matches[1].id)
+  })
+
+  it('distinguishes due-soon from overdue queue counts by deadline', async () => {
+    const service = createScenarioService({ storage: createMemoryStorage(), demoMode: true })
+
+    await service.loadPlatformScenario('DUE_SOON')
+    const dueSoon = await service.listOperationsQueues()
+    expect(dueSoon.DUE_SOON).toBe(1)
+    expect(dueSoon.OVERDUE).toBe(0)
+
+    await service.loadPlatformScenario('OVERDUE')
+    const overdue = await service.listOperationsQueues()
+    expect(overdue.OVERDUE).toBe(1)
+    expect(overdue.DUE_SOON).toBe(0)
+  })
+
+  it('shows overdue tasks only in the OVERDUE queue and not in 评阅中', async () => {
+    const service = createScenarioService({ storage: createMemoryStorage(), demoMode: true })
+    await service.loadPlatformScenario('OVERDUE')
+    const { wrapper } = await mountWorkbenchPage(service)
+
+    await wrapper.get('[data-operations-queue="OVERDUE"]').trigger('click')
+    expect(wrapper.get('[data-queue-panel="OVERDUE"]').exists()).toBe(true)
+    const overdueRow = wrapper.get('[data-task-id="task-e-2026-042"]')
+    expect(overdueRow.attributes('data-overdue')).toBe('true')
+
+    // 评阅中队列不再重复展示逾期任务
+    await wrapper.get('[data-operations-queue="IN_REVIEW"]').trigger('click')
+    expect(wrapper.findAll('[data-task-id="task-e-2026-042"]')).toHaveLength(0)
+  })
+
+  it('shows due-soon tasks in the DUE_SOON queue without overdue styling', async () => {
+    const service = createScenarioService({ storage: createMemoryStorage(), demoMode: true })
+    await service.loadPlatformScenario('DUE_SOON')
+    const { wrapper } = await mountWorkbenchPage(service)
+
+    await wrapper.get('[data-operations-queue="DUE_SOON"]').trigger('click')
+    const row = wrapper.get('[data-task-id="task-e-2026-042"]')
+    expect(row.attributes('data-overdue')).toBe('false')
+
+    // 评阅中队列不再重复展示临期任务
+    await wrapper.get('[data-operations-queue="IN_REVIEW"]').trigger('click')
+    expect(wrapper.findAll('[data-task-id="task-e-2026-042"]')).toHaveLength(0)
+  })
 })
 
 async function mountWorkbenchPage(service = createScenarioService({ demoMode: true })) {

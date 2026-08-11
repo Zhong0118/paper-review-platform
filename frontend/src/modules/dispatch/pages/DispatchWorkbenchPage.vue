@@ -5,6 +5,7 @@ import BlindRail from '@/components/app/BlindRail.vue'
 import PageHeader from '@/components/app/PageHeader.vue'
 import { useScenarioService } from '@/demo/serviceProvider'
 import type { DispatchThesisSeed, ExpertTaskSummary, OperationsQueue } from '@/demo/types'
+import { isDueSoon } from '@/modules/expert-management/services/platformOperationService'
 import PortalLayout from '@/layouts/PortalLayout.vue'
 import { menusByRole } from '@/router/menus'
 import { useAuthStore } from '@/stores/auth'
@@ -127,9 +128,18 @@ const activeQueueTasks = computed(() => {
     case 'PENDING_ACCEPTANCE':
       return tasks.value.filter((task) => task.status === 'INVITED')
     case 'IN_REVIEW':
+      // 评阅中：非逾期、非临期（临期与逾期任务各自进入专属队列，避免重复展示）
+      return tasks.value.filter(
+        (task) => task.status === 'IN_REVIEW' && !task.overdue && !isDueSoon(task),
+      )
     case 'DUE_SOON':
+      // 临期：评阅中且 ≤3 天内到期（与平台队列计数同一判定）
+      return tasks.value.filter(
+        (task) => task.status === 'IN_REVIEW' && !task.overdue && isDueSoon(task),
+      )
     case 'OVERDUE':
-      return tasks.value.filter((task) => task.status === 'IN_REVIEW')
+      // 逾期：overdue 是时限布尔属性，不是独立状态
+      return tasks.value.filter((task) => task.status === 'IN_REVIEW' && task.overdue)
     case 'PENDING_REASSIGNMENT':
       return rejectedTasks.value
     default:

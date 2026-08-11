@@ -281,10 +281,14 @@ function deepFreeze<T>(value: T): T {
 }
 
 /** 场景装载用的演示任务（固定演示时间，不做真实时限调度）。 */
-function createDemoTask(status: 'INVITED' | 'IN_REVIEW' | 'REJECTED'): ExpertTaskSummary {
+function createDemoTask(
+  status: 'INVITED' | 'IN_REVIEW' | 'REJECTED' | 'SUBMITTED',
+  overrides: Partial<ExpertTaskSummary> = {},
+): ExpertTaskSummary {
   return {
     id: 'task-e-2026-042',
     thesisId: 'thesis-main',
+    expertId: 'expert-31',
     anonymousId: 'HY-2026-0042',
     anonymousTitle: '面向复杂场景的多模态知识推理研究',
     discipline: { code: '0812', name: '计算机科学与技术' },
@@ -293,6 +297,7 @@ function createDemoTask(status: 'INVITED' | 'IN_REVIEW' | 'REJECTED'): ExpertTas
     dueAt: status === 'IN_REVIEW' ? '2026-08-28 18:00' : '2026-08-26 18:00',
     overdue: false,
     round: 1,
+    ...overrides,
   }
 }
 
@@ -549,9 +554,14 @@ export function createScenarioService(
       task.status === 'INVITED' || task.status === 'IN_REVIEW'
         ? task.status
         : dispatch.status === 'COMPLETED'
-          ? 'SUBMITTED'
+          ? // 平台任务真实进入 SUBMITTED（提交终审）才视为完成；否则保持学生端原状态。
+            task.status === 'SUBMITTED'
+            ? 'SUBMITTED'
+            : undefined
           : undefined
     if (thesis.stage === stage && state.taskStatus === taskStatus) return
+    // 学生端已进入结果处理/完成时，不把平台滞后状态投影回去（避免阶段回退）。
+    if (state.stage === 'RESULT_PROCESSING' || state.stage === 'COMPLETED') return
     state = { ...state, stage, ...(taskStatus ? { taskStatus } : {}) }
     persist()
   }
@@ -676,6 +686,17 @@ export function createScenarioService(
           availableAmount: state.expertAccount.availableAmount + 300,
         },
       }
+      // 专家提交终审：平台任务同步进入 SUBMITTED（专家端「已完成」列表依赖此状态），
+      // 论文派单投影保持 PENDING_ACCEPTANCE，队列按任务状态派生为「待结算」。
+      platformState = {
+        ...platformState,
+        expertTasks: platformState.expertTasks.map((task) =>
+          task.thesisId === demoThesis.id && ['INVITED', 'IN_REVIEW'].includes(task.status)
+            ? { ...task, status: 'SUBMITTED' as const }
+            : task,
+        ),
+      }
+      persistPlatform()
       persist()
       return snapshot()
     },
@@ -752,16 +773,20 @@ export function createScenarioService(
     listExpertTasks: async () => {
       // 平台派生任务为权威数据源；仅当平台尚无 thesis-main 的在评任务时，
       // 以学生端任务状态补充演示任务，保证学生端流程（Task 2 及更早）兼容。
+      // 已完成论文（stage COMPLETED）同样返回任务，专家端「已完成」列表依赖它。
       const platformTasks: ExpertTaskSummary[] = platformState.expertTasks.map((task) => ({
         ...task,
       }))
       const hasMainTask = platformTasks.some(
-        (task) => task.thesisId === demoThesis.id && ['INVITED', 'IN_REVIEW'].includes(task.status),
+        (task) =>
+          task.thesisId === demoThesis.id &&
+          ['INVITED', 'IN_REVIEW', 'SUBMITTED'].includes(task.status),
       )
-      if (state.taskStatus && state.stage !== 'COMPLETED' && !hasMainTask) {
+      if (state.taskStatus && !hasMainTask) {
         platformTasks.push({
           id: 'task-e-2026-042',
           thesisId: demoThesis.id,
+          expertId: 'expert-31',
           anonymousId: demoThesis.anonymousId,
           anonymousTitle: '多模态知识推理方向匿名论文',
           discipline: { code: '0812', name: '计算机科学与技术' },
@@ -801,8 +826,16 @@ export function createScenarioService(
     getSchoolBills: async () => deepFreeze(structuredClone(state.schoolBills)),
     getExpertAccount: async () => deepFreeze(structuredClone(state.expertAccount)),
     loadPlatformScenario: async (preset: PlatformScenarioPreset) => {
+      // 演示时钟固定 2026-08-12 09:00（与平台服务一致），时限派生以此为准。
+      const NOW = new Date('2026-08-12T09:00:00')
+      const at = (day: number, hour = 18, minute = 0) =>
+        `${NOW.getFullYear()}-${String(NOW.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')} ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`
       const status: 'PENDING_DISPATCH' | 'PENDING_ACCEPTANCE' | 'IN_REVIEW' | 'COMPLETED' =
-        preset === 'PENDING_REASSIGNMENT' ? 'PENDING_ACCEPTANCE' : preset
+        preset === 'PENDING_REASSIGNMENT'
+          ? 'PENDING_ACCEPTANCE'
+          : preset === 'DUE_SOON' || preset === 'OVERDUE'
+            ? 'IN_REVIEW'
+            : preset
       const scenario: FixturePlatformState = createDispatchScenario([
         { thesisId: 'thesis-main', status },
       ])
@@ -814,8 +847,19 @@ export function createScenarioService(
               ),
             ]
           : status === 'IN_REVIEW'
-            ? [createDemoTask('IN_REVIEW')]
-            : []
+            ? [
+                createDemoTask('IN_REVIEW', {
+                  // 逾期：截止早于演示时钟；临期：3 天内（isDueSoon 上限）。
+                  ...(preset === 'OVERDUE'
+                    ? { dueAt: at(10), overdue: true }
+                    : preset === 'DUE_SOON'
+                      ? { dueAt: at(14, 21) }
+                      : {}),
+                }),
+              ]
+            : status === 'COMPLETED'
+              ? [createDemoTask('SUBMITTED', { dueAt: at(28) })]
+              : []
       platformState = {
         ...scenario,
         expertTasks: task,
