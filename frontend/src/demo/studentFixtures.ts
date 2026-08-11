@@ -92,9 +92,18 @@ export function createInitialStudentPortalState(): StudentPortalState {
         {
           expertAlias: '专家 B',
           score: 82,
+          dimensionScores: [
+            { key: 'topicValue', label: '选题价值', score: 12, maxScore: 15 },
+            { key: 'literatureTheory', label: '文献与理论', score: 12, maxScore: 15 },
+            { key: 'methodology', label: '研究方法', score: 16, maxScore: 20 },
+            { key: 'innovation', label: '创新性', score: 20, maxScore: 25 },
+            { key: 'resultsWorkload', label: '成果与工作量', score: 13, maxScore: 15 },
+            { key: 'writingStandards', label: '写作规范', score: 9, maxScore: 10 },
+          ],
           recommendation: '建议通过',
           comment: '历史论文评阅结果。',
           submittedAt: '2026-01-18 09:35',
+          publishedAt: '2026-01-20 14:10',
         },
       ],
     },

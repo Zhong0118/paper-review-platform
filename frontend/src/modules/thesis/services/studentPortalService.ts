@@ -53,7 +53,7 @@ function immutable<T>(value: T): T {
   return copy
 }
 
-function actionsFor(thesis: DemoThesisSummary): StudentAction[] {
+function actionsFor(thesis: DemoThesisSummary, hasUnresolvedObjection = false): StudentAction[] {
   if (thesis.submissionSource !== 'STUDENT') {
     return thesis.stage === 'COMPLETED' ? ['VIEW_RESULT'] : ['VIEW_THESIS']
   }
@@ -62,7 +62,9 @@ function actionsFor(thesis: DemoThesisSummary): StudentAction[] {
     return ['VIEW_THESIS', 'WITHDRAW_BEFORE_DISPATCH']
   }
   if (thesis.stage === 'UNDER_REVIEW') return ['REQUEST_WITHDRAWAL']
-  if (thesis.stage === 'COMPLETED') return ['VIEW_RESULT', 'SUBMIT_OBJECTION']
+  if (thesis.stage === 'COMPLETED') {
+    return hasUnresolvedObjection ? ['VIEW_RESULT'] : ['VIEW_RESULT', 'SUBMIT_OBJECTION']
+  }
   return []
 }
 
@@ -103,6 +105,9 @@ export function createStudentPortalService(deps: StudentPortalDependencies): Stu
   }
   const detail = (thesis: DemoThesisSummary): StudentThesisDetail => {
     const state = deps.getState()
+    const hasUnresolvedObjection = state.objections.some(
+      (item) => item.thesisId === thesis.id && ['SUBMITTED', 'PROCESSING'].includes(item.status),
+    )
     return immutable({
       id: thesis.id,
       anonymousId: thesis.anonymousId,
@@ -118,7 +123,7 @@ export function createStudentPortalService(deps: StudentPortalDependencies): Stu
       anonymousFileName: thesis.anonymousFileName,
       stage: thesis.stage,
       studentVisibleStage: toStudentVisibleStage(thesis.stage),
-      allowedActions: actionsFor(thesis),
+      allowedActions: actionsFor(thesis, hasUnresolvedObjection),
       timeline: state.timelines[thesis.id] ?? [],
       publicReason: state.publicReasonsByThesis[thesis.id],
       submissionSource: thesis.submissionSource,
@@ -329,18 +334,72 @@ export function createStudentPortalService(deps: StudentPortalDependencies): Stu
       if (thesis.stage !== 'COMPLETED') return null
       const results =
         deps.getState().resultsByThesis[id] ?? (id === 'thesis-main' ? deps.getResults() : [])
-      return immutable({ thesisId: id, results })
+      const dimensionKeys = results[0]?.dimensionScores?.map((dimension) => dimension.key) ?? []
+      const dimensions = dimensionKeys.map((key) => {
+        const matching = results.flatMap((result) =>
+          (result.dimensionScores ?? []).filter((dimension) => dimension.key === key),
+        )
+        const reference = matching[0]
+        return {
+          key,
+          label: reference.label,
+          maxScore: reference.maxScore,
+          score: matching.reduce((sum, dimension) => sum + dimension.score, 0) / matching.length,
+        }
+      })
+      const objections = deps.getState().objections.filter((item) => item.thesisId === id)
+      const objection = objections.at(-1)
+      const publicResults = results.map((result) => ({
+        expertAlias: result.expertAlias,
+        score: result.score,
+        recommendation: result.recommendation,
+        comment: result.comment,
+        submittedAt: result.submittedAt,
+      }))
+      return immutable({
+        thesisId: id,
+        totalScore: results.reduce((sum, result) => sum + result.score, 0) / results.length,
+        dimensions,
+        conclusion: results[0]?.recommendation ?? '',
+        publishedAt: results[0]?.publishedAt ?? '',
+        results: publicResults,
+        ...(objection ? { objection } : {}),
+      })
     },
     submitStudentObjection: async (id: string, input: StudentObjectionInput) => {
       const thesis = findThesis(id)
       ensureAction(thesis, 'SUBMIT_OBJECTION')
-      const objection = {
-        id: `objection-${id}-${deps.getState().objections.length + 1}`,
-        thesisId: id,
-        reason: input.reason,
-        submittedAt: timestamp,
+      const reason = input.reason.trim()
+      const request = input.request.trim()
+      if (!reason || !request) {
+        throw new StudentPortalError('INVALID_INPUT', '异议理由和处理诉求均为必填项。')
       }
       const state = deps.getState()
+      if (
+        state.objections.some(
+          (item) => item.thesisId === id && ['SUBMITTED', 'PROCESSING'].includes(item.status),
+        )
+      ) {
+        throw new StudentPortalError('STATE_CONFLICT', '该论文已有未解决异议，请等待学校处理。')
+      }
+      const attachments = input.attachments.map(persistedFileMeta)
+      if (
+        attachments.some(
+          (attachment) =>
+            attachment.purpose !== 'OBJECTION' || attachment.validationStatus !== 'VALID',
+        )
+      ) {
+        throw new StudentPortalError('INVALID_INPUT', '异议附件尚未通过校验。')
+      }
+      const objection = {
+        id: `objection-${id}-${state.objections.length + 1}`,
+        thesisId: id,
+        reason,
+        request,
+        attachments,
+        status: 'SUBMITTED' as const,
+        submittedAt: timestamp,
+      }
       deps.setState({ ...state, objections: [...state.objections, objection] })
       notify({
         id: `notification-${id}-objection`,

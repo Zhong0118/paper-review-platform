@@ -1,6 +1,6 @@
 import { createInitialScenarioState, type DemoScenarioState } from './fixtures'
 import { createInitialStudentPortalState, type StudentPortalState } from './studentFixtures'
-import type { DemoThesisSummary, StorageLike, ThesisFileMeta } from './types'
+import type { DemoThesisSummary, StorageLike, StudentObjection, ThesisFileMeta } from './types'
 
 export const studentPersistenceKey = 'baijie-demo-student:v1'
 
@@ -55,7 +55,9 @@ function normalizeFileMetadata(thesisId: string, value: unknown): ThesisFileMeta
     if (!entry || typeof entry !== 'object') return []
     const source = entry as Record<string, unknown>
     const purpose =
-      source.purpose === 'SCHOOL_ARCHIVE' || source.purpose === 'EXPERT_REVIEW'
+      source.purpose === 'SCHOOL_ARCHIVE' ||
+      source.purpose === 'EXPERT_REVIEW' ||
+      source.purpose === 'OBJECTION'
         ? source.purpose
         : source.kind === 'ANONYMOUS'
           ? 'EXPERT_REVIEW'
@@ -72,7 +74,7 @@ function normalizeFileMetadata(thesisId: string, value: unknown): ThesisFileMeta
         id:
           typeof source.id === 'string'
             ? source.id
-            : `file-${thesisId}-${purpose === 'EXPERT_REVIEW' ? 'anonymous' : 'original'}${
+            : `file-${thesisId}-${purpose === 'EXPERT_REVIEW' ? 'anonymous' : purpose.toLowerCase()}${
                 index > 1 ? `-${index}` : ''
               }`,
         name,
@@ -98,6 +100,43 @@ function normalizeFileMetadataByThesis(value: unknown): Record<string, ThesisFil
       normalizeFileMetadata(thesisId, files),
     ]),
   )
+}
+
+function normalizeObjections(value: unknown): StudentObjection[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object') return []
+    const source = entry as Record<string, unknown>
+    if (
+      typeof source.id !== 'string' ||
+      typeof source.thesisId !== 'string' ||
+      typeof source.reason !== 'string' ||
+      typeof source.submittedAt !== 'string'
+    ) {
+      return []
+    }
+    const status = ['SUBMITTED', 'PROCESSING', 'RESOLVED'].includes(String(source.status))
+      ? (source.status as StudentObjection['status'])
+      : 'SUBMITTED'
+    return [
+      {
+        id: source.id,
+        thesisId: source.thesisId,
+        reason: source.reason,
+        request: typeof source.request === 'string' ? source.request : '',
+        attachments: normalizeFileMetadata(source.id, source.attachments).filter(
+          (attachment) => attachment.purpose === 'OBJECTION',
+        ),
+        status,
+        submittedAt: source.submittedAt,
+        ...(typeof source.processingAt === 'string' ? { processingAt: source.processingAt } : {}),
+        ...(typeof source.resolvedAt === 'string' ? { resolvedAt: source.resolvedAt } : {}),
+        ...(typeof source.publicResolution === 'string'
+          ? { publicResolution: source.publicResolution }
+          : {}),
+      },
+    ]
+  })
 }
 
 function deriveNextDraftSequence(theses: DemoThesisSummary[]) {
@@ -131,6 +170,7 @@ export function loadStudentDemo(storage: StorageLike): LoadedStudentDemo {
       student: {
         ...fixture,
         ...saved.student,
+        objections: normalizeObjections(saved.student.objections),
         abstractsByThesis: saved.student.abstractsByThesis ?? fixture.abstractsByThesis,
         fileMetadataByThesis: {
           ...derivedFileMetadata,

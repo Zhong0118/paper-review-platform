@@ -20,6 +20,7 @@ import type {
   StorageLike,
   StudentPortalService,
   StudentScenarioPreset,
+  StudentScoreDimension,
 } from './types'
 
 const roleContexts: Record<RoleCode, DemoRoleContext> = {
@@ -79,6 +80,46 @@ function totalScore(input: ReviewScoreInput) {
   )
 }
 
+const defaultPublishedReview: ReviewScoreInput = {
+  topicValue: 13,
+  literatureTheory: 13,
+  methodology: 17,
+  innovation: 21,
+  resultsWorkload: 13,
+  writingStandards: 9,
+  recommendation: '建议通过',
+  strengths: '选题具有价值，研究路径完整。',
+  issues: '对最新基线的比较仍需加强。',
+  revisionAdvice: '补充消融实验与限制讨论。',
+  overallComment: '论文结构完整，达到硕士学位论文要求。',
+}
+
+function scoreDimensions(input: ReviewScoreInput): StudentScoreDimension[] {
+  return [
+    { key: 'topicValue', label: '选题价值', score: input.topicValue, maxScore: 15 },
+    {
+      key: 'literatureTheory',
+      label: '文献与理论',
+      score: input.literatureTheory,
+      maxScore: 15,
+    },
+    { key: 'methodology', label: '研究方法', score: input.methodology, maxScore: 20 },
+    { key: 'innovation', label: '创新性', score: input.innovation, maxScore: 25 },
+    {
+      key: 'resultsWorkload',
+      label: '成果与工作量',
+      score: input.resultsWorkload,
+      maxScore: 15,
+    },
+    {
+      key: 'writingStandards',
+      label: '写作规范',
+      score: input.writingStandards,
+      maxScore: 10,
+    },
+  ]
+}
+
 function deepFreeze<T>(value: T): T {
   if (value && typeof value === 'object' && !Object.isFrozen(value)) {
     Object.freeze(value)
@@ -123,15 +164,20 @@ export function createScenarioService(
 
   const currentReviewResults = (): DemoPublishedResult[] =>
     state.review.submitted
-      ? [
-          {
-            expertAlias: '专家 A',
-            score: state.review.score ?? 0,
-            recommendation: state.review.recommendation ?? '',
-            comment: state.review.scoreInput?.overallComment ?? '',
-            submittedAt: '2026-08-24 16:40',
-          },
-        ]
+      ? (() => {
+          const input = state.review.scoreInput ?? defaultPublishedReview
+          return [
+            {
+              expertAlias: '专家 A',
+              score: state.review.score ?? 0,
+              recommendation: state.review.recommendation ?? '',
+              comment: input.overallComment,
+              dimensionScores: scoreDimensions(input),
+              submittedAt: '2026-08-24 16:40',
+              publishedAt: '2026-08-25 10:00',
+            },
+          ]
+        })()
       : []
 
   const listAllTheses = (): DemoThesisSummary[] =>
@@ -228,7 +274,7 @@ export function createScenarioService(
                 submitted: true,
                 score: 86,
                 recommendation: '建议通过',
-                scoreInput: state.review.scoreInput,
+                scoreInput: state.review.scoreInput ?? defaultPublishedReview,
               }
             : state.review,
       }

@@ -119,7 +119,7 @@ export interface ThesisFileMeta {
   name: string
   size: number
   mimeType: string
-  purpose: 'SCHOOL_ARCHIVE' | 'EXPERT_REVIEW'
+  purpose: 'SCHOOL_ARCHIVE' | 'EXPERT_REVIEW' | 'OBJECTION'
   validationStatus: 'VALID' | 'REVIEW_REQUIRED' | 'PENDING' | 'INVALID'
 }
 
@@ -177,18 +177,33 @@ export interface StudentWithdrawalRequest {
 
 export interface StudentResult {
   thesisId: string
+  totalScore: number
+  dimensions: StudentScoreDimension[]
+  conclusion: string
+  publishedAt: string
   results: DemoPublishedResult[]
+  objection?: StudentObjection
 }
 
 export interface StudentObjectionInput {
   reason: string
+  request: string
+  attachments: ThesisFileMeta[]
 }
+
+export type StudentObjectionStatus = 'SUBMITTED' | 'PROCESSING' | 'RESOLVED'
 
 export interface StudentObjection {
   id: string
   thesisId: string
   reason: string
+  request: string
+  attachments: ThesisFileMeta[]
+  status: StudentObjectionStatus
   submittedAt: string
+  processingAt?: string
+  resolvedAt?: string
+  publicResolution?: string
 }
 
 export interface StudentNotification {
@@ -291,9 +306,24 @@ export interface BatchImportRow {
 export interface DemoPublishedResult {
   expertAlias: string
   score: number
+  dimensionScores?: StudentScoreDimension[]
   recommendation: string
   comment: string
   submittedAt: string
+  publishedAt?: string
+}
+
+export interface StudentScoreDimension {
+  key:
+    | 'topicValue'
+    | 'literatureTheory'
+    | 'methodology'
+    | 'innovation'
+    | 'resultsWorkload'
+    | 'writingStandards'
+  label: string
+  score: number
+  maxScore: number
 }
 
 export interface DemoReview {

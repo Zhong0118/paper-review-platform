@@ -337,7 +337,11 @@ describe('student portal service', () => {
 
     expect(await service.getStudentResult('thesis-main')).toBeNull()
     await expect(
-      service.submitStudentObjection('thesis-main', { reason: '评审意见与材料不符' }),
+      service.submitStudentObjection('thesis-main', {
+        reason: '评审意见与材料不符',
+        request: '申请学校复核处理',
+        attachments: [],
+      }),
     ).rejects.toMatchObject({ code: 'ILLEGAL_ACTION' })
 
     await service.loadStudentScenario('COMPLETED')
@@ -347,7 +351,11 @@ describe('student portal service', () => {
     ])
     expect(await service.getStudentResult('thesis-main')).not.toBeNull()
     await expect(
-      service.submitStudentObjection('thesis-main', { reason: '评审意见与材料不符' }),
+      service.submitStudentObjection('thesis-main', {
+        reason: '评审意见与材料不符',
+        request: '申请学校复核处理',
+        attachments: [],
+      }),
     ).resolves.toMatchObject({ thesisId: 'thesis-main', reason: '评审意见与材料不符' })
   })
 
@@ -396,7 +404,12 @@ describe('student portal service', () => {
       () => service.withdrawStudentThesis(foreignThesisId, '越权撤回'),
       () => service.requestStudentWithdrawal(foreignThesisId, '越权申请'),
       () => service.getStudentResult(foreignThesisId),
-      () => service.submitStudentObjection(foreignThesisId, { reason: '越权异议' }),
+      () =>
+        service.submitStudentObjection(foreignThesisId, {
+          reason: '越权异议',
+          request: '越权诉求',
+          attachments: [],
+        }),
     ]) {
       await expect(operation()).rejects.toMatchObject({
         name: 'StudentPortalError',
@@ -565,8 +578,12 @@ describe('student portal service', () => {
       thesisId: 'thesis-main',
       results: [expect.objectContaining({ expertAlias: '专家 A', score: 86 })],
     })
-    expect(await service.getStudentResult('thesis-0031')).toEqual({
+    expect(await service.getStudentResult('thesis-0031')).toMatchObject({
       thesisId: 'thesis-0031',
+      totalScore: 82,
+      dimensions: expect.any(Array),
+      conclusion: '建议通过',
+      publishedAt: '2026-01-20 14:10',
       results: [
         {
           expertAlias: '专家 B',
