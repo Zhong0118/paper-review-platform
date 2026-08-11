@@ -133,12 +133,12 @@ export function createStudentPortalService(deps: StudentPortalDependencies): Stu
       ),
     getStudentThesis: async (id) => detail(findThesis(id)),
     createStudentDraft: async () => {
-      const eligibility = deps.getState().eligibility
+      const state = deps.getState()
+      const eligibility = state.eligibility
       if (!eligibility.eligible || eligibility.status !== 'ELIGIBLE') {
         throw new StudentPortalError('NOT_ELIGIBLE', eligibility.reason)
       }
-      const existing = deps.getTheses().filter((thesis) => thesis.studentId === '20260042').length
-      const sequence = String(existing + 42).padStart(4, '0')
+      const sequence = String(state.nextDraftSequence).padStart(4, '0')
       const thesis: DemoThesisSummary = {
         id: `thesis-draft-${sequence}`,
         anonymousId: `HY-2026-${sequence}`,
@@ -156,6 +156,7 @@ export function createStudentPortalService(deps: StudentPortalDependencies): Stu
         updatedAt: timestamp,
         allowedActions: ['EDIT_THESIS'],
       }
+      deps.setState({ ...state, nextDraftSequence: state.nextDraftSequence + 1 })
       deps.replaceThesis(thesis)
       addTimeline(thesis.id, {
         id: `timeline-${thesis.id}-created`,
@@ -227,6 +228,10 @@ export function createStudentPortalService(deps: StudentPortalDependencies): Stu
     deleteStudentDraft: async (id: string) => {
       const thesis = findThesis(id)
       ensureAction(thesis, 'DELETE_DRAFT')
+      const state = deps.getState()
+      const { [id]: _removedFiles, ...fileMetadataByThesis } = state.fileMetadataByThesis
+      const { [id]: _removedTimeline, ...timelines } = state.timelines
+      deps.setState({ ...state, fileMetadataByThesis, timelines })
       deps.removeThesis(id)
     },
     withdrawStudentThesis: async (id: string, reason: string) => {

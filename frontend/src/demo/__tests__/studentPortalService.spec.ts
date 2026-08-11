@@ -47,6 +47,24 @@ describe('student portal service', () => {
     await expect(service.getStudentThesis(draft.id)).rejects.toMatchObject({ code: 'NOT_FOUND' })
   })
 
+  it('does not reuse a deleted draft id or leak its file metadata into a new draft', async () => {
+    const service = createScenarioService({ storage: createMemoryStorage(), demoMode: true })
+    const deleted = await service.createStudentDraft()
+    await service.saveStudentDraft(deleted.id, {
+      title: '即将删除的草稿',
+      discipline: { code: '0812', name: '计算机科学与技术' },
+      keywords: ['删除测试'],
+      originalFileName: 'deleted-original.pdf',
+      anonymousFileName: 'deleted-anonymous.pdf',
+    })
+
+    await service.deleteStudentDraft(deleted.id)
+    const created = await service.createStudentDraft()
+
+    expect(created.id).not.toBe(deleted.id)
+    expect(created.files).toEqual([])
+  })
+
   it('allows only a withdrawal request while a thesis is under review', async () => {
     const service = createScenarioService({ storage: createMemoryStorage(), demoMode: true })
     await service.loadStudentScenario('UNDER_REVIEW')
@@ -150,14 +168,69 @@ describe('student portal service', () => {
       validationStatus: 'VALID',
     })
 
-    const restored = createScenarioService({ storage, demoMode: true })
-    expect((await restored.getStudentThesis('thesis-main')).files[1]).toMatchObject({
-      kind: 'ANONYMOUS',
-      purpose: 'EXPERT_REVIEW',
-      sizeBytes: 2988441,
-      mimeType: 'application/pdf',
-      validationStatus: 'VALID',
+    await service.saveStudentDraft('thesis-main', {
+      title: '更新后的论文题目',
+      discipline: { code: '0812', name: '计算机科学与技术' },
+      keywords: ['持久化'],
+      originalFileName: 'changed-original.pdf',
+      anonymousFileName: 'changed-anonymous.pdf',
     })
+
+    const restored = createScenarioService({ storage, demoMode: true })
+    expect((await restored.getStudentThesis('thesis-main')).files).toEqual([
+      {
+        kind: 'ORIGINAL',
+        purpose: 'SCHOOL_ARCHIVE',
+        fileName: 'changed-original.pdf',
+        sizeBytes: 0,
+        mimeType: 'application/pdf',
+        validationStatus: 'PENDING',
+      },
+      {
+        kind: 'ANONYMOUS',
+        purpose: 'EXPERT_REVIEW',
+        fileName: 'changed-anonymous.pdf',
+        sizeBytes: 0,
+        mimeType: 'application/pdf',
+        validationStatus: 'PENDING',
+      },
+    ])
+  })
+
+  it('migrates legacy v1 file metadata from the persisted thesis filenames', async () => {
+    const storage = createMemoryStorage()
+    const service = createScenarioService({ storage, demoMode: true })
+    await service.saveStudentDraft('thesis-main', {
+      title: '旧版快照中的论文',
+      discipline: { code: '0812', name: '计算机科学与技术' },
+      keywords: ['旧版快照'],
+      originalFileName: 'legacy-changed-original.pdf',
+      anonymousFileName: 'legacy-changed-anonymous.pdf',
+    })
+    const persisted = JSON.parse(storage.getItem('baijie-demo-student:v1')!)
+    delete persisted.student.fileMetadataByThesis
+    storage.setItem('baijie-demo-student:v1', JSON.stringify(persisted))
+
+    const restored = createScenarioService({ storage, demoMode: true })
+
+    expect((await restored.getStudentThesis('thesis-main')).files).toEqual([
+      {
+        kind: 'ORIGINAL',
+        purpose: 'SCHOOL_ARCHIVE',
+        fileName: 'legacy-changed-original.pdf',
+        sizeBytes: 0,
+        mimeType: 'application/pdf',
+        validationStatus: 'PENDING',
+      },
+      {
+        kind: 'ANONYMOUS',
+        purpose: 'EXPERT_REVIEW',
+        fileName: 'legacy-changed-anonymous.pdf',
+        sizeBytes: 0,
+        mimeType: 'application/pdf',
+        validationStatus: 'PENDING',
+      },
+    ])
   })
 
   it('returns results associated with the requested completed thesis only', async () => {

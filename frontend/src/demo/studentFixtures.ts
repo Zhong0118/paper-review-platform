@@ -16,6 +16,7 @@ export interface StudentPortalState {
   withdrawalRequests: StudentWithdrawalRequest[]
   fileMetadataByThesis: Record<string, StudentFileMetadata[]>
   resultsByThesis: Record<string, DemoPublishedResult[]>
+  nextDraftSequence: number
 }
 
 export function createInitialStudentPortalState(): StudentPortalState {
@@ -90,5 +91,6 @@ export function createInitialStudentPortalState(): StudentPortalState {
         },
       ],
     },
+    nextDraftSequence: 49,
   }
 }
