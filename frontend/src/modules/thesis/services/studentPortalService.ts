@@ -242,7 +242,12 @@ export function createStudentPortalService(deps: StudentPortalDependencies): Stu
       ) {
         throw new StudentPortalError('ILLEGAL_ACTION', '论文材料不完整或文件尚未通过校验。')
       }
-      const updated = { ...thesis, stage: 'SUBMITTED' as const, updatedAt: timestamp }
+      const updated = {
+        ...thesis,
+        keywords,
+        stage: 'SUBMITTED' as const,
+        updatedAt: timestamp,
+      }
       deps.replaceThesis(updated)
       if (id === 'thesis-main') deps.setMainStage('SUBMITTED')
       addTimeline(id, {

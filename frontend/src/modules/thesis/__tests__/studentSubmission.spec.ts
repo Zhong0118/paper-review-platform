@@ -249,8 +249,9 @@ describe('student thesis material editor', () => {
     const cancel = wrapper.get('[data-action="close-submit-confirmation"]')
     const confirm = wrapper.get('[data-action="confirm-submit"]')
     expect(document.activeElement).toBe(cancel.element)
-    expect(wrapper.get('.edit-page').attributes('inert')).toBeDefined()
-    expect(wrapper.get('.edit-page').attributes('aria-hidden')).toBe('true')
+    expect(wrapper.get('.portal-layout__background').attributes('inert')).toBeDefined()
+    expect(wrapper.get('.portal-layout__background').attributes('aria-hidden')).toBe('true')
+    expect(dialog.element.closest('[inert]')).toBeNull()
 
     await dialog.trigger('keydown', { key: 'Tab' })
     expect(document.activeElement).toBe(confirm.element)
@@ -264,7 +265,23 @@ describe('student thesis material editor', () => {
 
     expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
     expect(document.activeElement).toBe(opener.element)
-    expect(wrapper.get('.edit-page').attributes('inert')).toBeUndefined()
+    expect(wrapper.get('.portal-layout__background').attributes('inert')).toBeUndefined()
+  })
+
+  it('blocks portal navigation while the confirmation dialog is open', async () => {
+    const { router, wrapper } = await mountEditor()
+    await wrapper.get('[data-action="open-submit-confirmation"]').trigger('click')
+    await flushPromises()
+
+    const navigationLink = wrapper.get('.portal-layout__nav a')
+    ;(navigationLink.element as HTMLAnchorElement).focus()
+    expect(document.activeElement).not.toBe(navigationLink.element)
+
+    await navigationLink.trigger('click')
+    await flushPromises()
+
+    expect(router.currentRoute.value.path).toBe('/student/thesis/edit')
+    expect(wrapper.get('[role="dialog"]').exists()).toBe(true)
   })
 
   it.each(['PENDING', 'INVALID'] as const)(

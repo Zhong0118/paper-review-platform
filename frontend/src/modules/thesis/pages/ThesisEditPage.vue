@@ -247,12 +247,9 @@ void loadDraft()
     active-path="/student/dashboard"
     context-label="学生端 · 海岳大学"
     :user-name="authStore.user?.displayName ?? '林知远'"
+    :background-locked="showConfirmation"
   >
-    <div
-      class="edit-page"
-      :inert="showConfirmation || undefined"
-      :aria-hidden="showConfirmation ? 'true' : undefined"
-    >
+    <div class="edit-page">
       <PageHeader
         eyebrow="PAGE-003 · THESIS SUBMISSION"
         title="论文信息与材料提交"
@@ -325,55 +322,57 @@ void loadDraft()
       </form>
     </div>
 
-    <div v-if="showConfirmation" class="dialog-backdrop">
-      <section
-        ref="confirmDialog"
-        class="confirm-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="confirm-title"
-        @keydown="handleConfirmationKeydown"
-      >
-        <span class="confirm-dialog__mark" aria-hidden="true">审</span>
-        <h2 id="confirm-title">确认提交论文？</h2>
-        <p>
-          提交后将进入学校材料审核。审核完成前你不能再次替换文件，如需修改请联系学校管理员退回。
-        </p>
-        <p v-if="submitError" class="confirm-dialog__error" data-submit-error role="alert">
-          {{ submitError }}
-        </p>
-        <dl>
-          <div>
-            <dt>论文题目</dt>
-            <dd>{{ form.title }}</dd>
-          </div>
-          <div>
-            <dt>匿名论文号</dt>
-            <dd>{{ anonymousId }}</dd>
-          </div>
-        </dl>
-        <footer>
-          <button
-            ref="cancelConfirmation"
-            class="button button--quiet"
-            data-action="close-submit-confirmation"
-            type="button"
-            @click="closeSubmitConfirmation"
-          >
-            继续检查
-          </button>
-          <button
-            class="button button--primary"
-            data-action="confirm-submit"
-            type="button"
-            :disabled="submitting"
-            @click="confirmSubmit"
-          >
-            {{ submitting ? '正在提交…' : '确认提交' }}
-          </button>
-        </footer>
-      </section>
-    </div>
+    <template #modal>
+      <div v-if="showConfirmation" class="dialog-backdrop">
+        <section
+          ref="confirmDialog"
+          class="confirm-dialog"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="confirm-title"
+          @keydown="handleConfirmationKeydown"
+        >
+          <span class="confirm-dialog__mark" aria-hidden="true">审</span>
+          <h2 id="confirm-title">确认提交论文？</h2>
+          <p>
+            提交后将进入学校材料审核。审核完成前你不能再次替换文件，如需修改请联系学校管理员退回。
+          </p>
+          <p v-if="submitError" class="confirm-dialog__error" data-submit-error role="alert">
+            {{ submitError }}
+          </p>
+          <dl>
+            <div>
+              <dt>论文题目</dt>
+              <dd>{{ form.title }}</dd>
+            </div>
+            <div>
+              <dt>匿名论文号</dt>
+              <dd>{{ anonymousId }}</dd>
+            </div>
+          </dl>
+          <footer>
+            <button
+              ref="cancelConfirmation"
+              class="button button--quiet"
+              data-action="close-submit-confirmation"
+              type="button"
+              @click="closeSubmitConfirmation"
+            >
+              继续检查
+            </button>
+            <button
+              class="button button--primary"
+              data-action="confirm-submit"
+              type="button"
+              :disabled="submitting"
+              @click="confirmSubmit"
+            >
+              {{ submitting ? '正在提交…' : '确认提交' }}
+            </button>
+          </footer>
+        </section>
+      </div>
+    </template>
   </PortalLayout>
 </template>
 
