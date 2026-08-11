@@ -1,5 +1,7 @@
 import { PlatformOperationError } from '@/demo/types'
 import type {
+  AuditLogEntry,
+  DispatchThesisSeed,
   ExpertMatchCandidate,
   ExpertProfile,
   ExpertProfileAction,
@@ -8,22 +10,26 @@ import type {
   ExpertProfileQuery,
   ExpertQualificationAction,
   ExpertServiceStatus,
+  ExpertTaskSummary,
   OperationsQueueCounts,
   PlatformState,
 } from '@/demo/types'
-import { demoOperationsQueueCounts } from '@/demo/platformFixtures'
 
 /**
- * 平台运营窄化服务：专家库与运营队列投影。
+ * 平台运营窄化服务：专家库、运营队列与派单闭环。
  *
  * 通过依赖注入读取平台演示状态；所有写操作先经 allowedActions 校验，
  * 返回的档案投影经过深度冻结（不可变快照）。专家端动作不属于本接口。
+ * 平台演示数据为本地快照：派单、改派、催审、延期只写本地投影与审计，
+ * 不模拟真实时限调度，也不宣称真实通知发送。
  */
 interface PlatformOperationDependencies {
   getState: () => PlatformState
   setState: (state: PlatformState) => void
   demoMode: boolean
 }
+
+const ASSIGNMENT_DUE_DAYS = 14
 
 function immutable<T>(value: T): T {
   const freeze = (entry: unknown): void => {
@@ -51,11 +57,35 @@ function normalizeResearchTags(tags: string[]) {
   return [...new Set(tags.map((tag) => tag.trim()).filter(Boolean))]
 }
 
+/** 演示批次固定费用标准（仅本地快照；正式结算规则以后端为准）。 */
+export const dispatchFeeStandard = 300
+
+function addDays(dateText: string, days: number) {
+  const date = new Date(dateText.replace(' ', 'T'))
+  date.setDate(date.getDate() + days)
+  const pad = (value: number) => String(value).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(
+    date.getHours(),
+  )}:${pad(date.getMinutes())}`
+}
+
 export function createPlatformOperationService(
   deps: PlatformOperationDependencies,
 ): Pick<
   import('@/demo/types').PlatformOperationService,
-  'listExpertProfiles' | 'createExpertProfile' | 'updateExpertProfile' | 'setExpertServiceStatus' | 'reviewExpertQualification' | 'listExpertMatches' | 'listOperationsQueues'
+  | 'listExpertProfiles'
+  | 'createExpertProfile'
+  | 'updateExpertProfile'
+  | 'setExpertServiceStatus'
+  | 'reviewExpertQualification'
+  | 'listExpertMatches'
+  | 'listOperationsQueues'
+  | 'listDispatchTheses'
+  | 'assignExpertToThesis'
+  | 'reassignExpertTask'
+  | 'remindExpertTask'
+  | 'extendExpertTask'
+  | 'listPlatformAuditLog'
 > {
   const ensureDemoMode = () => {
     if (!deps.demoMode) {
@@ -97,6 +127,91 @@ export function createPlatformOperationService(
       throw new PlatformOperationError('INVALID_INPUT', `不允许修改字段：${foreign.join('、')}。`)
     }
   }
+
+  const findThesis = (thesisId: string) => {
+    const thesis = deps.getState().dispatchTheses.find((item) => item.id === thesisId)
+    if (!thesis) throw new PlatformOperationError('NOT_FOUND', '未找到该送审论文。')
+    return thesis
+  }
+
+  const findTask = (taskId: string) => {
+    const task = deps.getState().expertTasks.find((item) => item.id === taskId)
+    if (!task) throw new PlatformOperationError('NOT_FOUND', '未找到该专家任务。')
+    return task
+  }
+
+  const currentTaskFor = (thesisId: string) =>
+    deps
+      .getState()
+      .expertTasks.find(
+        (task) =>
+          task.thesisId === thesisId && ['INVITED', 'IN_REVIEW'].includes(task.status),
+      )
+
+  const isConflictHit = (expert: ExpertProfile, thesis: DispatchThesisSeed) =>
+    thesis.tenantName !== '' && expert.avoidSchools.includes(thesis.tenantName)
+
+  /** 候选匹配 = 学科命中 + 关键词命中 + 历史质量（可解释）；回避命中禁选。 */
+  const buildCandidates = (thesis: DispatchThesisSeed): ExpertMatchCandidate[] =>
+    deps
+      .getState()
+      .experts.filter((expert) => expert.qualification === 'APPROVED')
+      .map((expert) => {
+        const conflictHit = isConflictHit(expert, thesis)
+        const keywordHits = thesis.keywords.filter((keyword) =>
+          expert.researchTags.some(
+            (tag) => tag.includes(keyword) || keyword.includes(tag),
+          ),
+        )
+        const disciplineMatched = expert.discipline.code === thesis.discipline.code
+        return {
+          id: expert.id,
+          name: expert.name,
+          unit: expert.unit,
+          title: expert.title,
+          discipline: { ...expert.discipline },
+          fields: [...expert.researchTags],
+          keywordHits,
+          conflictHit,
+          conflictReason: conflictHit
+            ? `${thesis.tenantName} 与该作者存在合作记录，命中回避规则`
+            : undefined,
+          selectable: !conflictHit && expert.serviceStatus === 'ACTIVE',
+          activeTasks: expert.activeTasks,
+          acceptanceRate: expert.acceptanceRate,
+          onTimeRate: expert.onTimeRate,
+          avgCompletionDays: expert.avgCompletionDays,
+          feeStandard: expert.feeStandard,
+          // 可解释匹配原因：关键词命中 + 历史质量，供运营人工判断。
+          matchReason: [
+            disciplineMatched ? `学科匹配：${expert.discipline.name}` : `方向相关：${expert.discipline.name}`,
+            keywordHits.length > 0 ? `关键词命中：${keywordHits.join('、')}` : '关键词无直接命中',
+            `历史完成 ${expert.completedTasks} 篇，平均 ${expert.avgCompletionDays} 天`,
+          ].join('；'),
+        }
+      })
+      // 可指派候选在前（负载少的优先），回避命中/停用排后，便于运营快速选择。
+      .sort(
+        (a, b) =>
+          Number(b.selectable) - Number(a.selectable) ||
+          a.activeTasks - b.activeTasks ||
+          a.avgCompletionDays - b.avgCompletionDays,
+      )
+
+  const appendAudit = (
+    state: PlatformState,
+    entry: Omit<AuditLogEntry, 'id' | 'occurredAt'>,
+  ): PlatformState => ({
+    ...state,
+    auditLog: [
+      {
+        ...entry,
+        id: `audit-${Date.now()}-${state.auditLog.length + 1}`,
+        occurredAt: '2026-08-12 09:00',
+      },
+      ...state.auditLog,
+    ],
+  })
 
   return {
     listExpertProfiles: async (query?: ExpertProfileQuery) => {
@@ -182,6 +297,14 @@ export function createPlatformOperationService(
         throw new PlatformOperationError('STATE_CONFLICT', `该专家当前已是${status === 'ACTIVE' ? '启用' : '停用'}状态。`)
       }
       const updated = patchExpert(id, { serviceStatus: status, serviceNote: reason.trim() })
+      deps.setState(
+        appendAudit(deps.getState(), {
+          action: 'SET_SERVICE_STATUS',
+          expertId: id,
+          detail: `${status === 'DISABLED' ? '停用' : '启用'}：${reason.trim()}`,
+          operator: '陈岚',
+        }),
+      )
       return immutable(updated)
     },
     reviewExpertQualification: async (id: string, decision: ExpertQualificationAction, reason: string) => {
@@ -196,18 +319,227 @@ export function createPlatformOperationService(
         qualification: decision,
         ...(decision === 'REJECTED' ? { qualificationNote: reason.trim() } : { qualificationNote: undefined }),
       })
+      deps.setState(
+        appendAudit(deps.getState(), {
+          action: 'REVIEW_QUALIFICATION',
+          expertId: id,
+          detail: `资格${decision === 'APPROVED' ? '通过' : '驳回'}：${reason.trim()}`,
+          operator: '陈岚',
+        }),
+      )
       return immutable(updated)
     },
-    listExpertMatches: async () => {
+    listExpertMatches: async (thesisId: string) => {
       ensureDemoMode()
-      // Task 3 实现候选匹配；本轮返回空候选。
-      const candidates: ExpertMatchCandidate[] = []
-      return immutable(candidates)
+      const thesis = findThesis(thesisId)
+      return immutable(buildCandidates(thesis))
+    },
+    listDispatchTheses: async () => {
+      ensureDemoMode()
+      return immutable(deps.getState().dispatchTheses)
+    },
+    assignExpertToThesis: async (thesisId: string, expertId: string) => {
+      ensureDemoMode()
+      const state = deps.getState()
+      const thesis = findThesis(thesisId)
+      const expert = findExpert(expertId)
+      // 版本冲突优先：同一论文只保留一条在评任务（并发双指派/重复提交都不允许覆盖）。
+      if (currentTaskFor(thesisId)) {
+        throw new PlatformOperationError(
+          'VERSION_CONFLICT',
+          '该论文已有在评任务，不能重复指派（版本冲突）。',
+        )
+      }
+      if (thesis.status !== 'PENDING_DISPATCH') {
+        throw new PlatformOperationError('STATE_CONFLICT', '该论文已指派，请勿重复操作。')
+      }
+      if (isConflictHit(expert, thesis)) {
+        throw new PlatformOperationError('STATE_CONFLICT', '该专家命中回避规则，禁止指派。')
+      }
+      if (expert.serviceStatus !== 'ACTIVE') {
+        throw new PlatformOperationError('STATE_CONFLICT', '该专家已停用，不可指派新任务。')
+      }
+      const task: ExpertTaskSummary = {
+        id: `task-e-2026-${String(state.expertTasks.length + 1).padStart(3, '0')}`,
+        thesisId,
+        anonymousId: thesis.anonymousId,
+        anonymousTitle: thesis.title,
+        discipline: { ...thesis.discipline },
+        status: 'INVITED',
+        fee: dispatchFeeStandard,
+        dueAt: addDays('2026-08-12 09:00', ASSIGNMENT_DUE_DAYS),
+        overdue: false,
+        round: thesis.round,
+      }
+      const next = {
+        ...state,
+        expertTasks: [...state.expertTasks, task],
+        dispatchTheses: state.dispatchTheses.map((item) =>
+          item.id === thesisId ? { ...item, status: 'PENDING_ACCEPTANCE' as const } : item,
+        ),
+      }
+      deps.setState(
+        appendAudit(next, {
+          action: 'ASSIGN',
+          thesisId,
+          expertId,
+          taskId: task.id,
+          detail: `指派 ${expert.name}（第 ${thesis.round} 轮）`,
+          operator: '陈岚',
+        }),
+      )
+      return immutable(task)
+    },
+    reassignExpertTask: async (taskId: string, expertId: string, reason: string) => {
+      ensureDemoMode()
+      ensureReason(reason)
+      const state = deps.getState()
+      const oldTask = findTask(taskId)
+      if (!oldTask.thesisId) {
+        throw new PlatformOperationError('ILLEGAL_ACTION', '仅平台派生的任务支持改派。')
+      }
+      if (['SUBMITTED', 'ACCEPT_TIMEOUT', 'CANCELLED'].includes(oldTask.status)) {
+        throw new PlatformOperationError(
+          'STATE_CONFLICT',
+          '任务已处于终态，不能改派。请申请补审或等待结果。',
+        )
+      }
+      const thesis = findThesis(oldTask.thesisId)
+      const replacement = findExpert(expertId)
+      if (isConflictHit(replacement, thesis)) {
+        throw new PlatformOperationError('STATE_CONFLICT', '替代专家命中回避规则，禁止改派。')
+      }
+      if (replacement.serviceStatus !== 'ACTIVE') {
+        throw new PlatformOperationError('STATE_CONFLICT', '替代专家已停用，不可改派。')
+      }
+      const newTask: ExpertTaskSummary = {
+        ...oldTask,
+        id: `task-e-2026-${String(state.expertTasks.length + 1).padStart(3, '0')}`,
+        status: 'INVITED',
+        overdue: false,
+        dueAt: addDays('2026-08-12 09:00', ASSIGNMENT_DUE_DAYS),
+        expertId,
+      }
+      const next = {
+        ...state,
+        expertTasks: [
+          ...state.expertTasks.map((task) =>
+            task.id === taskId ? { ...task, status: 'CANCELLED' as const } : task,
+          ),
+          newTask,
+        ],
+      }
+      deps.setState(
+        appendAudit(next, {
+          action: 'REASSIGN',
+          thesisId: oldTask.thesisId,
+          expertId,
+          taskId: newTask.id,
+          detail: `改派至 ${replacement.name}（原因：${reason.trim()}）`,
+          operator: '陈岚',
+        }),
+      )
+      return immutable(newTask)
+    },
+    remindExpertTask: async (taskId: string) => {
+      ensureDemoMode()
+      const task = findTask(taskId)
+      if (!['INVITED', 'IN_REVIEW'].includes(task.status)) {
+        throw new PlatformOperationError(
+          'STATE_CONFLICT',
+          '仅待接受或评阅中的任务可以催审。',
+        )
+      }
+      deps.setState(
+        appendAudit(deps.getState(), {
+          action: 'REMIND',
+          taskId,
+          thesisId: task.thesisId,
+          detail: `催审提醒（${task.status === 'INVITED' ? '待接受' : '评阅中'}）`,
+          operator: '陈岚',
+        }),
+      )
+      return immutable({ ...task })
+    },
+    extendExpertTask: async (taskId: string, days: number) => {
+      ensureDemoMode()
+      if (!Number.isInteger(days) || days <= 0 || days > 30) {
+        throw new PlatformOperationError('INVALID_INPUT', '延期天数必须为 1–30 的整数。')
+      }
+      const task = findTask(taskId)
+      if (!['INVITED', 'IN_REVIEW'].includes(task.status)) {
+        throw new PlatformOperationError(
+          'STATE_CONFLICT',
+          '仅待接受或评阅中的任务可以延期。',
+        )
+      }
+      const updated = { ...task, dueAt: addDays(task.dueAt, days) }
+      deps.setState({
+        ...deps.getState(),
+        expertTasks: deps
+          .getState()
+          .expertTasks.map((item) => (item.id === taskId ? updated : item)),
+      })
+      deps.setState(
+        appendAudit(deps.getState(), {
+          action: 'EXTEND',
+          taskId,
+          thesisId: task.thesisId,
+          detail: `延期 ${days} 天`,
+          operator: '陈岚',
+        }),
+      )
+      return immutable(updated)
+    },
+    listPlatformAuditLog: async () => {
+      ensureDemoMode()
+      return immutable(deps.getState().auditLog)
     },
     listOperationsQueues: async (): Promise<OperationsQueueCounts> => {
       ensureDemoMode()
-      // 演示计数快照；Task 3 起由平台状态派生。
-      return immutable(demoOperationsQueueCounts)
+      const { dispatchTheses, expertTasks } = deps.getState()
+      const counts: OperationsQueueCounts = {
+        PENDING_ASSIGNMENT: 0,
+        PENDING_ACCEPTANCE: 0,
+        IN_REVIEW: 0,
+        DUE_SOON: 0,
+        OVERDUE: 0,
+        PENDING_REASSIGNMENT: 0,
+        PENDING_SUPPLEMENT: 0,
+        CORRECTION_PENDING: 0,
+        SETTLEMENT_PENDING: 0,
+        COMPLETED: 0,
+      }
+      for (const thesis of dispatchTheses) {
+        if (thesis.status === 'PENDING_DISPATCH') counts.PENDING_ASSIGNMENT += 1
+        if (thesis.status === 'COMPLETED') counts.COMPLETED += 1
+      }
+      for (const task of expertTasks) {
+        const thesis = task.thesisId
+          ? dispatchTheses.find((item) => item.id === task.thesisId)
+          : undefined
+        if (thesis && thesis.status === 'COMPLETED') {
+          counts.COMPLETED += 1
+          continue
+        }
+        if (task.status === 'INVITED') counts.PENDING_ACCEPTANCE += 1
+        else if (task.status === 'IN_REVIEW') {
+          counts.IN_REVIEW += 1
+          if (task.overdue) counts.OVERDUE += 1
+          else if (thesis && isDueSoon(task)) counts.DUE_SOON += 1
+        } else if (task.status === 'REJECTED') counts.PENDING_REASSIGNMENT += 1
+        else if (task.status === 'ACCEPT_TIMEOUT') counts.PENDING_SUPPLEMENT += 1
+        else if (task.status === 'SUBMITTED') counts.SETTLEMENT_PENDING += 1
+      }
+      return immutable(counts)
     },
   }
+}
+
+/** 评阅中且临近截止（≤3 天）判定；`overdue` 是布尔时限属性，不是独立状态。 */
+function isDueSoon(task: ExpertTaskSummary) {
+  const due = new Date(task.dueAt.replace(' ', 'T')).getTime()
+  const now = new Date('2026-08-12T09:00:00').getTime()
+  const remainingDays = (due - now) / 86_400_000
+  return remainingDays > 0 && remainingDays <= 3
 }

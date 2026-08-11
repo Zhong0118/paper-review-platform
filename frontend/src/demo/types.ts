@@ -402,6 +402,8 @@ export interface SchoolBill {
 
 export interface ExpertTaskSummary {
   id: string
+  thesisId?: string
+  expertId?: string
   anonymousId: string
   anonymousTitle: string
   discipline: { code: string; name: string }
@@ -409,6 +411,7 @@ export interface ExpertTaskSummary {
   fee: number
   dueAt: string
   overdue: boolean
+  round?: number
 }
 
 export interface OperationsItem {
@@ -500,7 +503,57 @@ export interface ExpertMatchCandidate {
   onTimeRate: string
   avgCompletionDays: number
   feeStandard: number
+  /** 可解释匹配原因：关键词命中 + 历史质量（供运营人工判断）。 */
+  matchReason: string
 }
+
+/** Task 3 运营派单论文投影（PAGE-007 待派列表与详情面板数据源）。 */
+export interface DispatchThesisSeed {
+  id: string
+  anonymousId: string
+  title: string
+  tenantName: string
+  discipline: { code: string; name: string }
+  keywords: string[]
+  thesisType: string
+  avoidRule: string
+  schoolRequirement: string
+  status: 'PENDING_DISPATCH' | 'PENDING_ACCEPTANCE' | 'IN_REVIEW' | 'COMPLETED'
+  round: number
+  seeded?: boolean
+}
+
+/** 演示场景装载的派单状态覆盖（见 platformFixtures.createDispatchScenario）。 */
+export interface DispatchStatus {
+  thesisId: string
+  status: 'PENDING_DISPATCH' | 'PENDING_ACCEPTANCE' | 'IN_REVIEW' | 'COMPLETED'
+}
+
+/** 平台关键操作审计投影（演示记录到本地）。 */
+export interface AuditLogEntry {
+  id: string
+  action:
+    | 'SEED'
+    | 'ASSIGN'
+    | 'REASSIGN'
+    | 'REMIND'
+    | 'EXTEND'
+    | 'SET_SERVICE_STATUS'
+    | 'REVIEW_QUALIFICATION'
+  thesisId?: string
+  expertId?: string
+  taskId?: string
+  detail: string
+  operator: string
+  occurredAt: string
+}
+
+export type PlatformScenarioPreset =
+  | 'PENDING_DISPATCH'
+  | 'PENDING_ACCEPTANCE'
+  | 'IN_REVIEW'
+  | 'PENDING_REASSIGNMENT'
+  | 'COMPLETED'
 
 /** Task 4 更正申请的投影；本轮仅保留契约。 */
 export interface CorrectionRequest {
@@ -538,6 +591,12 @@ export interface PlatformOperationService {
   ): Promise<ExpertProfile>
   listExpertMatches(thesisId: string): Promise<ExpertMatchCandidate[]>
   listOperationsQueues(): Promise<OperationsQueueCounts>
+  listDispatchTheses(): Promise<DispatchThesisSeed[]>
+  assignExpertToThesis(thesisId: string, expertId: string): Promise<ExpertTaskSummary | null>
+  reassignExpertTask(taskId: string, expertId: string, reason: string): Promise<ExpertTaskSummary>
+  remindExpertTask(taskId: string): Promise<ExpertTaskSummary>
+  extendExpertTask(taskId: string, days: number): Promise<ExpertTaskSummary>
+  listPlatformAuditLog(): Promise<AuditLogEntry[]>
 }
 
 /** 平台演示持久化负载（独立 key `baijie-demo-platform:v1`，见 platformPersistence.ts）。 */
@@ -548,6 +607,10 @@ export interface PlatformState {
   correctionRequests: CorrectionRequest[]
   /** Task 4 提现申请；本轮预留为空列表。 */
   withdrawals: WithdrawalRequest[]
+  /** Task 3 起：运营派单论文投影（本地演示快照）。 */
+  dispatchTheses: DispatchThesisSeed[]
+  /** Task 3 起：关键操作审计（演示投影）。 */
+  auditLog: AuditLogEntry[]
 }
 
 export class PlatformOperationError extends Error {
@@ -558,6 +621,7 @@ export class PlatformOperationError extends Error {
       | 'FORBIDDEN'
       | 'INVALID_INPUT'
       | 'STATE_CONFLICT'
+      | 'VERSION_CONFLICT'
       | 'DEMO_MODE_DISABLED',
     message: string,
   ) {
@@ -587,5 +651,6 @@ export interface ScenarioService extends StudentPortalService, PlatformOperation
   getSchoolAccount(): Promise<SchoolAccountSummary>
   getSchoolBills(): Promise<SchoolBill[]>
   getExpertAccount(): Promise<ExpertAccountSummary>
+  loadPlatformScenario(preset: PlatformScenarioPreset): Promise<void>
   reset(): Promise<DemoScenarioSnapshot>
 }

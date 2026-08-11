@@ -1,6 +1,13 @@
 import { createInitialPlatformState } from './platformFixtures'
 import type { PlatformState } from './platformFixtures'
-import type { ExpertProfile, ExpertProfileAction, StorageLike } from './types'
+import type {
+  AuditLogEntry,
+  DispatchThesisSeed,
+  ExpertProfile,
+  ExpertProfileAction,
+  ExpertTaskSummary,
+  StorageLike,
+} from './types'
 
 /**
  * 平台演示状态使用独立持久化 key（与学生端 `baijie-demo-student:v1` 分离）。
@@ -96,6 +103,138 @@ function normalizeExpert(value: unknown): ExpertProfile | null {
   }
 }
 
+function normalizeTask(value: unknown): ExpertTaskSummary | null {
+  if (!value || typeof value !== 'object') return null
+  const source = value as Record<string, unknown>
+  if (typeof source.id !== 'string' || typeof source.anonymousId !== 'string') return null
+  const statuses: ExpertTaskSummary['status'][] = [
+    'INVITED',
+    'IN_REVIEW',
+    'SUBMITTED',
+    'REJECTED',
+    'ACCEPT_TIMEOUT',
+    'CANCELLED',
+  ]
+  const status = statuses.includes(source.status as ExpertTaskSummary['status'])
+    ? (source.status as ExpertTaskSummary['status'])
+    : 'INVITED'
+  const discipline =
+    source.discipline &&
+    typeof source.discipline === 'object' &&
+    typeof (source.discipline as Record<string, unknown>).code === 'string' &&
+    typeof (source.discipline as Record<string, unknown>).name === 'string'
+      ? {
+          code: (source.discipline as Record<string, string>).code,
+          name: (source.discipline as Record<string, string>).name,
+        }
+      : { code: '', name: '' }
+  return {
+    id: source.id,
+    ...(typeof source.thesisId === 'string' ? { thesisId: source.thesisId } : {}),
+    anonymousId: source.anonymousId,
+    anonymousTitle: typeof source.anonymousTitle === 'string' ? source.anonymousTitle : '',
+    discipline,
+    status,
+    fee: typeof source.fee === 'number' ? source.fee : 0,
+    dueAt: typeof source.dueAt === 'string' ? source.dueAt : '',
+    overdue: source.overdue === true,
+    ...(typeof source.round === 'number' ? { round: source.round } : {}),
+  }
+}
+
+function normalizeDispatchTheses(value: unknown): DispatchThesisSeed[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object') return []
+    const source = entry as Record<string, unknown>
+    if (
+      typeof source.id !== 'string' ||
+      typeof source.anonymousId !== 'string' ||
+      typeof source.title !== 'string'
+    ) {
+      return []
+    }
+    const statuses: DispatchThesisSeed['status'][] = [
+      'PENDING_DISPATCH',
+      'PENDING_ACCEPTANCE',
+      'IN_REVIEW',
+      'COMPLETED',
+    ]
+    const status = statuses.includes(source.status as DispatchThesisSeed['status'])
+      ? (source.status as DispatchThesisSeed['status'])
+      : 'COMPLETED'
+    const discipline =
+      source.discipline &&
+      typeof source.discipline === 'object' &&
+      typeof (source.discipline as Record<string, unknown>).code === 'string' &&
+      typeof (source.discipline as Record<string, unknown>).name === 'string'
+        ? {
+            code: (source.discipline as Record<string, string>).code,
+            name: (source.discipline as Record<string, string>).name,
+          }
+        : { code: '', name: '' }
+    return [
+      {
+        id: source.id,
+        anonymousId: source.anonymousId,
+        title: source.title,
+        tenantName: typeof source.tenantName === 'string' ? source.tenantName : '',
+        discipline,
+        keywords: Array.isArray(source.keywords)
+          ? source.keywords.filter((item): item is string => typeof item === 'string')
+          : [],
+        thesisType: typeof source.thesisType === 'string' ? source.thesisType : '学术型',
+        avoidRule: typeof source.avoidRule === 'string' ? source.avoidRule : '',
+        schoolRequirement:
+          typeof source.schoolRequirement === 'string' ? source.schoolRequirement : '',
+        status,
+        round: typeof source.round === 'number' ? source.round : 1,
+      },
+    ]
+  })
+}
+
+function normalizeAuditLog(value: unknown): AuditLogEntry[] {
+  if (!Array.isArray(value)) return []
+  const actions: AuditLogEntry['action'][] = [
+    'SEED',
+    'ASSIGN',
+    'REASSIGN',
+    'REMIND',
+    'EXTEND',
+    'SET_SERVICE_STATUS',
+    'REVIEW_QUALIFICATION',
+  ]
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object') return []
+    const source = entry as Record<string, unknown>
+    if (
+      typeof source.id !== 'string' ||
+      typeof source.action !== 'string' ||
+      typeof source.detail !== 'string' ||
+      typeof source.operator !== 'string' ||
+      typeof source.occurredAt !== 'string'
+    ) {
+      return []
+    }
+    const action = actions.includes(source.action as AuditLogEntry['action'])
+      ? (source.action as AuditLogEntry['action'])
+      : 'SEED'
+    return [
+      {
+        id: source.id,
+        action,
+        ...(typeof source.thesisId === 'string' ? { thesisId: source.thesisId } : {}),
+        ...(typeof source.expertId === 'string' ? { expertId: source.expertId } : {}),
+        ...(typeof source.taskId === 'string' ? { taskId: source.taskId } : {}),
+        detail: source.detail,
+        operator: source.operator,
+        occurredAt: source.occurredAt,
+      },
+    ]
+  })
+}
+
 export function loadPlatformDemo(storage: StorageLike): LoadedPlatformDemo {
   const raw = storage.getItem(platformPersistenceKey)
   if (!raw) {
@@ -106,15 +245,21 @@ export function loadPlatformDemo(storage: StorageLike): LoadedPlatformDemo {
     if (saved.schemaVersion !== 1 || !saved.platform || !Array.isArray(saved.platform.experts)) {
       throw new Error('unsupported')
     }
-    const fixture = createInitialPlatformState()
     return {
       platform: {
         experts: saved.platform.experts
           .map(normalizeExpert)
           .filter((expert): expert is ExpertProfile => expert !== null),
-        expertTasks: fixture.expertTasks,
-        correctionRequests: fixture.correctionRequests,
-        withdrawals: fixture.withdrawals,
+        expertTasks: Array.isArray(saved.platform.expertTasks)
+          ? saved.platform.expertTasks
+              .map(normalizeTask)
+              .filter((task): task is ExpertTaskSummary => task !== null)
+          : [],
+        correctionRequests: [],
+        withdrawals: [],
+        // 旧存档（Task 1/2 写入）没有派单论文与审计字段：以当前 fixture 兜底，行为同首次加载。
+        dispatchTheses: normalizeDispatchTheses(saved.platform.dispatchTheses),
+        auditLog: normalizeAuditLog(saved.platform.auditLog),
       },
       reset: false,
     }

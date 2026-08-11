@@ -241,12 +241,20 @@ describe('platform operation service', () => {
     expect(active.every((p) => p.serviceStatus === 'ACTIVE')).toBe(true)
   })
 
-  it('keeps the match seam available as an empty list until dispatch lands', async () => {
+  it('lists expert matches with explainable reasons for a dispatch thesis', async () => {
     const service = createScenarioService({ storage: createMemoryStorage(), demoMode: true })
+    await service.loadPlatformScenario('PENDING_DISPATCH')
 
     const matches = await service.listExpertMatches('thesis-main')
 
-    expect(matches).toEqual([])
+    expect(matches.length).toBeGreaterThan(0)
+    // 每行都带可解释匹配原因
+    for (const match of matches) {
+      expect(typeof match.matchReason).toBe('string')
+      expect(match.matchReason?.length).toBeGreaterThan(0)
+    }
+    // 未命中回避的候选可指派
+    expect(matches.some((match) => match.selectable)).toBe(true)
   })
 
   it('ignores non-platform query filters when listing expert profiles', async () => {

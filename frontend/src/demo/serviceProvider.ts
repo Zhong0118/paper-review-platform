@@ -58,6 +58,13 @@ function createUnavailableService(): ScenarioService {
     reviewExpertQualification: unavailable,
     listExpertMatches: unavailable,
     listOperationsQueues: unavailable,
+    listDispatchTheses: unavailable,
+    assignExpertToThesis: unavailable,
+    reassignExpertTask: unavailable,
+    remindExpertTask: unavailable,
+    extendExpertTask: unavailable,
+    listPlatformAuditLog: unavailable,
+    loadPlatformScenario: unavailable,
     reset: unavailable,
   }
 }

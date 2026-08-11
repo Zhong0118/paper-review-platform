@@ -2,10 +2,11 @@ import type { RoleCode } from '@/types/roles'
 
 import { createInitialScenarioState, demoIdentity, demoStudentId, demoThesis } from './fixtures'
 import { createStudentPortalService } from '@/modules/thesis/services/studentPortalService'
-import { createPlatformOperationService } from '@/modules/expert-management/services/platformOperationService'
+import { createPlatformOperationService, dispatchFeeStandard } from '@/modules/expert-management/services/platformOperationService'
 import { createInitialStudentPortalState, type StudentPortalState } from './studentFixtures'
 import { loadStudentDemo, saveStudentDemo } from './studentPersistence'
 import { loadPlatformDemo, savePlatformDemo } from './platformPersistence'
+import { createDispatchScenario, initialAuditEntries, type PlatformState as FixturePlatformState } from './platformFixtures'
 import type {
   DemoAction,
   BatchImportRow,
@@ -16,6 +17,7 @@ import type {
   DemoStage,
   DemoThesisSummary,
   OperationsItem,
+  PlatformScenarioPreset,
   ReviewScoreInput,
   ScenarioService,
   SchoolSubmissionInput,
@@ -278,6 +280,22 @@ function deepFreeze<T>(value: T): T {
   return value
 }
 
+/** 场景装载用的演示任务（固定演示时间，不做真实时限调度）。 */
+function createDemoTask(status: 'INVITED' | 'IN_REVIEW' | 'REJECTED'): ExpertTaskSummary {
+  return {
+    id: 'task-e-2026-042',
+    thesisId: 'thesis-main',
+    anonymousId: 'HY-2026-0042',
+    anonymousTitle: '面向复杂场景的多模态知识推理研究',
+    discipline: { code: '0812', name: '计算机科学与技术' },
+    status,
+    fee: dispatchFeeStandard,
+    dueAt: status === 'IN_REVIEW' ? '2026-08-28 18:00' : '2026-08-26 18:00',
+    overdue: false,
+    round: 1,
+  }
+}
+
 function createMemoryStorage(): StorageLike {
   const values = new Map<string, string>()
   return {
@@ -509,9 +527,51 @@ export function createScenarioService(
     setState: (nextState) => {
       platformState = nextState
       persistPlatform()
+      // 平台派单变化同步回在读论文（学生端视角），保持两条状态源一致。
+      syncThesisStageToDispatch('thesis-main')
     },
     demoMode: options.demoMode ?? true,
   })
+
+  /** 学生在读的论文（thesis-main）与平台派单投影同步：待派→待接受→评阅中。 */
+  const syncThesisStageToDispatch = (thesisId: string) => {
+    const thesis = state.theses.find((item) => item.id === thesisId)
+    if (!thesis) return
+    // 同论文可能存在多条历史任务（如改派后旧任务 CANCELLED）：取截止最早的在评任务。
+    const task = [...platformState.expertTasks]
+      .filter((item) => item.thesisId === thesisId)
+      .sort((a, b) => a.dueAt.localeCompare(b.dueAt))[0]
+    const dispatch = platformState.dispatchTheses.find((item) => item.id === thesisId)
+    if (!dispatch || !task) return
+    const stage: DemoStage =
+      dispatch.status === 'COMPLETED' ? 'COMPLETED' : 'UNDER_REVIEW'
+    const taskStatus =
+      task.status === 'INVITED' || task.status === 'IN_REVIEW'
+        ? task.status
+        : dispatch.status === 'COMPLETED'
+          ? 'SUBMITTED'
+          : undefined
+    if (thesis.stage === stage && state.taskStatus === taskStatus) return
+    state = { ...state, stage, ...(taskStatus ? { taskStatus } : {}) }
+    persist()
+  }
+
+  /** 平台派单投影（thesis-main）与在读论文状态同步，保证学生端流程兼容。 */
+  const syncDispatchToThesisStage = (thesisId: string) => {
+    const thesis = state.theses.find((item) => item.id === thesisId)
+    if (!thesis) return
+    const stage = state.stage
+    const taskStatus = state.taskStatus
+    if (stage === 'UNDER_REVIEW' && taskStatus === 'INVITED') {
+      platformState = {
+        ...platformState,
+        dispatchTheses: platformState.dispatchTheses.map((item) =>
+          item.id === thesisId ? { ...item, status: 'PENDING_ACCEPTANCE' as const } : item,
+        ),
+      }
+      persistPlatform()
+    }
+  }
 
   return {
     ...studentPortal,
@@ -553,11 +613,33 @@ export function createScenarioService(
       return snapshot()
     },
     assignExperts: async () => {
+      const thesis = state.theses.find((item) => item.id === demoThesis.id)
+      if (!thesis) {
+        throw new Error('未找到在读论文，无法完成指派。')
+      }
+      // 同步到平台派单投影：与学生端流程共用同一篇 thesis-main，保证队列与计数一致。
+      const task = platformState.expertTasks.find(
+        (item) => item.thesisId === demoThesis.id && ['INVITED', 'IN_REVIEW'].includes(item.status),
+      )
+      if (!task) {
+        // 历史流程兼容：取第一位未命中回避且可接单的已过审专家。
+        const expert = platformState.experts.find(
+          (item) =>
+            item.qualification === 'APPROVED' &&
+            item.serviceStatus === 'ACTIVE' &&
+            !item.avoidSchools.includes(platformState.dispatchTheses.find((thesis) => thesis.id === demoThesis.id)?.tenantName ?? ''),
+        )
+        if (expert) {
+          await platformOperation.assignExpertToThesis(demoThesis.id, expert.id)
+        }
+      }
+      syncDispatchToThesisStage(demoThesis.id)
       state = { ...state, stage: 'UNDER_REVIEW', taskStatus: 'INVITED' }
       return snapshot()
     },
     acceptTask: async () => {
       state = { ...state, taskStatus: 'IN_REVIEW' }
+      persist()
       return snapshot()
     },
     saveReviewDraft: async (input?: ReviewScoreInput) => {
@@ -594,6 +676,7 @@ export function createScenarioService(
           availableAmount: state.expertAccount.availableAmount + 300,
         },
       }
+      persist()
       return snapshot()
     },
     publishResult: () => moveTo('COMPLETED'),
@@ -667,21 +750,29 @@ export function createScenarioService(
     },
     listReviewResults: async () => deepFreeze(structuredClone(currentReviewResults())),
     listExpertTasks: async () => {
-      const tasks: ExpertTaskSummary[] = state.taskStatus
-        ? [
-            {
-              id: 'task-e-2026-042',
-              anonymousId: demoThesis.anonymousId,
-              anonymousTitle: '多模态知识推理方向匿名论文',
-              discipline: { code: '0812', name: '计算机科学与技术' },
-              status: state.taskStatus,
-              fee: 300,
-              dueAt: '2026-08-28 18:00',
-              overdue: false,
-            },
-          ]
-        : []
-      return deepFreeze(structuredClone(tasks))
+      // 平台派生任务为权威数据源；仅当平台尚无 thesis-main 的在评任务时，
+      // 以学生端任务状态补充演示任务，保证学生端流程（Task 2 及更早）兼容。
+      const platformTasks: ExpertTaskSummary[] = platformState.expertTasks.map((task) => ({
+        ...task,
+      }))
+      const hasMainTask = platformTasks.some(
+        (task) => task.thesisId === demoThesis.id && ['INVITED', 'IN_REVIEW'].includes(task.status),
+      )
+      if (state.taskStatus && state.stage !== 'COMPLETED' && !hasMainTask) {
+        platformTasks.push({
+          id: 'task-e-2026-042',
+          thesisId: demoThesis.id,
+          anonymousId: demoThesis.anonymousId,
+          anonymousTitle: '多模态知识推理方向匿名论文',
+          discipline: { code: '0812', name: '计算机科学与技术' },
+          status: state.taskStatus,
+          fee: dispatchFeeStandard,
+          dueAt: '2026-08-28 18:00',
+          overdue: false,
+          round: 1,
+        })
+      }
+      return deepFreeze(structuredClone(platformTasks))
     },
     listOperationsItems: async () => {
       const queue: OperationsItem['queue'] =
@@ -709,6 +800,30 @@ export function createScenarioService(
     getSchoolAccount: async () => deepFreeze(structuredClone(state.schoolAccount)),
     getSchoolBills: async () => deepFreeze(structuredClone(state.schoolBills)),
     getExpertAccount: async () => deepFreeze(structuredClone(state.expertAccount)),
+    loadPlatformScenario: async (preset: PlatformScenarioPreset) => {
+      const status: 'PENDING_DISPATCH' | 'PENDING_ACCEPTANCE' | 'IN_REVIEW' | 'COMPLETED' =
+        preset === 'PENDING_REASSIGNMENT' ? 'PENDING_ACCEPTANCE' : preset
+      const scenario: FixturePlatformState = createDispatchScenario([
+        { thesisId: 'thesis-main', status },
+      ])
+      const task =
+        status === 'PENDING_ACCEPTANCE'
+          ? [
+              createDemoTask(
+                preset === 'PENDING_REASSIGNMENT' ? 'REJECTED' : 'INVITED',
+              ),
+            ]
+          : status === 'IN_REVIEW'
+            ? [createDemoTask('IN_REVIEW')]
+            : []
+      platformState = {
+        ...scenario,
+        expertTasks: task,
+        auditLog: initialAuditEntries(),
+      }
+      persistPlatform()
+      syncThesisStageToDispatch('thesis-main')
+    },
     reset: async () => {
       storage.removeItem?.('baijie-demo-student:v1')
       storage.removeItem?.('baijie-demo-platform:v1')
