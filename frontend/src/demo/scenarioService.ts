@@ -605,8 +605,10 @@ export function createScenarioService(
     if (!reason.trim()) {
       throw new PlatformOperationError('INVALID_INPUT', '拒绝原因不能为空。')
     }
-    // 选择「其他」时说明必填（原因以「其他：」前缀提交，见设计规格 §5.6 下拉+说明）。
-    if (reason.startsWith('其他') && !reason.includes('：')) {
+    // 选择「其他」时说明必填（原因以「其他：说明」提交，见设计规格 §5.6 下拉+说明）。
+    // 收紧校验（最终评审）：裸「其他」或「其他：」空说明一律拦截，说明必须非空。
+    const trimmedReason = reason.trim()
+    if (trimmedReason.startsWith('其他') && !/^其他：\S/.test(trimmedReason)) {
       throw new PlatformOperationError('INVALID_INPUT', '选择「其他」时请填写拒绝说明。')
     }
     const personaTask = platformTasksForPersona().find((task) => task.id === taskId)

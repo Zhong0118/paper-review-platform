@@ -89,6 +89,10 @@ describe('expert task service', () => {
     await expect(service.rejectExpertTask(invited.id, '其他')).rejects.toMatchObject({
       code: 'INVALID_INPUT',
     })
+    // 「其他：」空说明（冒号后无内容）同样拦截（最终评审收紧）
+    await expect(service.rejectExpertTask(invited.id, '其他：')).rejects.toMatchObject({
+      code: 'INVALID_INPUT',
+    })
     // 其他 + 说明：reason 以「其他：」开头，审计携带完整说明
     await service.rejectExpertTask(invited.id, '其他：研究方向与本课题仅部分重叠')
     expect(

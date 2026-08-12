@@ -1049,7 +1049,19 @@ export function createPlatformOperationService(
           withdrawalId: id,
         })
       } else {
-        reversalMade = true
+        // 同一提现申请只冲正一次（最终评审）：冲正已解除冻结并把金额回补到可提现，
+        // 重复冲正会让「可提现 + 冻结 = 入账 − 付款」失衡（冻结变负、可提现虚增）。
+        // 付款失败后申请保持 REVIEWING 可重试，因此二次失败直接拒绝，要求先成功付款。
+        if (
+          state.expertLedger.some(
+            (entry) => entry.kind === 'REVERSAL' && entry.withdrawalId === id,
+          )
+        ) {
+          throw new PlatformOperationError(
+            'STATE_CONFLICT',
+            '该提现申请已冲正过，不能重复记录付款失败，请重新线下付款后回填成功。',
+          )
+        }
         nextState = deps.appendLedgerEntry(nextState, {
           kind: 'REVERSAL',
           amount: withdrawal.amount,

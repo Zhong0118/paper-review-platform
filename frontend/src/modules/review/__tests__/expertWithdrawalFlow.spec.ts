@@ -244,6 +244,39 @@ describe('expert withdrawal service (PAGE-014)', () => {
     expect(afterSuccess.availableAmount).toBe(600)
   })
 
+  it('rejects a second payment failure after a reversal (no double-REVERSAL)', async () => {
+    // 最终评审修复：同一提现申请只冲正一次。二次 FAILED 若再追加 +REVERSAL，
+    // 冻结会被冲成负数、可提现虚增（900 = 600 失衡）；付款失败保持 REVIEWING
+    // 可重试，因此二次失败直接拒绝（要求先成功付款），冻结任何一步不为负。
+    const service = createScenarioService({ storage: createMemoryStorage(), demoMode: true })
+    await service.loadPlatformScenario('CORRECTION_PENDING')
+    await service.reviewWithdrawal('WD-2026-0088', 'APPROVE', '余额充足')
+
+    await service.recordWithdrawalPayment('WD-2026-0088', 'FAILED', 'V-FAIL-01')
+    // 第二次付款失败：拒绝（冲正已发生），不追加任何流水
+    await expect(
+      service.recordWithdrawalPayment('WD-2026-0088', 'FAILED', 'V-FAIL-02'),
+    ).rejects.toMatchObject({ code: 'STATE_CONFLICT' })
+    const afterSecondFailed = await service.getExpertAccount()
+    expect(afterSecondFailed.pendingAmount).toBe(0)
+    expect(afterSecondFailed.availableAmount).toBe(900)
+    // 流水只追加一次冲正（REVERSAL 唯一）
+    const ledger = await service.listExpertLedger()
+    expect(ledger.filter((entry) => entry.kind === 'REVERSAL')).toHaveLength(1)
+
+    // 随后成功付款：从可提现出账，恒等式恢复（入账 900 − 付款 300 = 可提现 + 冻结）
+    await service.recordWithdrawalPayment('WD-2026-0088', 'SUCCESS', 'V-OK-02')
+    const final = await service.getExpertAccount()
+    expect(final.pendingAmount).toBe(0)
+    expect(final.availableAmount).toBe(600)
+    // 恒等式：入账合计（3×300）− 已付款（300）== 可提现 + 冻结
+    const credits = (await service.listExpertLedger()).reduce(
+      (sum, entry) => (entry.kind === 'REVIEW_CREDIT' ? sum + entry.amount : sum),
+      0,
+    )
+    expect(credits - 300).toBe(final.availableAmount + final.pendingAmount)
+  })
+
   it('does not leak other experts withdrawals to the expert page', async () => {
     // 平台流水混入其他专家的申请（运营侧新增种子）：专家端不得展示（红线「专家仅访问本人申请」）
     const storage = createMemoryStorage()
