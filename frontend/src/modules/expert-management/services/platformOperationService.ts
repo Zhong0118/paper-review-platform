@@ -862,8 +862,17 @@ export function createPlatformOperationService(
           ? { avoidStatement: input.avoidStatement.trim() }
           : {}),
       }
-      // 无实际变更时不做任何写入（防重复保存的幂等副作用；审计只记录真实变更）。
+      // 无实际字段变更（如仅确认保存）也写审计：本人操作留痕，演示投影。
+      // 幂等性体现在不重复写入资料字段；审计如实记录「无字段变更」。
       if (changedFields(updates, expert).length === 0) {
+        deps.setState(
+          appendAudit(deps.getState(), {
+            action: 'PROFILE_UPDATED',
+            expertId: EXPERT_PERSONA_ID,
+            detail: '专家本人确认保存资料（无字段变更）。',
+            operator: expert.name,
+          }),
+        )
         return immutable(projectSelfProfile(expert))
       }
       const updated = patchExpert(EXPERT_PERSONA_ID, updates)

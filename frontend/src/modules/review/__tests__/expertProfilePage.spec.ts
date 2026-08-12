@@ -137,8 +137,10 @@ describe('expert profile page (PAGE-021)', () => {
 
     expect(wrapper.text()).toContain('资格驳回')
     expect(wrapper.text()).toContain('职称证明已过期')
-    // 驳回后有重新提交入口
-    expect(wrapper.findAll('[data-action="re-submit-qualification"]').length).toBe(1)
+    // 驳回后有重新提交入口，可打开说明对话框（演示入口，不宣称真实上传）
+    await wrapper.get('[data-action="re-submit-qualification"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('[data-action="close-resubmit"]').exists()).toBe(true)
     expect(wrapper.get('[data-qualification-status]').attributes('data-qualification-status')).toBe(
       'REJECTED',
     )
@@ -174,8 +176,11 @@ describe('expert profile page (PAGE-021)', () => {
     const { wrapper } = await mountPage(service)
     const saveSpy = vi.spyOn(service, 'saveExpertProfile')
 
+    // 修改真实字段（联系方式）再保存：断言不依赖种子审计条目
+    await wrapper.get('[data-field="contact"]').setValue('zhimingyuan@example.edu')
     await wrapper.get('[data-action="save-profile"]').trigger('click')
     await flushPromises()
+    const auditBefore = await service.listPlatformAuditLog()
     const confirm = wrapper.get('[data-action="confirm-save-profile"]')
     expect(confirm.text()).toContain('保存资料')
     // 保存前确认按钮可用（服务端仍会拒绝越界输入）
@@ -187,15 +192,22 @@ describe('expert profile page (PAGE-021)', () => {
     // 表单不提交姓名（姓名只读字段不参与保存），提交本人可编辑字段
     expect(saveSpy).toHaveBeenCalledWith(
       expect.objectContaining({
+        contact: 'zhimingyuan@example.edu',
         unit: '东江理工大学',
         discipline: { code: '0812', name: '计算机科学与技术' },
         researchTags: ['知识图谱', '机器学习'],
       }),
     )
     expect(saveSpy.mock.calls[0][0]).not.toHaveProperty('name')
-    const audit = await service.listPlatformAuditLog()
-    expect(audit.some((entry) => entry.action === 'PROFILE_UPDATED')).toBe(true)
-    // 防重复：确认后按钮不可再次触发
+    // 保存写入新审计条目（相对保存前增长，且操作者为本人）
+    const auditAfter = await service.listPlatformAuditLog()
+    expect(auditAfter.length).toBe(auditBefore.length + 1)
+    expect(auditAfter[0]).toMatchObject({
+      action: 'PROFILE_UPDATED',
+      operator: '周明远',
+      detail: expect.stringContaining('contact'),
+    })
+    // 防重复：保存成功后对话框关闭，不可再次触发
     expect(wrapper.findAll('[data-action="confirm-save-profile"]').length).toBe(0)
   })
 

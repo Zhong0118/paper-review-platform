@@ -75,6 +75,8 @@ function createUnavailableService(): ScenarioService {
     listWithdrawals: unavailable,
     reviewWithdrawal: unavailable,
     recordWithdrawalPayment: unavailable,
+    getExpertProfile: unavailable,
+    saveExpertProfile: unavailable,
     loadPlatformScenario: unavailable,
     reset: unavailable,
   }

@@ -65,7 +65,24 @@ async function requestSave(input: Record<string, unknown>) {
 
 function openResubmitDialog() {
   resubmitPending.value = true
-  void nextTick(() => resubmitDialogButton.value?.focus())
+  // 聚焦推迟到 DOM 渲染后，避免与旧对话框的焦点清理竞争
+  void nextTick().then(() => resubmitDialogButton.value?.focus())
+}
+
+function closeResubmitDialog() {
+  if (resubmitPending.value) resubmitPending.value = false
+}
+
+function handleResubmitKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    closeResubmitDialog()
+    return
+  }
+  if (event.key !== 'Tab') return
+  // 单按钮对话框：Tab 保持焦点在按钮内（焦点圈闭），Shift+Tab 不逃逸
+  event.preventDefault()
+  resubmitDialogButton.value?.focus()
 }
 
 async function cancelSave() {
@@ -109,6 +126,7 @@ async function confirmSave() {
   saveError.value = ''
   saved.value = false
   try {
+    // 无实际字段变更时也写审计（本人操作留痕，演示投影），保证每次确认保存都有记录
     profile.value = await service.saveExpertProfile(input)
     saveConfirmOpen.value = false
     pendingInput.value = null
@@ -258,7 +276,7 @@ async function confirmSave() {
           role="dialog"
           aria-modal="true"
           aria-labelledby="resubmit-dialog-title"
-          @keydown.esc="resubmitPending = false"
+          @keydown="handleResubmitKeydown"
         >
           <h2 id="resubmit-dialog-title">重新提交资格材料（演示入口）</h2>
           <p>
@@ -269,8 +287,7 @@ async function confirmSave() {
               ref="resubmitDialogButton"
               type="button"
               data-action="close-resubmit"
-              autofocus
-              @click="resubmitPending = false"
+              @click="closeResubmitDialog"
             >
               知道了
             </button>

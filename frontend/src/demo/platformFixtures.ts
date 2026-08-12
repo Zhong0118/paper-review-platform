@@ -4,6 +4,7 @@ import type {
   DispatchStatus,
   DispatchThesisSeed,
   ExpertProfile,
+  ExpertQualificationMaterial,
   OperationsQueueCounts,
   PlatformState,
   ReviewVersion,
@@ -73,11 +74,30 @@ export const demoWithdrawals: WithdrawalRequest[] = [
   },
 ]
 
+/** 演示专家本人联系方式（仅本地演示投影，不宣称真实消息能力）。 */
+const DEMO_CONTACT = 'demo-contact@baijie-review.local'
+
+/**
+ * 周明远（expert-17）资格材料演示种子（PAGE-021）：仅存元数据，
+ * 不读取文件正文（见设计 §8 演示数据边界）。初始资格 REVIEWING。
+ */
+const demoMaterialsForPersona: ExpertQualificationMaterial[] = [
+  {
+    id: 'material-persona-title',
+    fileName: '职称证明.pdf',
+    fileType: 'PDF',
+    validUntil: '2028-06-30',
+    status: 'REVIEWING',
+    submittedAt: '2026-08-01 09:05',
+  },
+]
+
 /** 平台运营端专家库初始档案；复用派单页候选专家数据（周明远/顾远航/宋清和）。 */
 export const demoExpertProfiles: ExpertProfile[] = [
   {
     id: 'expert-17',
     name: '周明远',
+    contact: DEMO_CONTACT,
     unit: '东江理工大学',
     title: '教授',
     discipline: { code: '0812', name: '计算机科学与技术' },
@@ -86,6 +106,7 @@ export const demoExpertProfiles: ExpertProfile[] = [
     qualification: 'REVIEWING',
     serviceStatus: 'ACTIVE',
     avoidSchools: [],
+    qualificationMaterials: structuredClone(demoMaterialsForPersona),
     activeTasks: 2,
     completedTasks: 46,
     overdueRate: '3%',
@@ -100,6 +121,7 @@ export const demoExpertProfiles: ExpertProfile[] = [
   {
     id: 'expert-08',
     name: '顾远航',
+    contact: DEMO_CONTACT,
     unit: '海岳大学',
     title: '副教授',
     discipline: { code: '0812', name: '计算机科学与技术' },
@@ -123,6 +145,7 @@ export const demoExpertProfiles: ExpertProfile[] = [
   {
     id: 'expert-31',
     name: '宋清和',
+    contact: DEMO_CONTACT,
     unit: '北辰科技大学',
     title: '教授',
     discipline: { code: '0835', name: '软件工程' },
@@ -208,6 +231,7 @@ export function createDispatchScenario(overrides: DispatchStatus[] = []): Platfo
   const scenarioExpert: ExpertProfile = {
     id: 'expert-26',
     name: '陈知微',
+    contact: DEMO_CONTACT,
     unit: '西湖工业大学',
     title: '教授',
     discipline: { code: '0812', name: '计算机科学与技术' },

@@ -535,6 +535,8 @@ export type ExpertProfileAction =
 export interface ExpertProfile {
   id: string
   name: string
+  /** 联系方式（专家本人维护；演示文案，不宣称真实消息能力）。 */
+  contact: string
   unit: string
   title: string
   discipline: { code: string; name: string }
@@ -545,6 +547,10 @@ export interface ExpertProfile {
   serviceStatus: ExpertServiceStatus
   serviceNote?: string
   avoidSchools: string[]
+  /** 本人回避声明补充（专家本人查看/填写；演示投影）。 */
+  avoidStatement?: string
+  /** 资格材料投影（演示只存文件名/类型/有效期/状态/原因，不读取正文）。 */
+  qualificationMaterials?: ExpertQualificationMaterial[]
   activeTasks: number
   completedTasks: number
   overdueRate: string
@@ -555,6 +561,34 @@ export interface ExpertProfile {
   feeStandard: number
   payoutStatus: 'BOUND' | 'PENDING'
   allowedActions: ExpertProfileAction[]
+}
+
+/** 资格材料投影（PAGE-021）：演示只保存元数据，不读取文件正文（见设计 §8）。 */
+export interface ExpertQualificationMaterial {
+  id: string
+  fileName: string
+  fileType: string
+  validUntil: string
+  status: ExpertQualificationStatus
+  /** 驳回原因（审核驳回时平台填写；本人只读查看）。 */
+  rejectReason?: string
+  submittedAt: string
+}
+
+/** 专家端本人资料投影（PAGE-021）：仅本人可编辑字段，不含平台运营维护字段。 */
+export interface ExpertSelfProfile {
+  id: string
+  name: string
+  contact: string
+  unit: string
+  title: string
+  discipline: { code: string; name: string }
+  researchTags: string[]
+  reviewableTypes: string[]
+  qualification: ExpertQualificationStatus
+  qualificationNote?: string
+  qualificationMaterials: ExpertQualificationMaterial[]
+  avoidStatement: string
 }
 
 export interface ExpertProfileQuery {
@@ -634,6 +668,8 @@ export interface AuditLogEntry {
     | 'PAYMENT_RECORDED'
     /** Task 5：专家拒绝接单（触发运营改派队列）。 */
     | 'REJECT'
+    /** Task 7：专家本人保存资料（PAGE-021，写审计）。 */
+    | 'PROFILE_UPDATED'
   thesisId?: string
   expertId?: string
   taskId?: string
@@ -786,6 +822,22 @@ export interface PlatformOperationService {
     result: PaymentResult,
     voucher: string,
   ): Promise<WithdrawalRequest>
+  /** Task 7 专家端本人资料投影（PAGE-021）：仅本人字段，不含运营维护字段。 */
+  getExpertProfile(): Promise<ExpertSelfProfile>
+  /** Task 7 专家本人保存资料（姓名只读；Tags≤8 去重；学科受控目录；变更写审计）。 */
+  saveExpertProfile(input: ExpertProfileSaveInput): Promise<ExpertSelfProfile>
+}
+
+/** 专家端本人资料保存输入（姓名只读，服务端忽略任何改名尝试）。 */
+export interface ExpertProfileSaveInput {
+  name?: string
+  contact?: string
+  unit?: string
+  title?: string
+  discipline?: { code: string; name: string }
+  researchTags?: string[]
+  reviewableTypes?: string[]
+  avoidStatement?: string
 }
 
 /** 平台演示持久化负载（独立 key `baijie-demo-platform:v1`，见 platformPersistence.ts）。 */

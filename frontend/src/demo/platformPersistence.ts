@@ -6,6 +6,7 @@ import type {
   DispatchThesisSeed,
   ExpertProfile,
   ExpertProfileAction,
+  ExpertQualificationStatus,
   ExpertTaskSummary,
   ReviewVersion,
   StorageLike,
@@ -71,6 +72,8 @@ function normalizeExpert(value: unknown): ExpertProfile | null {
     ...(fixture ?? {}),
     id: source.id,
     name: source.name,
+    // 专家本人联系方式（PAGE-021 专家端维护；演示文案，不宣称真实消息能力）。
+    contact: typeof source.contact === 'string' ? source.contact : fixture?.contact ?? '',
     unit: typeof source.unit === 'string' ? source.unit : fixture?.unit ?? '',
     title: typeof source.title === 'string' ? source.title : fixture?.title ?? '',
     discipline,
@@ -87,6 +90,10 @@ function normalizeExpert(value: unknown): ExpertProfile | null {
     avoidSchools: Array.isArray(source.avoidSchools)
       ? source.avoidSchools.filter((item): item is string => typeof item === 'string')
       : fixture?.avoidSchools ?? [],
+    // 本人回避声明补充（PAGE-021 专家端维护；演示投影）。
+    ...(typeof source.avoidStatement === 'string' ? { avoidStatement: source.avoidStatement } : {}),
+    // 资格材料（PAGE-021 专家端查看/维护；演示只存元数据，不读取正文）。
+    qualificationMaterials: normalizeQualificationMaterials(source.qualificationMaterials),
     activeTasks: typeof source.activeTasks === 'number' ? source.activeTasks : fixture?.activeTasks ?? 0,
     completedTasks:
       typeof source.completedTasks === 'number' ? source.completedTasks : fixture?.completedTasks ?? 0,
@@ -199,6 +206,37 @@ function normalizeDispatchTheses(value: unknown): DispatchThesisSeed[] {
   })
 }
 
+function normalizeQualificationMaterials(value: unknown): ExpertProfile['qualificationMaterials'] {
+  if (!Array.isArray(value)) return []
+  const statuses: ExpertQualificationStatus[] = ['APPROVED', 'REVIEWING', 'REJECTED']
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object') return []
+    const source = entry as Record<string, unknown>
+    if (
+      typeof source.id !== 'string' ||
+      typeof source.fileName !== 'string' ||
+      typeof source.fileType !== 'string' ||
+      typeof source.validUntil !== 'string'
+    ) {
+      return []
+    }
+    const status = statuses.includes(source.status as ExpertQualificationStatus)
+      ? (source.status as ExpertQualificationStatus)
+      : 'REVIEWING'
+    return [
+      {
+        id: source.id,
+        fileName: source.fileName,
+        fileType: source.fileType,
+        validUntil: source.validUntil,
+        status,
+        ...(typeof source.rejectReason === 'string' ? { rejectReason: source.rejectReason } : {}),
+        submittedAt: typeof source.submittedAt === 'string' ? source.submittedAt : '',
+      },
+    ]
+  })
+}
+
 function normalizeAuditLog(value: unknown): AuditLogEntry[] {
   if (!Array.isArray(value)) return []
   const actions: AuditLogEntry['action'][] = [
@@ -212,6 +250,7 @@ function normalizeAuditLog(value: unknown): AuditLogEntry[] {
     'CORRECTION_DECIDED',
     'WITHDRAWAL_REVIEWED',
     'PAYMENT_RECORDED',
+    'PROFILE_UPDATED',
   ]
   return value.flatMap((entry) => {
     if (!entry || typeof entry !== 'object') return []
