@@ -176,6 +176,26 @@ describe('role notifications', () => {
     ).toBe(true)
   })
 
+  it('notifies the expert with the rejection context when a withdrawal is rejected', async () => {
+    const service = createScenarioService({ storage: createMemoryStorage(), demoMode: true })
+    await service.loadPlatformScenario('CORRECTION_PENDING')
+    const withdrawals = await service.listWithdrawals()
+
+    await service.reviewWithdrawal(withdrawals[0]!.id, 'REJECT', '收款信息不完整，请核对后重新申请')
+    const notices = await service.listRoleNotifications('expert')
+
+    const decided = notices.find(
+      (n) => n.kind === 'WITHDRAWAL_DECIDED' && n.withdrawalId === withdrawals[0]!.id,
+    )
+    expect(decided).toBeDefined()
+    expect(decided!.message).toContain('收款信息不完整，请核对后重新申请')
+    expect(decided!.recipientRole).toBe('expert')
+    // 驳回同时解除冻结：金额回到可提现（Task 8 RELEASE 入账保留）。
+    const account = await service.getExpertAccount()
+    expect(account.availableAmount).toBe(900)
+    expect(account.pendingAmount).toBe(0)
+  })
+
   it('navigates an expert task notification to the expert tasks page', async () => {
     const service = createScenarioService({ storage: createMemoryStorage(), demoMode: true })
     await service.loadExpertScenario('INVITED')

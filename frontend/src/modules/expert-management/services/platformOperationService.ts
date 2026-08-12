@@ -873,15 +873,25 @@ export function createPlatformOperationService(
       deps.setState(
         appendAudit(
           // Task 8：驳回解除冻结（RELEASE 入账），金额原路回到可提现（流水只追加）。
-          // Task 9：审核通过进入线下付款时通知专家（最终结果由付款回填后发出，
-          // 见 recordWithdrawalPayment；此处提示审核结果，避免专家端长时间无感知）。
+          // Task 9：驳回结果同样通知专家（设计 §5.10 提现结果 WITHDRAWAL_DECIDED 绑定
+          // 审核动作，不分通过与驳回）；审核通过进入线下付款时先提示审核结果，
+          // 最终付款结果由 recordWithdrawalPayment 回填后发出。
           decision === 'REJECT'
-            ? deps.appendLedgerEntry(nextState, {
-                kind: 'RELEASE',
-                amount: withdrawal.amount,
-                description: `提现驳回：解除冻结 ¥ ${withdrawal.amount.toFixed(2)}（${reason.trim()}）。`,
-                withdrawalId: id,
-              })
+            ? deps.appendNotification(
+                deps.appendLedgerEntry(nextState, {
+                  kind: 'RELEASE',
+                  amount: withdrawal.amount,
+                  description: `提现驳回：解除冻结 ¥ ${withdrawal.amount.toFixed(2)}（${reason.trim()}）。`,
+                  withdrawalId: id,
+                }),
+                {
+                  recipientRole: 'expert',
+                  kind: 'WITHDRAWAL_DECIDED',
+                  message: `提现申请 ${id}（¥ ${withdrawal.amount.toFixed(2)}）已驳回：${reason.trim()}，金额已解除冻结。`,
+                  read: false,
+                  withdrawalId: id,
+                },
+              )
             : deps.appendNotification(nextState, {
                 recipientRole: 'expert',
                 kind: 'WITHDRAWAL_DECIDED',
