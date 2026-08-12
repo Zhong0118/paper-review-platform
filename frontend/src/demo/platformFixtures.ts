@@ -3,6 +3,7 @@ import type {
   CorrectionRequest,
   DispatchStatus,
   DispatchThesisSeed,
+  ExpertLedgerEntry,
   ExpertProfile,
   ExpertQualificationMaterial,
   OperationsQueueCounts,
@@ -51,16 +52,50 @@ export const demoCorrectionRequests: CorrectionRequest[] = [
   },
 ]
 
+/**
+ * 演示装载的本人费用流水种子（PAGE-014 可提现/冻结的演示基准；只追加只读）。
+ * 金额合计 3 篇有效评阅 × ¥ 300，不宣称真实结算。
+ * 初始加载（createInitialPlatformState）不注入种子：账户由真实业务动作投影，
+ * 保证黄金路径（无场景装载直接计账）的入账断言不被种子影响。
+ * 结算演示场景（CORRECTION_PENDING）额外追加与 WD-2026-0088 匹配的冻结条目，
+ * 保证「可提现 + 冻结 = 入账合计 − 已付款」恒等（见 createCorrectionSettlementScenario）。
+ */
+export function demoLedgerSeed(): ExpertLedgerEntry[] {
+  return [
+    {
+      id: 'ledger-seed-1',
+      kind: 'REVIEW_CREDIT',
+      amount: 300,
+      description: '评阅收入：有效评阅任务入账（HY-2026-0042）。',
+      occurredAt: '2026-08-24 16:40',
+    },
+    {
+      id: 'ledger-seed-2',
+      kind: 'REVIEW_CREDIT',
+      amount: 300,
+      description: '评阅收入：有效评阅任务入账（HY-2025-0031）。',
+      occurredAt: '2026-08-22 10:20',
+    },
+    {
+      id: 'ledger-seed-3',
+      kind: 'REVIEW_CREDIT',
+      amount: 300,
+      description: '评阅收入：有效评阅任务入账（HY-2025-0027）。',
+      occurredAt: '2026-08-19 15:30',
+    },
+  ]
+}
+
 /** 提现申请演示种子（PAGE-022 数据源；本地快照，不模拟真实支付）。 */
-export const demoWithdrawals: WithdrawalRequest[] = [
-  {
+export const demoWithdrawals: WithdrawalRequest[] = [  {
     id: 'WD-2026-0088',
     expertId: 'expert-17',
     expertName: '周明远',
     amount: 300,
     status: 'PENDING',
     requestedAt: '2026-08-25 10:20',
-    withdrawableBasis: '已完成 46 篇有效评阅，其中 2 篇处于结算周期；当前可提现余额 ¥ 300.00。',
+    // 依据金额与费用流水投影一致（Task 8 评审修复）：入账 900 中已冻结 300，可提现 600。
+    withdrawableBasis: '已完成 46 篇有效评阅，其中 2 篇处于结算周期；当前可提现余额 ¥ 600.00（含本次冻结 ¥ 300.00）。',
     freezeLedger: '冻结流水：2026-08-25 提现申请 WD-2026-0088 冻结 ¥ 300.00。',
     bankName: '招商银行',
     maskedAccount: MASKED_BANK,
@@ -305,6 +340,21 @@ export function createCorrectionSettlementScenario(): PlatformState {
     dispatchTheses: [{ ...mainThesis, status: 'COMPLETED' }],
     correctionRequests: structuredClone(demoCorrectionRequests),
     withdrawals: structuredClone(demoWithdrawals),
+    // 费用流水与提现申请一一对应（Task 8 评审修复）：WD-2026-0088 必须有匹配的
+    // WITHDRAWAL 冻结条目，否则账户投影「可提现 + 冻结 = 入账 − 付款」失衡、
+    // 运营审核/付款会让冻结金额变为负数。此场景为「已提交提现申请」的快照：
+    // 可提现 ¥ 600.00（900 入账 − 300 冻结）、冻结 ¥ 300.00。
+    expertLedger: [
+      ...demoLedgerSeed(),
+      {
+        id: 'ledger-seed-4',
+        kind: 'WITHDRAWAL',
+        amount: -300,
+        description: '提现申请：冻结 ¥ 300.00，等待平台审核。',
+        occurredAt: '2026-08-25 10:20',
+        withdrawalId: 'WD-2026-0088',
+      },
+    ],
     reviewVersions: structuredClone(demoReviewVersions),
     auditLog: initialAuditEntries(),
   }

@@ -173,6 +173,95 @@ describe('expert withdrawal service (PAGE-014)', () => {
     expect(after.availableAmount).toBe(1100)
     expect(after.pendingAmount).toBe(100)
   })
+
+  it('rounds withdrawal amounts to cents at the service boundary', async () => {
+    const service = createScenarioService({ storage: createMemoryStorage(), demoMode: true })
+    await service.loadExpertScenario('IN_REVIEW')
+    await service.submitWithdrawal(100.009)
+    const account = await service.getExpertAccount()
+    expect(account.pendingAmount).toBe(100.01)
+    const ledger = await service.listExpertLedger()
+    expect(ledger.at(-1)).toMatchObject({ kind: 'WITHDRAWAL', amount: -100.01 })
+  })
+
+  it('keeps the settlement scenario account consistent through operations review', async () => {
+    // 结算演示场景（CORRECTION_PENDING）自带「已提交提现申请」快照：WD-2026-0088
+    // 待审核 ¥ 300.00。流水必须含匹配的 WITHDRAWAL 冻结条目（评审修复），
+    // 保证「可提现 + 冻结 = 入账合计 − 已付款」恒等，且审核/付款/驳回不会产生负冻结。
+    const service = createScenarioService({ storage: createMemoryStorage(), demoMode: true })
+    await service.loadPlatformScenario('CORRECTION_PENDING')
+    const seeded = await service.getExpertAccount()
+    // 冻结在账（不在可提现中）：900 入账 − 300 冻结
+    expect(seeded.availableAmount).toBe(600)
+    expect(seeded.pendingAmount).toBe(300)
+    const ledger = await service.listExpertLedger()
+    expect(
+      ledger.some(
+        (entry) =>
+          entry.kind === 'WITHDRAWAL' &&
+          entry.withdrawalId === 'WD-2026-0088' &&
+          entry.amount === -300,
+      ),
+    ).toBe(true)
+
+    // 运营审核通过 → 线下付款成功：冻结清零，已付款金额不再回到可提现，全程无负冻结
+    await service.reviewWithdrawal('WD-2026-0088', 'APPROVE', '余额充足')
+    expect((await service.getExpertAccount()).pendingAmount).toBe(300)
+    await service.recordWithdrawalPayment('WD-2026-0088', 'SUCCESS', 'V20260812-99')
+    const paid = await service.getExpertAccount()
+    expect(paid.pendingAmount).toBe(0)
+    expect(paid.availableAmount).toBe(600)
+
+    // 驳回路径：RELEASE 解除冻结并回补可提现（冻结清零、无负值）
+    const rejectedService = createScenarioService({
+      storage: createMemoryStorage(),
+      demoMode: true,
+    })
+    await rejectedService.loadPlatformScenario('CORRECTION_PENDING')
+    await rejectedService.reviewWithdrawal('WD-2026-0088', 'REJECT', '收款信息不完整，请核对后重新申请')
+    const rejected = await rejectedService.getExpertAccount()
+    expect(rejected.pendingAmount).toBe(0)
+    expect(rejected.availableAmount).toBe(900)
+  })
+
+  it('does not leak other experts withdrawals to the expert page', async () => {
+    // 平台流水混入其他专家的申请（运营侧新增种子）：专家端不得展示（红线「专家仅访问本人申请」）
+    const storage = createMemoryStorage()
+    const service = createScenarioService({ storage, demoMode: true })
+    await service.loadExpertScenario('IN_REVIEW')
+    const persisted = JSON.parse(storage.getItem('baijie-demo-platform:v1')!)
+    persisted.platform.withdrawals.push({
+      id: 'WD-2026-0100',
+      expertId: 'expert-31',
+      expertName: '宋清和',
+      amount: 300,
+      status: 'PENDING',
+      requestedAt: '2026-08-25 11:00',
+      withdrawableBasis: '其他专家入账合计。',
+      freezeLedger: '其他专家冻结。',
+      bankName: '招商银行',
+      maskedAccount: '招商银行（**** **** **** 5678）',
+      history: [
+        {
+          action: 'SUBMIT',
+          at: '2026-08-25 11:00',
+          note: '其他专家提交提现申请。',
+        },
+      ],
+    })
+    storage.setItem('baijie-demo-platform:v1', JSON.stringify(persisted))
+    const reloaded = createScenarioService({ storage, demoMode: true })
+    const { wrapper } = await mountPage(reloaded)
+
+    // 页面只展示本人申请：其他专家的记录不可见
+    expect(wrapper.text()).not.toContain('WD-2026-0100')
+    expect(wrapper.text()).not.toContain('宋清和')
+    // 幂等守卫按本人过滤：他人待审核申请不阻塞本人提现（评审修复）
+    await expect(reloaded.submitWithdrawal(100)).resolves.toMatchObject({
+      expertId: 'expert-17',
+      status: 'PENDING',
+    })
+  })
 })
 
 describe('expert finance page (PAGE-014)', () => {

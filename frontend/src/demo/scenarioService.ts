@@ -9,6 +9,7 @@ import { loadPlatformDemo, savePlatformDemo } from './platformPersistence'
 import {
   createCorrectionSettlementScenario,
   createDispatchScenario,
+  demoLedgerSeed,
   initialAuditEntries,
   type PlatformState as FixturePlatformState,
 } from './platformFixtures'
@@ -382,7 +383,7 @@ function projectExpertAccount(platform: PlatformState): ExpertAccountSummary {
 }
 
 /** 专家端演示人格：任务仅投影本人（expert-17 周明远，与专家端页面身份一致）。 */
-const EXPERT_PERSONA_ID = 'expert-17'
+export const EXPERT_PERSONA_ID = 'expert-17'
 
 /** 接单截止：演示时钟 2026-08-12 09:00 起 14 天（与运营派单 ASSIGNMENT_DUE_DAYS 一致）。 */
 const ACCEPT_BY = '2026-08-26 18:00'
@@ -460,41 +461,11 @@ function projectExpertTask(task: ExpertTaskSummary): ExpertTaskSummary {
 }
 
 /**
- * 演示装载的本人费用流水种子（PAGE-014 可提现/冻结的演示基准）。
- * 仅在「演示场景装载」（loadPlatformScenario / loadExpertScenario / reset）时生效：
- * 场景装载会原子替换平台状态，流水为空时补充「已完成演示批次」的历史入账记录
- * （只追加只读），使提现演示具有非零可提现余额。
- * 初始加载（createInitialPlatformState）不注入种子：账户由真实业务动作投影，
- * 保证黄金路径（无场景装载直接计账）的入账断言不被种子影响。
- * 金额合计与旧骨架文案一致（3 篇有效评阅 × ¥ 300），不宣称真实结算。
+ * 演示装载的本人费用流水种子（幂等）：流水非空（已有历史/已装载种子）时不覆盖。
+ * 结算演示场景（CORRECTION_PENDING）自带完整流水（含匹配的 WITHDRAWAL 冻结条目），
+ * 其余场景注入 3 条历史入账基准（可提现 ¥ 900.00）。
+ * 种子定义在 platformFixtures（与结算场景共享同一数据源），避免循环依赖。
  */
-function demoLedgerSeed(): ExpertLedgerEntry[] {
-  return [
-    {
-      id: 'ledger-seed-1',
-      kind: 'REVIEW_CREDIT',
-      amount: 300,
-      description: '评阅收入：有效评阅任务入账（HY-2026-0042）。',
-      occurredAt: '2026-08-24 16:40',
-    },
-    {
-      id: 'ledger-seed-2',
-      kind: 'REVIEW_CREDIT',
-      amount: 300,
-      description: '评阅收入：有效评阅任务入账（HY-2025-0031）。',
-      occurredAt: '2026-08-22 10:20',
-    },
-    {
-      id: 'ledger-seed-3',
-      kind: 'REVIEW_CREDIT',
-      amount: 300,
-      description: '评阅收入：有效评阅任务入账（HY-2025-0027）。',
-      occurredAt: '2026-08-19 15:30',
-    },
-  ]
-}
-
-/** 演示流水种子（幂等）：流水非空（已有历史/已装载种子）时不覆盖。 */
 function applyExpertLedgerSeeds(platform: PlatformState): PlatformState {
   if (platform.expertLedger.length > 0) return platform
   return { ...platform, expertLedger: demoLedgerSeed() }
@@ -1008,10 +979,8 @@ export function createScenarioService(
             ? { ...bill, status: 'CONSUMED' as const, consumedAt: '2026-08-24 16:40' }
             : bill,
         ),
-        expertAccount: {
-          ...state.expertAccount,
-          availableAmount: state.expertAccount.availableAmount + 300,
-        },
+        // 专家账户（PAGE-014）自 Task 8 起由费用流水投影（projectExpertAccount）汇总，
+        // 不再维护 state.expertAccount 字段（仅保留历史兼容投影，见 fixtures.ts）。
       }
       // 专家提交终审：论文派单投影保持 PENDING_ACCEPTANCE，队列按任务状态派生为「待结算」。
       // 已提交任务保持匿名材料可见：专家端「已完成 → 查看」只读视图仍展示匿名版材料与本人已提交意见。
@@ -1211,17 +1180,25 @@ export function createScenarioService(
       deepFreeze(structuredClone(platformState.expertLedger)),
     // 专家端提交提现申请（PAGE-014）：金额 ≤ 可提现必填；幂等防重复；生成运营可审的申请。
     submitWithdrawal: async (amount: number): Promise<WithdrawalRequest> => {
+      // 金额以分取整（Decimal 语义，页面格式化两位小数；服务端兜底边界）
+      const roundedAmount = Math.round(amount * 100) / 100
       // 金额必填且为正数（页面必填校验，服务端兜底）
-      if (!Number.isFinite(amount) || amount <= 0) {
+      if (!Number.isFinite(roundedAmount) || roundedAmount <= 0) {
         throw new PlatformOperationError('INVALID_INPUT', '提现金额必须为正数。')
       }
-      const current = await projectExpertAccount(platformState)
+      // 账户为纯函数投影（同步），无需跨 await 检查：不存在余额快照竞态窗口
+      const current = projectExpertAccount(platformState)
       // 金额 ≤ 可提现（设计 §5.9；超过即拒绝，不改动任何状态）
-      if (amount > current.availableAmount) {
+      if (roundedAmount > current.availableAmount) {
         throw new PlatformOperationError('INVALID_INPUT', '提现金额不能超过可提现余额。')
       }
-      // 幂等防重复（最终提交/提现均需二次确认并防重复）：已有本人待审核申请即拒绝再次提交。
-      if (platformState.withdrawals.some((item) => item.status === 'PENDING')) {
+      // 幂等防重复（最终提交/提现均需二次确认并防重复）：仅拦截本人待审核申请
+      // （评审修复：不因他人待审核申请而阻塞本人提现，红线「专家仅访问本人申请」）。
+      if (
+        platformState.withdrawals.some(
+          (item) => item.expertId === EXPERT_PERSONA_ID && item.status === 'PENDING',
+        )
+      ) {
         throw new PlatformOperationError(
           'STATE_CONFLICT',
           '已存在待审核的提现申请，请等待平台处理后再提交新申请。',
@@ -1231,8 +1208,8 @@ export function createScenarioService(
       // 只追加：扣减不覆盖既有流水，新增一条 WITHDRAWAL 冻结条目（金额为负）。
       platformState = appendLedgerEntry(platformState, {
         kind: 'WITHDRAWAL',
-        amount: -amount,
-        description: `提现申请：冻结 ¥ ${amount.toFixed(2)}，等待平台审核。`,
+        amount: -roundedAmount,
+        description: `提现申请：冻结 ¥ ${roundedAmount.toFixed(2)}，等待平台审核。`,
         withdrawalId,
       })
       // 生成运营结算工作台（PAGE-022）可审的提现申请（SUBMITTED，见设计 §4.5）。
@@ -1240,18 +1217,18 @@ export function createScenarioService(
         id: withdrawalId,
         expertId: EXPERT_PERSONA_ID,
         expertName: '周明远',
-        amount,
+        amount: roundedAmount,
         status: 'PENDING',
         requestedAt: DEMO_NOW,
-        withdrawableBasis: `已完成有效评阅入账合计 ¥ ${current.availableAmount.toFixed(2)}，本次申请 ¥ ${amount.toFixed(2)}。`,
-        freezeLedger: `冻结流水：提现申请冻结 ¥ ${amount.toFixed(2)}（等待平台审核）。`,
+        withdrawableBasis: `已完成有效评阅入账合计 ¥ ${current.availableAmount.toFixed(2)}，本次申请 ¥ ${roundedAmount.toFixed(2)}。`,
+        freezeLedger: `冻结流水：提现申请冻结 ¥ ${roundedAmount.toFixed(2)}（等待平台审核）。`,
         bankName: '招商银行',
         maskedAccount: '招商银行（**** **** **** 1234）',
         history: [
           {
             action: 'SUBMIT',
             at: DEMO_NOW,
-            note: `专家提交提现申请 ¥ ${amount.toFixed(2)}，冻结可提现余额。`,
+            note: `专家提交提现申请 ¥ ${roundedAmount.toFixed(2)}，冻结可提现余额。`,
           },
         ],
       }

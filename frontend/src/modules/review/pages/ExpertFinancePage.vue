@@ -2,6 +2,7 @@
 import { computed, nextTick, onMounted, ref } from 'vue'
 import BlindRail from '@/components/app/BlindRail.vue'
 import PageHeader from '@/components/app/PageHeader.vue'
+import { EXPERT_PERSONA_ID } from '@/demo/scenarioService'
 import { useScenarioService } from '@/demo/serviceProvider'
 import type { ExpertAccountSummary, ExpertLedgerEntry, WithdrawalRequest } from '@/demo/types'
 import PortalLayout from '@/layouts/PortalLayout.vue'
@@ -67,7 +68,9 @@ async function loadFinance() {
     ])
     account.value = accountValue
     ledger.value = ledgerValue
-    withdrawals.value = withdrawalsValue
+    // 红线「专家仅访问本人申请」：提现记录按当前专家身份过滤，
+    // 即使平台流水混入其他专家的申请（如运营侧新增种子）也不会泄漏到专家端。
+    withdrawals.value = withdrawalsValue.filter((item) => item.expertId === EXPERT_PERSONA_ID)
   } catch (error) {
     pageError.value = error instanceof Error ? error.message : '费用数据加载失败。'
   } finally {
