@@ -11,6 +11,7 @@ import type {
   ExpertQualificationStatus,
   ExpertTaskSummary,
   ReviewVersion,
+  RoleNotification,
   StorageLike,
   WithdrawalRequest,
   WithdrawalHistoryEntry,
@@ -454,6 +455,55 @@ function normalizeExpertLedger(value: unknown): ExpertLedgerEntry[] {
   })
 }
 
+/** Task 9：角色通知归一化（仅收两角色合法通知；旧存档无此字段时为空，行为同首次加载）。 */
+function normalizeRoleNotifications(value: unknown): RoleNotification[] {
+  const kinds: RoleNotification['kind'][] = [
+    'TASK_INVITED',
+    'TASK_ACCEPTED',
+    'TASK_REJECTED',
+    'TASK_TIMEOUT',
+    'REVIEW_REMINDER',
+    'CORRECTION_DECIDED',
+    'WITHDRAWAL_DECIDED',
+  ]
+  const recipients: RoleNotification['recipientRole'][] = ['platform_reviewer', 'expert']
+  if (!Array.isArray(value)) return []
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object') return []
+    const source = entry as Record<string, unknown>
+    if (
+      typeof source.id !== 'string' ||
+      typeof source.message !== 'string' ||
+      typeof source.createdAt !== 'string'
+    ) {
+      return []
+    }
+    const kind = kinds.includes(source.kind as RoleNotification['kind'])
+      ? (source.kind as RoleNotification['kind'])
+      : null
+    const recipientRole = recipients.includes(
+      source.recipientRole as RoleNotification['recipientRole'],
+    )
+      ? (source.recipientRole as RoleNotification['recipientRole'])
+      : null
+    if (!kind || !recipientRole) return []
+    return [
+      {
+        id: source.id,
+        recipientRole,
+        kind,
+        message: source.message,
+        createdAt: source.createdAt,
+        read: source.read === true,
+        ...(typeof source.taskId === 'string' ? { taskId: source.taskId } : {}),
+        ...(typeof source.withdrawalId === 'string'
+          ? { withdrawalId: source.withdrawalId }
+          : {}),
+      },
+    ]
+  })
+}
+
 export function loadPlatformDemo(storage: StorageLike): LoadedPlatformDemo {
   const raw = storage.getItem(platformPersistenceKey)
   if (!raw) {
@@ -483,6 +533,8 @@ export function loadPlatformDemo(storage: StorageLike): LoadedPlatformDemo {
         // 旧存档（Task 1/2 写入）没有派单论文与审计字段：以当前 fixture 兜底，行为同首次加载。
         dispatchTheses: normalizeDispatchTheses(saved.platform.dispatchTheses),
         auditLog: normalizeAuditLog(saved.platform.auditLog),
+        // 旧存档（Task 1–8 写入）没有角色通知字段：以种子投影兜底（行为同首次加载）。
+        notifications: normalizeRoleNotifications(saved.platform.notifications),
       },
       reset: false,
     }

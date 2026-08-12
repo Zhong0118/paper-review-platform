@@ -7,8 +7,10 @@ import type {
   ExpertProfile,
   ExpertQualificationMaterial,
   OperationsQueueCounts,
+  PlatformScenarioPreset,
   PlatformState,
   ReviewVersion,
+  RoleNotification,
   WithdrawalRequest,
 } from './types'
 
@@ -16,6 +18,61 @@ export type { PlatformState }
 
 /** 演示批次固定费用标准（与平台运营服务 dispatchFeeStandard 一致）。 */
 export const dispatchFeeStandard = 300
+
+/**
+ * 演示固定时间（与场景服务 DEMO_NOW / 平台运营服务 appendAudit 一致）：
+ * 通知与审计共用同一演示时钟，不做真实时限调度。
+ */
+const DEMO_NOW = '2026-08-12 09:00'
+
+/**
+ * 专家端演示人格在派单场景中的任务号（与场景服务 createDemoTask 一致）：
+ * 场景快照通知据此关联任务跳转。
+ */
+const SCENARIO_TASK_ID = 'task-e-2026-042'
+
+/** 专家端场景快照通知：仅装载与快照一致的专家侧消息（诚实投影）。 */
+export function expertScenarioNotifications(
+  preset?: import('./types').ExpertScenarioPreset,
+): RoleNotification[] {
+  if (preset !== 'INVITED') return []
+  return [
+    {
+      id: 'notification-expert-invited',
+      recipientRole: 'expert',
+      kind: 'TASK_INVITED',
+      message: '收到新的评审邀请：面向复杂场景的多模态知识推理研究（HY-2026-0042），请于 8 月 26 日 18:00 前接单。',
+      createdAt: DEMO_NOW,
+      read: false,
+      taskId: SCENARIO_TASK_ID,
+    },
+  ]
+}
+
+/**
+ * 运营端场景快照通知：仅装载与快照状态一致的平台侧消息（诚实投影）。
+ * - PENDING_REASSIGNMENT：快照含已拒绝任务 → 待改派提醒（TASK_REJECTED）；
+ * - 其余派单预设：平台侧无待处理消息（通知由专家动作事件产生，见 scenarioService）；
+ * - CORRECTION_PENDING：更正/提现由运营队列（PAGE-007/PAGE-020/PAGE-022）承载，不重复造消息。
+ */
+export function platformScenarioNotifications(
+  preset?: PlatformScenarioPreset,
+): RoleNotification[] {
+  if (preset === 'PENDING_REASSIGNMENT') {
+    return [
+      {
+        id: 'notification-platform-task-rejected',
+        recipientRole: 'platform_reviewer',
+        kind: 'TASK_REJECTED',
+        message: '专家周明远拒绝接单（原因：时间不足），请及时改派其他专家。',
+        createdAt: DEMO_NOW,
+        read: false,
+        taskId: SCENARIO_TASK_ID,
+      },
+    ]
+  }
+  return []
+}
 
 /**
  * 演示评审版本（只读快照，非真实论文内容）。专家最终提交后生成；
@@ -259,6 +316,8 @@ export function createInitialPlatformState(): PlatformState {
     auditLog: [],
     dispatchTheses: structuredClone(dispatchThesisSeeds),
     reviewVersions: structuredClone(demoReviewVersions),
+    // 角色通知：初始为空，由业务动作/场景装载生成（见 scenarioService 通知事件）。
+    notifications: [],
   }
 }
 

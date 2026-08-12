@@ -213,7 +213,7 @@ export interface StudentObjection {
 
 interface StudentNotificationBase {
   id: string
-  recipientRole?: 'student' | 'school_reviewer'
+  recipientRole?: 'student' | 'school_reviewer' | 'platform_reviewer' | 'expert'
   message: string
   createdAt: string
   read: boolean
@@ -236,6 +236,34 @@ export type StudentNotification =
       kind: 'DEMO_DATA_RESET'
       thesisId?: never
     })
+
+/** Task 9：运营端与专家端的角色通知（PAGE-015，与学生端通知共用展示组件与隔离模式）。 */
+export interface RoleNotification {
+  id: string
+  recipientRole: 'platform_reviewer' | 'expert'
+  kind:
+    /** 派单邀请（专家待接受）。 */
+    | 'TASK_INVITED'
+    /** 专家已接受（平台待跟进）。 */
+    | 'TASK_ACCEPTED'
+    /** 专家拒绝接单（平台待改派）。 */
+    | 'TASK_REJECTED'
+    /** 专家接单超时（平台待改派；演示投影，不模拟真实时限调度）。 */
+    | 'TASK_TIMEOUT'
+    /** 平台催审提醒（专家）。 */
+    | 'REVIEW_REMINDER'
+    /** 更正审批结果（专家）。 */
+    | 'CORRECTION_DECIDED'
+    /** 提现审核/付款结果（专家）。 */
+    | 'WITHDRAWAL_DECIDED'
+  message: string
+  createdAt: string
+  read: boolean
+  /** 任务类通知的关联任务（跳转 /expert/tasks 的任务详情）。 */
+  taskId?: string
+  /** 提现类通知的关联申请（跳转 /expert/finance 的提现记录）。 */
+  withdrawalId?: string
+}
 
 export type StudentScenarioPreset =
   | 'DRAFT'
@@ -848,6 +876,15 @@ export interface PlatformOperationService {
   listExpertLedger(): Promise<ExpertLedgerEntry[]>
   /** Task 8 专家端提交提现申请（≤ 可提现必填；幂等防重复；生成运营可审的 WithdrawalRequest）。 */
   submitWithdrawal(amount: number): Promise<WithdrawalRequest>
+  /** Task 9：按 recipientRole 隔离的两角色通知（platform_reviewer/expert，不可变快照）。 */
+  listRoleNotifications(role: 'platform_reviewer' | 'expert'): Promise<RoleNotification[]>
+  /** Task 9：标记本角色单条通知已读（只影响该角色自己的通知）。 */
+  markRoleNotificationRead(
+    role: 'platform_reviewer' | 'expert',
+    id: string,
+  ): Promise<RoleNotification[]>
+  /** Task 9：标记本角色全部通知已读（不影响其他角色与学校通知）。 */
+  markAllRoleNotificationsRead(role: 'platform_reviewer' | 'expert'): Promise<RoleNotification[]>
 }
 
 /** 专家端本人资料保存输入（姓名只读，服务端忽略任何改名尝试）。 */
@@ -878,6 +915,8 @@ export interface PlatformState {
   auditLog: AuditLogEntry[]
   /** Task 4 起：评阅版本历史（新旧版本均保留，只读）。 */
   reviewVersions: ReviewVersion[]
+  /** Task 9 起：两角色（platform_reviewer/expert）角色通知（PAGE-015 数据源）。 */
+  notifications: RoleNotification[]
 }
 
 export class PlatformOperationError extends Error {

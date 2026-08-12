@@ -10,7 +10,9 @@ import {
   createCorrectionSettlementScenario,
   createDispatchScenario,
   demoLedgerSeed,
+  expertScenarioNotifications,
   initialAuditEntries,
+  platformScenarioNotifications,
   type PlatformState as FixturePlatformState,
 } from './platformFixtures'
 import type { PlatformState } from './platformFixtures'
@@ -33,6 +35,7 @@ import type {
   PlatformScenarioPreset,
   ReviewDimensionKey,
   ReviewScoreInput,
+  RoleNotification,
   ScenarioService,
   SchoolSubmissionInput,
   StorageLike,
@@ -353,6 +356,27 @@ function appendLedgerEntry(
 }
 
 /**
+ * Task 9：追加角色通知（只追加不可覆盖，与费用流水/审计同一演示时钟）。
+ * 通知与审计分开保存：审计面向运营留痕，通知面向两角色的站内消息投影（PAGE-015）。
+ */
+function appendNotification(
+  platform: PlatformState,
+  entry: Omit<RoleNotification, 'id' | 'createdAt'>,
+): PlatformState {
+  return {
+    ...platform,
+    notifications: [
+      ...platform.notifications,
+      {
+        ...entry,
+        id: `notification-${Date.now()}-${platform.notifications.length + 1}`,
+        createdAt: DEMO_NOW,
+      },
+    ],
+  }
+}
+
+/**
  * 专家账户投影（PAGE-014 我的账户）：可提现/冻结金额由费用流水汇总（只读），
  * 与历史 expertAccount 字段保持兼容。演示为 number（Decimal 语义由页面格式化两位小数）。
  *
@@ -522,12 +546,22 @@ export function createScenarioService(
       status: 'IN_REVIEW',
       materialsVisible: true,
     }
-    platformState = {
-      ...platformState,
-      expertTasks: platformState.expertTasks.map((task) =>
-        task.id === taskId ? updated : task,
-      ),
-    }
+    platformState = appendNotification(
+      {
+        ...platformState,
+        expertTasks: platformState.expertTasks.map((task) =>
+          task.id === taskId ? updated : task,
+        ),
+      },
+      // Task 9：专家接受后通知平台（PAGE-007 待接受队列跟进；演示投影，不宣称真实消息发送）。
+      {
+        recipientRole: 'platform_reviewer',
+        kind: 'TASK_ACCEPTED',
+        message: `专家已接受任务：${personaTask.anonymousTitle}（${personaTask.anonymousId}）。`,
+        read: false,
+        taskId: taskId,
+      },
+    )
     persistPlatform()
     return projectExpertTask(updated)
   }
@@ -552,25 +586,35 @@ export function createScenarioService(
       throw new PlatformOperationError('STATE_CONFLICT', '仅待接受任务可以拒绝。')
     }
     const updated: ExpertTaskSummary = { ...personaTask, status: 'REJECTED' }
-    platformState = {
-      ...platformState,
-      expertTasks: platformState.expertTasks.map((task) =>
-        task.id === taskId ? updated : task,
-      ),
-      auditLog: [
-        {
-          id: `audit-expert-reject-${Date.now()}`,
-          action: 'REJECT',
-          thesisId: personaTask.thesisId,
-          expertId: personaTask.expertId,
-          taskId,
-          detail: `专家拒绝接单（原因：${reason.trim()}），等待平台改派。`,
-          operator: '周明远',
-          occurredAt: '2026-08-12 09:00',
-        },
-        ...platformState.auditLog,
-      ],
-    }
+    platformState = appendNotification(
+      {
+        ...platformState,
+        expertTasks: platformState.expertTasks.map((task) =>
+          task.id === taskId ? updated : task,
+        ),
+        auditLog: [
+          {
+            id: `audit-expert-reject-${Date.now()}`,
+            action: 'REJECT',
+            thesisId: personaTask.thesisId,
+            expertId: personaTask.expertId,
+            taskId,
+            detail: `专家拒绝接单（原因：${reason.trim()}），等待平台改派。`,
+            operator: '周明远',
+            occurredAt: '2026-08-12 09:00',
+          },
+          ...platformState.auditLog,
+        ],
+      },
+      // Task 9：专家拒绝后通知平台（PAGE-007 待改派队列跟进）。
+      {
+        recipientRole: 'platform_reviewer',
+        kind: 'TASK_REJECTED',
+        message: `专家拒绝接单（原因：${reason.trim()}），请及时改派其他专家。`,
+        read: false,
+        taskId: taskId,
+      },
+    )
     persistPlatform()
     return projectExpertTask(updated)
   }
@@ -790,6 +834,7 @@ export function createScenarioService(
     },
     demoMode: options.demoMode ?? true,
     appendLedgerEntry,
+    appendNotification,
   })
 
   /** 学生在读的论文（thesis-main）与平台派单投影同步：待派→待接受→评阅中。 */
@@ -1250,6 +1295,7 @@ export function createScenarioService(
         `${NOW.getFullYear()}-${String(NOW.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')} ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`
       if (preset === 'CORRECTION_PENDING') {
         // Task 4 结算演示场景：待审批更正申请 + 待审核提现（本地快照）。
+        // 平台侧待办由运营队列（PAGE-007/PAGE-020/PAGE-022）承载，不重复造消息。
         platformState = applyExpertLedgerSeeds(createCorrectionSettlementScenario())
         persistPlatform()
         syncThesisStageToDispatch('thesis-main')
@@ -1289,6 +1335,8 @@ export function createScenarioService(
         ...scenario,
         expertTasks: task,
         auditLog: initialAuditEntries(),
+        // Task 9：平台场景快照原子替换通知（仅含与快照一致的平台侧消息）。
+        notifications: platformScenarioNotifications(preset),
       })
       persistPlatform()
       syncThesisStageToDispatch('thesis-main')
@@ -1328,6 +1376,8 @@ export function createScenarioService(
         ...scenario,
         expertTasks: taskForPreset(),
         auditLog: initialAuditEntries(),
+        // Task 9：专家场景快照原子替换通知（仅含与快照一致的专家侧消息）。
+        notifications: expertScenarioNotifications(preset),
       })
       persistPlatform()
       syncThesisStageToDispatch('thesis-main')

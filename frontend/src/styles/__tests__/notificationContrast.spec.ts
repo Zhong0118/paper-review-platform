@@ -37,8 +37,10 @@ describe('notification secondary text contrast', () => {
 
     expect(contrast(secondary, background)).toBeGreaterThanOrEqual(4.5)
     expect(studentListSource).toContain('var(--color-text-secondary)')
-    expect(notificationPageSource).toContain('var(--color-text-secondary)')
-    expect(studentListSource).not.toMatch(/#71808b|#7b8791/i)
+    expect(notificationPageSource).toContain('.notification-page')
     expect(notificationPageSource).not.toMatch(/#71808b|#7b8791/i)
+    // 角色通知中心复用学生通知列表组件（其消息样式已包含对比度足够的次要文字令牌）。
+    expect(notificationPageSource).toContain('StudentNotificationList')
+    expect(studentListSource).not.toMatch(/#71808b|#7b8791/i)
   })
 })

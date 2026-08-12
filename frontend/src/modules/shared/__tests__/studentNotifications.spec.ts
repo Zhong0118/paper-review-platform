@@ -314,20 +314,17 @@ describe('student notifications', () => {
     expect(router.currentRoute.value.path).toBe('/notifications')
   })
 
-  it('keeps the existing demonstration projection for non-student roles', async () => {
+  it('projects the role notification list for the expert without the static message sheet', async () => {
     const service = createScenarioService({ storage: createMemoryStorage(), demoMode: true })
     const listStudent = vi.spyOn(service, 'listStudentNotifications')
+    const listRole = vi.spyOn(service, 'listRoleNotifications')
     const { wrapper } = await mountNotifications(service, 'expert')
 
-    expect(wrapper.text()).toContain('评审任务状态发生变化')
-    expect(wrapper.text()).toContain('演示环境数据说明')
-    expect(wrapper.find('[data-student-notification-list]').exists()).toBe(false)
+    expect(wrapper.get('[data-role-notification-list]').exists()).toBe(true)
     expect(listStudent).not.toHaveBeenCalled()
-    expect(wrapper.findAll('[data-notification-read-state]').map((state) => state.text())).toEqual([
-      '未读',
-      '未读',
-      '已读',
-    ])
+    expect(listRole).toHaveBeenCalledWith('expert')
+    expect(wrapper.get('[data-notification-count="all"]').text()).toContain('0')
+    expect(wrapper.find('.message-sheet').exists()).toBe(false)
   })
 
   it('keeps school notifications outside student list and unread after student mark-all', async () => {

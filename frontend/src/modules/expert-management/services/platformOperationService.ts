@@ -19,6 +19,7 @@ import type {
   PaymentResult,
   PlatformState,
   ReviewVersion,
+  RoleNotification,
   WithdrawalRequest,
   WithdrawalReviewDecision,
 } from '@/demo/types'
@@ -38,6 +39,11 @@ interface PlatformOperationDependencies {
   demoMode: boolean
   /** Task 8：费用流水只追加写入（专家端账户投影由流水汇总）。 */
   appendLedgerEntry: (platform: PlatformState, entry: Omit<ExpertLedgerEntry, 'id' | 'occurredAt'>) => PlatformState
+  /** Task 9：角色通知只追加写入（PAGE-015 数据源；演示投影，不宣称真实消息发送）。 */
+  appendNotification: (
+    platform: PlatformState,
+    entry: Omit<RoleNotification, 'id' | 'createdAt'>,
+  ) => PlatformState
 }
 
 const ASSIGNMENT_DUE_DAYS = 14
@@ -152,6 +158,9 @@ export function createPlatformOperationService(
   | 'recordWithdrawalPayment'
   | 'getExpertProfile'
   | 'saveExpertProfile'
+  | 'listRoleNotifications'
+  | 'markRoleNotificationRead'
+  | 'markAllRoleNotificationsRead'
 > {
   const ensureDemoMode = () => {
     if (!deps.demoMode) {
@@ -447,14 +456,24 @@ export function createPlatformOperationService(
         ),
       }
       deps.setState(
-        appendAudit(next, {
-          action: 'ASSIGN',
-          thesisId,
-          expertId,
-          taskId: task.id,
-          detail: `指派 ${expert.name}（第 ${thesis.round} 轮）`,
-          operator: '陈岚',
-        }),
+        appendAudit(
+          // Task 9：派单生成专家待接单通知（TASK_INVITED，跳转 /expert/tasks）。
+          deps.appendNotification(next, {
+            recipientRole: 'expert',
+            kind: 'TASK_INVITED',
+            message: `收到新的评审邀请：${thesis.title}（${thesis.anonymousId}），请于 ${task.dueAt} 前接单。`,
+            read: false,
+            taskId: task.id,
+          }),
+          {
+            action: 'ASSIGN',
+            thesisId,
+            expertId,
+            taskId: task.id,
+            detail: `指派 ${expert.name}（第 ${thesis.round} 轮）`,
+            operator: '陈岚',
+          },
+        ),
       )
       return immutable(task)
     },
@@ -498,14 +517,24 @@ export function createPlatformOperationService(
         ],
       }
       deps.setState(
-        appendAudit(next, {
-          action: 'REASSIGN',
-          thesisId: oldTask.thesisId,
-          expertId,
-          taskId: newTask.id,
-          detail: `改派至 ${replacement.name}（原因：${reason.trim()}）`,
-          operator: '陈岚',
-        }),
+        appendAudit(
+          // Task 9：改派 = 原任务 CANCELLED + 同轮新建；给替代专家发新的接单邀请。
+          deps.appendNotification(next, {
+            recipientRole: 'expert',
+            kind: 'TASK_INVITED',
+            message: `收到改派后的评审邀请：${thesis.title}（${thesis.anonymousId}），请于 ${newTask.dueAt} 前接单。`,
+            read: false,
+            taskId: newTask.id,
+          }),
+          {
+            action: 'REASSIGN',
+            thesisId: oldTask.thesisId,
+            expertId,
+            taskId: newTask.id,
+            detail: `改派至 ${replacement.name}（原因：${reason.trim()}）`,
+            operator: '陈岚',
+          },
+        ),
       )
       return immutable(newTask)
     },
@@ -519,13 +548,23 @@ export function createPlatformOperationService(
         )
       }
       deps.setState(
-        appendAudit(deps.getState(), {
-          action: 'REMIND',
-          taskId,
-          thesisId: task.thesisId,
-          detail: `催审提醒（${task.status === 'INVITED' ? '待接受' : '评阅中'}）`,
-          operator: '陈岚',
-        }),
+        appendAudit(
+          // Task 9：催审给专家发 REVIEW_REMINDER（演示投影，不模拟真实时限调度）。
+          deps.appendNotification(deps.getState(), {
+            recipientRole: 'expert',
+            kind: 'REVIEW_REMINDER',
+            message: `平台催审提醒：评审任务 ${task.anonymousId}（${task.status === 'INVITED' ? '待接受' : '评阅中'}）请尽快处理。`,
+            read: false,
+            taskId: task.id,
+          }),
+          {
+            action: 'REMIND',
+            taskId,
+            thesisId: task.thesisId,
+            detail: `催审提醒（${task.status === 'INVITED' ? '待接受' : '评阅中'}）`,
+            operator: '陈岚',
+          },
+        ),
       )
       return immutable({ ...task })
     },
@@ -716,14 +755,24 @@ export function createPlatformOperationService(
           ],
         }
         deps.setState(
-          appendAudit(nextState, {
-            action: 'CORRECTION_DECIDED',
-            thesisId: request.anonymousId,
-            taskId: request.taskId,
-            expertId: request.expertId,
-            detail: `批准更正（${reason.trim()}）：生成新版本 R${latest + 1}，旧版本只读保留。`,
-            operator: '陈岚',
-          }),
+          appendAudit(
+            // Task 9：更正审批结果（批准）通知专家（跳转 /expert/tasks 任务详情）。
+            deps.appendNotification(nextState, {
+              recipientRole: 'expert',
+              kind: 'CORRECTION_DECIDED',
+              message: `更正申请已批准（审核意见：${reason.trim()}）：评阅版本已更新为 R${latest + 1}。`,
+              read: false,
+              taskId: request.taskId,
+            }),
+            {
+              action: 'CORRECTION_DECIDED',
+              thesisId: request.anonymousId,
+              taskId: request.taskId,
+              expertId: request.expertId,
+              detail: `批准更正（${reason.trim()}）：生成新版本 R${latest + 1}，旧版本只读保留。`,
+              operator: '陈岚',
+            },
+          ),
         )
         return immutable(
           nextState.correctionRequests.find((item) => item.id === id) as CorrectionRequest,
@@ -736,14 +785,24 @@ export function createPlatformOperationService(
         ),
       }
       deps.setState(
-        appendAudit(nextState, {
-          action: 'CORRECTION_DECIDED',
-          thesisId: request.anonymousId,
-          taskId: request.taskId,
-          expertId: request.expertId,
-          detail: `驳回更正（${reason.trim()}）：保留原评阅版本。`,
-          operator: '陈岚',
-        }),
+        appendAudit(
+          // Task 9：更正审批结果（驳回）同样通知专家（审批闭环，两种结果均落通知）。
+          deps.appendNotification(nextState, {
+            recipientRole: 'expert',
+            kind: 'CORRECTION_DECIDED',
+            message: `更正申请已驳回（审核意见：${reason.trim()}）：保留原评阅版本。`,
+            read: false,
+            taskId: request.taskId,
+          }),
+          {
+            action: 'CORRECTION_DECIDED',
+            thesisId: request.anonymousId,
+            taskId: request.taskId,
+            expertId: request.expertId,
+            detail: `驳回更正（${reason.trim()}）：保留原评阅版本。`,
+            operator: '陈岚',
+          },
+        ),
       )
       return immutable(
         nextState.correctionRequests.find((item) => item.id === id) as CorrectionRequest,
@@ -814,6 +873,8 @@ export function createPlatformOperationService(
       deps.setState(
         appendAudit(
           // Task 8：驳回解除冻结（RELEASE 入账），金额原路回到可提现（流水只追加）。
+          // Task 9：审核通过进入线下付款时通知专家（最终结果由付款回填后发出，
+          // 见 recordWithdrawalPayment；此处提示审核结果，避免专家端长时间无感知）。
           decision === 'REJECT'
             ? deps.appendLedgerEntry(nextState, {
                 kind: 'RELEASE',
@@ -821,7 +882,13 @@ export function createPlatformOperationService(
                 description: `提现驳回：解除冻结 ¥ ${withdrawal.amount.toFixed(2)}（${reason.trim()}）。`,
                 withdrawalId: id,
               })
-            : nextState,
+            : deps.appendNotification(nextState, {
+                recipientRole: 'expert',
+                kind: 'WITHDRAWAL_DECIDED',
+                message: `提现申请 ${id}（¥ ${withdrawal.amount.toFixed(2)}）已审核通过，平台将线下付款。`,
+                read: false,
+                withdrawalId: id,
+              }),
           {
             action: 'WITHDRAWAL_REVIEWED',
             expertId: withdrawal.expertId,
@@ -981,17 +1048,61 @@ export function createPlatformOperationService(
         })
       }
       deps.setState(
-        appendAudit(nextState, {
-          action: 'PAYMENT_RECORDED',
-          expertId: withdrawal.expertId,
-          detail:
-            result === 'SUCCESS'
-              ? `线下付款回填成功（凭证号 ${voucher.trim()}）。`
-              : `线下付款回填失败（凭证号 ${voucher.trim()}），保持待付款。`,
-          operator: '陈岚',
-        }),
+        appendAudit(
+          // Task 9：付款回填成功才发提现结果终态通知（失败仅审计留痕，不产生结果消息）。
+          result === 'SUCCESS'
+            ? deps.appendNotification(nextState, {
+                recipientRole: 'expert',
+                kind: 'WITHDRAWAL_DECIDED',
+                message: `提现申请 ${id}（¥ ${withdrawal.amount.toFixed(2)}）已付款成功（凭证号 ${voucher.trim()}）。`,
+                read: false,
+                withdrawalId: id,
+              })
+            : nextState,
+          {
+            action: 'PAYMENT_RECORDED',
+            expertId: withdrawal.expertId,
+            detail:
+              result === 'SUCCESS'
+                ? `线下付款回填成功（凭证号 ${voucher.trim()}）。`
+                : `线下付款回填失败（凭证号 ${voucher.trim()}），保持待付款。`,
+            operator: '陈岚',
+          },
+        ),
       )
       return immutable(recorded)
+    },
+    /** Task 9：角色通知列表（按 recipientRole 隔离，不可变快照）。 */
+    listRoleNotifications: async (role: RoleNotification['recipientRole']) => {
+      ensureDemoMode()
+      return immutable(deps.getState().notifications.filter((item) => item.recipientRole === role))
+    },
+    /** Task 9：标记本角色单条通知已读（只影响该角色自己的通知）。 */
+    markRoleNotificationRead: async (role: RoleNotification['recipientRole'], id: string) => {
+      ensureDemoMode()
+      const state = deps.getState()
+      const visibleIds = new Set(
+        state.notifications.filter((item) => item.recipientRole === role).map((item) => item.id),
+      )
+      deps.setState({
+        ...state,
+        notifications: state.notifications.map((item) =>
+          item.id === id && visibleIds.has(item.id) ? { ...item, read: true } : item,
+        ),
+      })
+      return immutable(deps.getState().notifications.filter((item) => item.recipientRole === role))
+    },
+    /** Task 9：标记本角色全部通知已读（不影响其他角色与学校通知）。 */
+    markAllRoleNotificationsRead: async (role: RoleNotification['recipientRole']) => {
+      ensureDemoMode()
+      const state = deps.getState()
+      deps.setState({
+        ...state,
+        notifications: state.notifications.map((item) =>
+          item.recipientRole === role ? { ...item, read: true } : item,
+        ),
+      })
+      return immutable(deps.getState().notifications.filter((item) => item.recipientRole === role))
     },
   }
 }
