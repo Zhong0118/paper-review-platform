@@ -1,8 +1,35 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import type { ExpertTaskSummary } from '@/demo/types'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useScenarioService } from '@/demo/serviceProvider'
+import type { ExpertDemoFileValidationScenario, ExpertTaskSummary } from '@/demo/types'
 
 const props = defineProps<{ task?: ExpertTaskSummary | null }>()
+
+/**
+ * 匿名版文件校验状态（Task 10 辅助投影，演示只读、不读取正文）：
+ * 数据源为专家端演示控制器的「文件校验状态」切换（getExpertDemoFileValidation）。
+ * 真实文件解析未实现：页面仅展示状态标签，不宣称真实校验能力。
+ */
+const fileValidation = ref<ExpertDemoFileValidationScenario>('VALID')
+const service = useScenarioService()
+
+async function refreshFileValidation() {
+  try {
+    fileValidation.value = await service.getExpertDemoFileValidation()
+  } catch {
+    // 演示服务不可用（非演示模式等）：保留默认「校验通过」标签。
+    fileValidation.value = 'VALID'
+  }
+}
+
+onMounted(refreshFileValidation)
+
+// 任务投影变化（演示场景切换触发 changed → 页面重读 task 并赋新对象引用）时
+// 同步重读校验状态，使控制器「文件校验状态」切换立即可见，无需整页刷新。
+watch(
+  () => props.task,
+  () => void refreshFileValidation(),
+)
 
 // 匿名版文件（演示只读，不提供下载，不读取正文）。
 const files = computed(() =>
@@ -12,12 +39,12 @@ const files = computed(() =>
       name: '匿名版_HY-2026-0042.pdf',
       size: 1843200,
       mimeType: 'application/pdf',
-      validationStatus: 'VALID',
+      validationStatus: fileValidation.value,
     },
   ].map((file) => ({
     ...file,
     size: `${(file.size / 1024).toFixed(0)} KB`,
-    validationStatusLabel: file.validationStatus === 'VALID' ? '校验通过' : '校验中',
+    validationStatusLabel: file.validationStatus === 'VALID' ? '校验通过' : '校验失败',
   })),
 )
 const title = computed(() => props.task?.anonymousTitle ?? '面向复杂场景的多模态知识推理研究')
@@ -43,7 +70,7 @@ const anonymousId = computed(() => props.task?.anonymousId ?? 'HY-2026-0042')
         <li v-for="file in files" :key="file.id" data-file-meta>
           <span>{{ file.name }}</span>
           <code>{{ file.size }}</code>
-          <mark>{{ file.validationStatusLabel }}</mark>
+          <mark :data-file-validation="file.validationStatus">{{ file.validationStatusLabel }}</mark>
         </li>
       </ul>
     </div>
@@ -145,5 +172,10 @@ const anonymousId = computed(() => props.task?.anonymousId ?? 'HY-2026-0042')
   border-radius: 0.25rem;
   background: #edf7ee;
   color: #28642d;
+}
+
+.file-list mark[data-file-validation='INVALID'] {
+  background: #fbeaea;
+  color: #b03232;
 }
 </style>

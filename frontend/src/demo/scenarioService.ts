@@ -1040,7 +1040,15 @@ export function createScenarioService(
       // 最终提交防重复（服务端强制，评审要求）：论文级已提交（快照 taskStatus 为
       // SUBMITTED）即视为终态，重复提交直接返回当前快照（幂等空操作），不重复计账、
       // 不追加评阅版本、不重复扣减学校账户。
-      if (state.taskStatus === 'SUBMITTED') {
+      // 论文级终态以平台任务投影派生为准：结算演示场景等装载只写平台投影（学生端
+      // 快照状态不回退），快照 taskStatus 可能残留 SUBMITTED。命中残留锁但平台任务
+      // 仍在 INVITED/IN_REVIEW 时按真实提交执行并重写结果状态（Task 11 回归修复：
+      // 装载场景后继续走 派单→接单→提交 闭环不再被幂等早退吞掉）。
+      const activeThesisTask = platformState.expertTasks.find(
+        (task) =>
+          task.thesisId === demoThesis.id && ['INVITED', 'IN_REVIEW'].includes(task.status),
+      )
+      if (state.taskStatus === 'SUBMITTED' && !activeThesisTask) {
         return snapshot()
       }
       // 专家任务层（acceptExpertTask / rejectExpertTask）已按「仅本人任务」守卫；
@@ -1343,6 +1351,10 @@ export function createScenarioService(
         state = { ...state, activeRole: 'platform_reviewer' }
         persist()
       }
+      // 与专家端装载一致：原子快照每次装载都清除评阅草稿/结果投影——上一场景的
+      // 陈旧草稿不得在后续快照（学生端视图或专家端）上复活（Task 11 对称修复）。
+      state = { ...state, review: { draftSaved: false, submitted: false } }
+      persist()
       // 演示时钟固定 2026-08-12 09:00（与平台服务一致），时限派生以此为准。
       const NOW = new Date('2026-08-12T09:00:00')
       const at = (day: number, hour = 18, minute = 0) =>

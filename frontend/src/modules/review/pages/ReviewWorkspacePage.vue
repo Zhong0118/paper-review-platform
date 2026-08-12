@@ -243,6 +243,7 @@ async function confirmCorrection() {
   try {
     await service.requestCorrection(task.value.id, correctionReason.value.trim())
     correctionOpen.value = false
+    correctionPending.value = false
     notice.value = '更正申请已提交，等待平台审批；原评阅版本仍保留。'
   } catch (err) {
     correctionError.value = err instanceof Error ? err.message : '更正申请提交失败。'
