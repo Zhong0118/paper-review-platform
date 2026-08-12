@@ -219,6 +219,8 @@ export function createInitialPlatformState(): PlatformState {
     expertTasks: [],
     correctionRequests: [],
     withdrawals: [],
+    // 费用流水：演示加载不含预置条目，入账由最终提交/提现等业务动作只追加生成。
+    expertLedger: [],
     auditLog: [],
     dispatchTheses: structuredClone(dispatchThesisSeeds),
     reviewVersions: structuredClone(demoReviewVersions),

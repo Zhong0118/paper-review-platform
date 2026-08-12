@@ -758,6 +758,8 @@ export interface WithdrawalRequest {
   maskedAccount: string
   /** 线下付款凭证号（回填成功时写入，幂等校验依据）。 */
   voucherNo?: string
+  /** 线下付款时间（回填成功时写入；演示固定时间，不模拟真实支付）。 */
+  paidAt?: string
   /** 付款失败等处理备注（演示投影）。 */
   paymentNote?: string
   /** 历史处理记录（只追加）。 */
@@ -773,6 +775,22 @@ export interface WithdrawalHistoryEntry {
 
 export type WithdrawalReviewDecision = 'APPROVE' | 'REJECT'
 export type PaymentResult = 'SUCCESS' | 'FAILED'
+
+/** Task 8 专家端费用流水条目（只追加不可覆盖，可审计投影）。 */
+export type ExpertLedgerKind = 'REVIEW_CREDIT' | 'WITHDRAWAL' | 'RELEASE' | 'PAYMENT' | 'REVERSAL'
+
+/** 费用流水条目：金额带符号（入账正数、冻结/付款负数）；REVIEW_CREDIT 由有效评阅入账生成。 */
+export interface ExpertLedgerEntry {
+  id: string
+  kind: ExpertLedgerKind
+  /** 带符号金额：REVIEW_CREDIT/RELEASE/REVERSAL 为正，WITHDRAWAL/PAYMENT 为负。 */
+  amount: number
+  /** 流水说明（页面直接展示，演示文案）。 */
+  description: string
+  occurredAt: string
+  /** 关联提现申请（WITHDRAWAL/RELEASE/PAYMENT 条目必带）。 */
+  withdrawalId?: string
+}
 
 /** 十条运营队列的计数投影。 */
 export interface OperationsQueueCounts extends Record<OperationsQueue, number> {}
@@ -826,6 +844,10 @@ export interface PlatformOperationService {
   getExpertProfile(): Promise<ExpertSelfProfile>
   /** Task 7 专家本人保存资料（姓名只读；Tags≤8 去重；学科受控目录；变更写审计）。 */
   saveExpertProfile(input: ExpertProfileSaveInput): Promise<ExpertSelfProfile>
+  /** Task 8 专家端本人费用流水（PAGE-014，只追加只读可审计投影）。 */
+  listExpertLedger(): Promise<ExpertLedgerEntry[]>
+  /** Task 8 专家端提交提现申请（≤ 可提现必填；幂等防重复；生成运营可审的 WithdrawalRequest）。 */
+  submitWithdrawal(amount: number): Promise<WithdrawalRequest>
 }
 
 /** 专家端本人资料保存输入（姓名只读，服务端忽略任何改名尝试）。 */
@@ -848,6 +870,8 @@ export interface PlatformState {
   correctionRequests: CorrectionRequest[]
   /** 专家提现申请（PAGE-022 数据源，演示投影）。 */
   withdrawals: WithdrawalRequest[]
+  /** Task 8 起：专家费用流水（只追加不可覆盖，可审计投影；REVIEW_CREDIT 由最终提交计账）。 */
+  expertLedger: ExpertLedgerEntry[]
   /** Task 3 起：运营派单论文投影（本地演示快照）。 */
   dispatchTheses: DispatchThesisSeed[]
   /** Task 3 起：关键操作审计（演示投影）。 */

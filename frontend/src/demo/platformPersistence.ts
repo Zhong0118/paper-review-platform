@@ -4,6 +4,8 @@ import type {
   AuditLogEntry,
   CorrectionRequest,
   DispatchThesisSeed,
+  ExpertLedgerEntry,
+  ExpertLedgerKind,
   ExpertProfile,
   ExpertProfileAction,
   ExpertQualificationStatus,
@@ -381,6 +383,7 @@ function normalizeWithdrawals(value: unknown): WithdrawalRequest[] {
         bankName: typeof source.bankName === 'string' ? source.bankName : '',
         maskedAccount: typeof source.maskedAccount === 'string' ? source.maskedAccount : '',
         ...(typeof source.voucherNo === 'string' ? { voucherNo: source.voucherNo } : {}),
+        ...(typeof source.paidAt === 'string' ? { paidAt: source.paidAt } : {}),
         ...(typeof source.paymentNote === 'string' ? { paymentNote: source.paymentNote } : {}),
         history: normalizeWithdrawalHistory(source.history),
       },
@@ -415,6 +418,42 @@ function normalizeReviewVersions(value: unknown): ReviewVersion[] {
   })
 }
 
+function normalizeExpertLedger(value: unknown): ExpertLedgerEntry[] {
+  if (!Array.isArray(value)) return []
+  const kinds: ExpertLedgerKind[] = [
+    'REVIEW_CREDIT',
+    'WITHDRAWAL',
+    'RELEASE',
+    'PAYMENT',
+    'REVERSAL',
+  ]
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object') return []
+    const source = entry as Record<string, unknown>
+    if (
+      typeof source.id !== 'string' ||
+      typeof source.amount !== 'number' ||
+      typeof source.description !== 'string' ||
+      typeof source.occurredAt !== 'string'
+    ) {
+      return []
+    }
+    const kind = kinds.includes(source.kind as ExpertLedgerKind)
+      ? (source.kind as ExpertLedgerKind)
+      : 'REVIEW_CREDIT'
+    return [
+      {
+        id: source.id,
+        kind,
+        amount: source.amount,
+        description: source.description,
+        occurredAt: source.occurredAt,
+        ...(typeof source.withdrawalId === 'string' ? { withdrawalId: source.withdrawalId } : {}),
+      },
+    ]
+  })
+}
+
 export function loadPlatformDemo(storage: StorageLike): LoadedPlatformDemo {
   const raw = storage.getItem(platformPersistenceKey)
   if (!raw) {
@@ -439,6 +478,8 @@ export function loadPlatformDemo(storage: StorageLike): LoadedPlatformDemo {
         withdrawals: normalizeWithdrawals(saved.platform.withdrawals),
         // 旧存档（Task 1–3 写入）没有评阅版本字段：以当前 fixture 兜底。
         reviewVersions: normalizeReviewVersions(saved.platform.reviewVersions),
+        // 旧存档（Task 1–7 写入）没有费用流水字段：以当前 fixture 兜底，行为同首次加载。
+        expertLedger: normalizeExpertLedger(saved.platform.expertLedger),
         // 旧存档（Task 1/2 写入）没有派单论文与审计字段：以当前 fixture 兜底，行为同首次加载。
         dispatchTheses: normalizeDispatchTheses(saved.platform.dispatchTheses),
         auditLog: normalizeAuditLog(saved.platform.auditLog),

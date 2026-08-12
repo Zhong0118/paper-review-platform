@@ -52,6 +52,8 @@ function createUnavailableService(): ScenarioService {
     getSchoolAccount: unavailable,
     getSchoolBills: unavailable,
     getExpertAccount: unavailable,
+    listExpertLedger: unavailable,
+    submitWithdrawal: unavailable,
     acceptExpertTask: unavailable,
     rejectExpertTask: unavailable,
     loadExpertScenario: unavailable,

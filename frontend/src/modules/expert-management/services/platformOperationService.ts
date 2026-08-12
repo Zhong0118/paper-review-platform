@@ -4,6 +4,7 @@ import type {
   CorrectionDecision,
   CorrectionRequest,
   DispatchThesisSeed,
+  ExpertLedgerEntry,
   ExpertMatchCandidate,
   ExpertProfile,
   ExpertProfileAction,
@@ -35,6 +36,8 @@ interface PlatformOperationDependencies {
   getState: () => PlatformState
   setState: (state: PlatformState) => void
   demoMode: boolean
+  /** Task 8：费用流水只追加写入（专家端账户投影由流水汇总）。 */
+  appendLedgerEntry: (platform: PlatformState, entry: Omit<ExpertLedgerEntry, 'id' | 'occurredAt'>) => PlatformState
 }
 
 const ASSIGNMENT_DUE_DAYS = 14
@@ -809,12 +812,23 @@ export function createPlatformOperationService(
         withdrawals: state.withdrawals.map((item) => (item.id === id ? reviewed : item)),
       }
       deps.setState(
-        appendAudit(nextState, {
-          action: 'WITHDRAWAL_REVIEWED',
-          expertId: withdrawal.expertId,
-          detail: `提现${decision === 'APPROVE' ? '通过' : '驳回'}（${reason.trim()}）：${decision === 'APPROVE' ? '进入线下付款' : '解除冻结'}。`,
-          operator: '陈岚',
-        }),
+        appendAudit(
+          // Task 8：驳回解除冻结（RELEASE 入账），金额原路回到可提现（流水只追加）。
+          decision === 'REJECT'
+            ? deps.appendLedgerEntry(nextState, {
+                kind: 'RELEASE',
+                amount: withdrawal.amount,
+                description: `提现驳回：解除冻结 ¥ ${withdrawal.amount.toFixed(2)}（${reason.trim()}）。`,
+                withdrawalId: id,
+              })
+            : nextState,
+          {
+            action: 'WITHDRAWAL_REVIEWED',
+            expertId: withdrawal.expertId,
+            detail: `提现${decision === 'APPROVE' ? '通过' : '驳回'}（${reason.trim()}）：${decision === 'APPROVE' ? '进入线下付款' : '解除冻结'}。`,
+            operator: '陈岚',
+          },
+        ),
       )
       return immutable(reviewed)
     },
@@ -914,6 +928,7 @@ export function createPlatformOperationService(
           ? {
               status: 'PAID',
               voucherNo: voucher.trim(),
+              paidAt: '2026-08-26 11:00',
               paymentNote: undefined,
               history: [
                 ...withdrawal.history,
@@ -937,9 +952,25 @@ export function createPlatformOperationService(
               ],
             }),
       }
-      const nextState: PlatformState = {
+      let nextState: PlatformState = {
         ...state,
         withdrawals: state.withdrawals.map((item) => (item.id === id ? recorded : item)),
+      }
+      // Task 8 费用流水：付款回填只追加（成功记 PAYMENT 付款出账，失败记 REVERSAL 冲正留痕）。
+      if (result === 'SUCCESS') {
+        nextState = deps.appendLedgerEntry(nextState, {
+          kind: 'PAYMENT',
+          amount: -withdrawal.amount,
+          description: `提现付款：线下付款 ¥ ${withdrawal.amount.toFixed(2)}（凭证号 ${voucher.trim()}）。`,
+          withdrawalId: id,
+        })
+      } else {
+        nextState = deps.appendLedgerEntry(nextState, {
+          kind: 'REVERSAL',
+          amount: withdrawal.amount,
+          description: `付款冲正：线下付款失败（凭证号 ${voucher.trim()}），冻结金额原路冲正。`,
+          withdrawalId: id,
+        })
       }
       deps.setState(
         appendAudit(nextState, {
