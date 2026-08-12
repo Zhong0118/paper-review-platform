@@ -11,6 +11,7 @@ import type {
   ExpertProfilePatch,
   ExpertProfileQuery,
   ExpertQualificationAction,
+  ExpertSelfProfile,
   ExpertServiceStatus,
   ExpertTaskSummary,
   OperationsQueueCounts,
@@ -20,6 +21,7 @@ import type {
   WithdrawalRequest,
   WithdrawalReviewDecision,
 } from '@/demo/types'
+import { disciplineCatalog } from '@/modules/thesis/data/disciplineCatalog'
 
 /**
  * 平台运营窄化服务：专家库、运营队列与派单闭环。
@@ -36,6 +38,9 @@ interface PlatformOperationDependencies {
 }
 
 const ASSIGNMENT_DUE_DAYS = 14
+
+/** 专家端演示人格：专家端本人资料仅投影该专家（与场景服务 EXPERT_PERSONA_ID 一致）。 */
+const EXPERT_PERSONA_ID = 'expert-17'
 
 function immutable<T>(value: T): T {
   const freeze = (entry: unknown): void => {
@@ -61,6 +66,49 @@ function actionsFor(
 
 function normalizeResearchTags(tags: string[]) {
   return [...new Set(tags.map((tag) => tag.trim()).filter(Boolean))]
+}
+
+/**
+ * 专家端本人资料投影（PAGE-021）：仅本人可编辑字段。
+ * 不含运营维护字段（服务状态/负载/费率/收款状态），也不含其他专家、
+ * 服务学校列表或其他学校使用记录（双盲红线，见设计 §5.8）。
+ */
+function projectSelfProfile(expert: ExpertProfile): ExpertSelfProfile {
+  return {
+    id: expert.id,
+    name: expert.name,
+    contact: expert.contact ?? '',
+    unit: expert.unit,
+    title: expert.title,
+    discipline: { ...expert.discipline },
+    researchTags: [...expert.researchTags],
+    reviewableTypes: [...expert.reviewableTypes],
+    qualification: expert.qualification,
+    ...(expert.qualificationNote !== undefined
+      ? { qualificationNote: expert.qualificationNote }
+      : {}),
+    qualificationMaterials: (expert.qualificationMaterials ?? []).map((material) => ({
+      ...material,
+    })),
+    avoidStatement: expert.avoidStatement ?? '',
+  }
+}
+
+/** 学科受控目录校验（复用学生端 184 条目目录）：代码与名称必须同时命中同一条目。 */
+function assertControlledDiscipline(discipline: { code: string; name: string }) {
+  const entry = disciplineCatalog.find((item) => item.code === discipline.code)
+  if (!entry || entry.name !== discipline.name) {
+    throw new PlatformOperationError('INVALID_INPUT', '学科专业必须来自受控目录。')
+  }
+}
+
+/** 保存资料输入的审计摘要（仅列出实际变更的字段）。 */
+function changedFields(input: object, current: object) {
+  const inputRecord = input as Record<string, unknown>
+  const currentRecord = current as Record<string, unknown>
+  return Object.keys(inputRecord).filter(
+    (key) => JSON.stringify(inputRecord[key]) !== JSON.stringify(currentRecord[key]),
+  )
 }
 
 /** 演示批次固定费用标准（仅本地快照；正式结算规则以后端为准）。 */
@@ -99,6 +147,8 @@ export function createPlatformOperationService(
   | 'listWithdrawals'
   | 'reviewWithdrawal'
   | 'recordWithdrawalPayment'
+  | 'getExpertProfile'
+  | 'saveExpertProfile'
 > {
   const ensureDemoMode = () => {
     if (!deps.demoMode) {
@@ -255,6 +305,7 @@ export function createPlatformOperationService(
       const expert: ExpertProfile = {
         id,
         name: input.name.trim(),
+        contact: '',
         unit: input.unit.trim(),
         title: input.title.trim(),
         discipline: { ...input.discipline },
@@ -768,6 +819,64 @@ export function createPlatformOperationService(
       return immutable(reviewed)
     },
 
+    /** Task 7 专家端本人资料投影（PAGE-021）：仅本人字段（见 projectSelfProfile）。 */
+    getExpertProfile: async () => {
+      ensureDemoMode()
+      const expert = findExpert(EXPERT_PERSONA_ID)
+      return immutable(projectSelfProfile(expert))
+    },
+    /** Task 7 专家本人保存资料（姓名只读；Tags≤8 去重；学科受控目录；变更写审计）。 */
+    saveExpertProfile: async (input: import('@/demo/types').ExpertProfileSaveInput) => {
+      ensureDemoMode()
+      const expert = findExpert(EXPERT_PERSONA_ID)
+      // 姓名只读（设计 §5.8 按策略只读）：服务端忽略任何改名尝试。
+      if (input.name !== undefined && input.name !== expert.name) {
+        throw new PlatformOperationError('INVALID_INPUT', '姓名不可修改。')
+      }
+      if (input.discipline !== undefined) assertControlledDiscipline(input.discipline)
+      const researchTags =
+        input.researchTags !== undefined
+          ? normalizeResearchTags(input.researchTags)
+          : expert.researchTags
+      if (researchTags.length > 8) {
+        throw new PlatformOperationError('INVALID_INPUT', '擅长方向最多填写 8 个。')
+      }
+      const updates: Partial<ExpertProfile> = {
+        ...(input.contact !== undefined ? { contact: input.contact.trim() } : {}),
+        ...(input.unit !== undefined ? { unit: input.unit.trim() } : {}),
+        ...(input.title !== undefined ? { title: input.title.trim() } : {}),
+        ...(input.discipline !== undefined ? { discipline: { ...input.discipline } } : {}),
+        researchTags,
+        ...(input.reviewableTypes !== undefined
+          ? {
+              reviewableTypes: [
+                ...new Set(
+                  input.reviewableTypes
+                    .map((item) => item.trim())
+                    .filter(Boolean),
+                ),
+              ],
+            }
+          : {}),
+        ...(input.avoidStatement !== undefined
+          ? { avoidStatement: input.avoidStatement.trim() }
+          : {}),
+      }
+      // 无实际变更时不做任何写入（防重复保存的幂等副作用；审计只记录真实变更）。
+      if (changedFields(updates, expert).length === 0) {
+        return immutable(projectSelfProfile(expert))
+      }
+      const updated = patchExpert(EXPERT_PERSONA_ID, updates)
+      deps.setState(
+        appendAudit(deps.getState(), {
+          action: 'PROFILE_UPDATED',
+          expertId: EXPERT_PERSONA_ID,
+          detail: `专家本人保存资料（变更：${changedFields(updates, expert).join('、')}）。`,
+          operator: updated.name,
+        }),
+      )
+      return immutable(projectSelfProfile(updated))
+    },
     recordWithdrawalPayment: async (
       id: string,
       result: PaymentResult,
