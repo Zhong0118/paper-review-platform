@@ -66,3 +66,13 @@ related_documents:
 - 数据来源：`GET /finance/withdrawals`、`GET /finance/withdrawals/{id}`、`POST /finance/withdrawals/{id}:review`、`POST /finance/withdrawals/{id}:record-payment`；
 - 仅具备财务职能权限的百杰侧审核人员；不新增第六个核心角色；
 - 专家通过 PAGE-014 仅查看本人余额、流水和提现状态；学校侧不可见结算信息。
+
+## 六、前端演示实现（2026-08-12）
+
+以下为百杰运营端前端演示证据，仅表示页面可交互闭环，不代表真实 API、数据库或支付已接入。
+
+- 实现页面 `SettlementWorkbenchPage.vue`（结算处理工作台，PAGE-022）：待处理/已处理筛选，提现申请详情面板 `WithdrawalDetailPanel` 展示申请专家（财务职能投影）、金额与收款信息（默认脱敏掩码，完整信息仅演示提示）。
+- 审核流：审核通过（填写审核意见）→ 线下付款回填（凭证号必填）→ 状态 `PAID`，写运营审计（`WITHDRAWAL_REVIEWED`/`PAYMENT_RECORDED`）；重复回填被幂等拦截，不重复计账，原凭证号保留；驳回则申请回到专家端可重新发起。
+- 与专家端闭环联动：专家在 PAGE-014 提交提现申请 → 本页待处理计数 +1；付款完成专家端账户冻结金额扣减、可提现余额更新。
+- 页面右下角在 `VITE_DEMO_MODE=true` 时提供运营端演示场景控制器（CORRECTION_PENDING 等场景装载、一键恢复默认数据），关闭演示模式时不渲染入口。
+- 演示实现为内存场景服务（localStorage 键 `baijie-demo-platform:v1`）的不可变投影；真实财务 API、银行支付与线下回填流程未实现。
