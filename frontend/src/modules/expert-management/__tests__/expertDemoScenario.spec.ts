@@ -162,6 +162,9 @@ describe('expert demo scenario controller', () => {
       expect(studentDirty.student.notifications.length).toBeGreaterThan(0)
 
       const scenarioService = createScenarioService({ storage, demoMode: true })
+      // 恢复专家视角（与真实登录对齐）：评阅投影仅在 expert 角色下可见，
+      // 使「快照清除草稿/结果」断言作用在真实投影上（此前 activeRole 从未对齐，断言空转）。
+      await scenarioService.loginAs('expert')
       const wrapper = mountController(scenarioService)
       await wrapper.get('[data-action="toggle-demo-scenarios"]').trigger('click')
       await wrapper.get(`[data-scenario="${expected.preset}"]`).trigger('click')
@@ -175,8 +178,11 @@ describe('expert demo scenario controller', () => {
         status: expected.taskStatus,
         overdue: expected.overdue,
       })
-      // 原子替换：结果未发布（服务快照无 review 投影）、更正申请与通知与快照一致。
-      expect((await restored.getSnapshot()).review).toBeUndefined()
+      // 原子替换：评阅草稿与结果被快照清除——专家可见投影里没有上一场景的陈旧草稿
+      // （角色由场景装载对齐为 expert，投影真实可见）。
+      const snapshot = await restored.getSnapshot()
+      expect(snapshot.review?.draftSaved).toBe(false)
+      expect(snapshot.review?.scoreInput).toBeUndefined()
       expect(persisted.platform.correctionRequests).toHaveLength(expected.correctionRequests)
       const expertNotificationKinds = (await restored.listRoleNotifications('expert')).map(
         (item) => item.kind,
@@ -188,6 +194,38 @@ describe('expert demo scenario controller', () => {
       wrapper.unmount()
     },
   )
+
+  it('clears a saved draft when switching to a read-only snapshot', async () => {
+    const storage = createMemoryStorage()
+    const service = createScenarioService({ storage, demoMode: true })
+    await service.loginAs('expert')
+    await service.loadExpertScenario('IN_REVIEW')
+    await service.saveReviewDraft({
+      topicValue: 12,
+      literatureTheory: 12,
+      methodology: 16,
+      innovation: 20,
+      resultsWorkload: 12,
+      writingStandards: 8,
+      recommendation: '建议通过',
+      strengths: '结构完整。',
+      issues: '部分章节分析不足。',
+      revisionAdvice: '补充对比实验。',
+      overallComment: '总体良好。',
+    })
+    expect((await service.getSnapshot()).review?.scoreInput?.innovation).toBe(20)
+
+    const wrapper = mountController(service)
+    await wrapper.get('[data-action="toggle-demo-scenarios"]').trigger('click')
+    await wrapper.get('[data-scenario="SUBMITTED"]').trigger('click')
+    await flushPromises()
+
+    // 已提交（只读）快照不保留上一场景的草稿：陈旧草稿不会在只读锁定页面上复活。
+    const snapshot = await service.getSnapshot()
+    expect(snapshot.review?.draftSaved).toBe(false)
+    expect(snapshot.review?.scoreInput).toBeUndefined()
+    expect(wrapper.emitted('changed')).toEqual([[]])
+  })
 
   it('switches the review template auxiliary projection', async () => {
     const service = createScenarioService({ storage: createMemoryStorage(), demoMode: true })

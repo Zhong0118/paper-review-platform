@@ -83,6 +83,8 @@ describe('platform demo scenario controller', () => {
     const queues = await service.listOperationsQueues()
     // 队列计数键与运营台页面消费一致（大写枚举键，见 platformOperationService 投影）。
     expect(queues.COMPLETED).toBeGreaterThan(0)
+    // 场景装载同时对齐演示角色（快照 context 反映平台运营视角，而非默认 student）。
+    expect((await service.getSnapshot()).context.role).toBe('platform_reviewer')
     expect(wrapper.emitted('changed')).toEqual([[]])
   })
 

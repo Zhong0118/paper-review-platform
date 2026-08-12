@@ -68,7 +68,12 @@ async function run(action: () => Promise<unknown>, successMessage: string) {
 
 function loadScenario(preset: PlatformScenarioPreset, label: string) {
   if (!service) return void run(async () => undefined, '')
-  void run(() => service.loadPlatformScenario(preset), `已载入“${label}”一致快照。`)
+  // ensureRole：装载运营快照同时对齐平台运营视角（activeRole），
+  // 否则快照/评阅投影始终按默认 student 角色隐藏，真实应用不可见。
+  void run(
+    () => service.loadPlatformScenario(preset, { ensureRole: true }),
+    `已载入“${label}”一致快照。`,
+  )
 }
 
 function loadEligibility(value: 'APPROVED' | 'REVIEWING' | 'REJECTED', label: string) {

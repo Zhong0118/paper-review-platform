@@ -1329,10 +1329,19 @@ export function createScenarioService(
     },
     acceptExpertTask,
     rejectExpertTask,
-    loadPlatformScenario: async (preset: PlatformScenarioPreset) => {
+    loadPlatformScenario: async (
+      preset: PlatformScenarioPreset,
+      options?: { ensureRole?: boolean },
+    ) => {
       // 环境门禁：仅 VITE_DEMO_MODE=true 时允许装载（服务端强制，页面入口同样被门禁）。
       if (!demoEnabled) {
         throw new PlatformOperationError('DEMO_MODE_DISABLED', '演示模式未启用，无法装载运营端场景。')
+      }
+      // 演示角色对齐：控制器装载运营场景时把快照视角切到平台运营（否则 activeRole
+      // 永远停留在默认 student，评阅/角色投影在真实应用中不可见）。
+      if (options?.ensureRole && state.activeRole !== 'platform_reviewer') {
+        state = { ...state, activeRole: 'platform_reviewer' }
+        persist()
       }
       // 演示时钟固定 2026-08-12 09:00（与平台服务一致），时限派生以此为准。
       const NOW = new Date('2026-08-12T09:00:00')
@@ -1386,11 +1395,24 @@ export function createScenarioService(
       persistPlatform()
       syncThesisStageToDispatch('thesis-main')
     },
-    loadExpertScenario: async (preset: ExpertScenarioPreset) => {
+    loadExpertScenario: async (
+      preset: ExpertScenarioPreset,
+      options?: { ensureRole?: boolean },
+    ) => {
       // 环境门禁：仅 VITE_DEMO_MODE=true 时允许装载（服务端强制，页面入口同样被门禁）。
       if (!demoEnabled) {
         throw new PlatformOperationError('DEMO_MODE_DISABLED', '演示模式未启用，无法装载专家端场景。')
       }
+      // 演示角色对齐：控制器装载专家场景时把快照视角切到专家（否则 activeRole 永远
+      // 停留在默认 student，评阅草稿投影在真实应用中不可见，刷新恢复草稿失效）。
+      if (options?.ensureRole && state.activeRole !== 'expert') {
+        state = { ...state, activeRole: 'expert' }
+        persist()
+      }
+      // 原子快照：每次装载都清除评阅草稿/结果投影——上一场景的陈旧草稿不得在
+      // 只读（SUBMITTED 等）快照上复活，也不得泄漏进下一场景。
+      state = { ...state, review: { draftSaved: false, submitted: false } }
+      persist()
       // 专家端演示场景：原子替换本人任务与匿名材料投影（演示装载，不模拟真实时限调度）。
       const NOW = new Date('2026-08-12T09:00:00')
       const at = (day: number, hour = 18, minute = 0) =>

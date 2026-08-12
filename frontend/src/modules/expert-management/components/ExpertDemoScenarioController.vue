@@ -60,7 +60,12 @@ async function run(action: () => Promise<unknown>, successMessage: string) {
 
 function loadScenario(preset: ExpertScenarioPreset, label: string) {
   if (!service) return void run(async () => undefined, '')
-  void run(() => service.loadExpertScenario(preset), `已载入“${label}”一致快照。`)
+  // ensureRole：装载专家快照同时对齐专家视角（activeRole），
+  // 否则评阅草稿投影始终按默认 student 角色隐藏，刷新恢复草稿失效。
+  void run(
+    () => service.loadExpertScenario(preset, { ensureRole: true }),
+    `已载入“${label}”一致快照。`,
+  )
 }
 
 function loadTemplate(value: ExpertDemoTemplateScenario, label: string) {

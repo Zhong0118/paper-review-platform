@@ -985,8 +985,14 @@ export interface ScenarioService extends StudentPortalService, PlatformOperation
   /** Task 5 专家端拒绝（INVITED→REJECTED，原因必填；触发运营改派提示，不模拟真实通知）。 */
   rejectExpertTask(taskId: string, reason: string): Promise<ExpertTaskSummary>
   /** Task 5 专家端演示场景装载（任务列表/接单详情/逾期/已完成/需要更正/已拒绝）。 */
-  loadExpertScenario(preset: ExpertScenarioPreset): Promise<void>
-  loadPlatformScenario(preset: PlatformScenarioPreset): Promise<void>
+  loadExpertScenario(
+    preset: ExpertScenarioPreset,
+    options?: { ensureRole?: boolean },
+  ): Promise<void>
+  loadPlatformScenario(
+    preset: PlatformScenarioPreset,
+    options?: { ensureRole?: boolean },
+  ): Promise<void>
   /** Task 10 专家库资格辅助场景（复用 reviewExpertQualification 投影）。 */
   setPlatformDemoEligibility(scenario: PlatformDemoEligibilityScenario): Promise<void>
   /** Task 10 专家账户余额辅助场景（以费用流水投影呈现）。 */
