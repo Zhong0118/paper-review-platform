@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 
 import BlindRail from '@/components/app/BlindRail.vue'
 import PageHeader from '@/components/app/PageHeader.vue'
@@ -37,6 +37,8 @@ const feedback = ref('')
 const listError = ref('')
 const actionError = ref('')
 const loading = ref(true)
+/** 移动端断点（≤900px）：候选专家列表切换为卡片视图，与专家库/任务列表一致。 */
+const isMobile = ref(false)
 
 const selectedThesis = computed(
   () => dispatchTheses.value.find((thesis) => thesis.id === selectedThesisId.value) ?? null,
@@ -347,8 +349,16 @@ function queueThesisRows() {
 }
 
 onMounted(() => {
+  updateMobileFlag()
+  window.addEventListener('resize', updateMobileFlag)
   void loadWorkbench()
 })
+
+function updateMobileFlag() {
+  isMobile.value = (typeof window !== 'undefined' ? window.innerWidth : 0) <= 900
+}
+
+onUnmounted(() => window.removeEventListener('resize', updateMobileFlag))
 </script>
 
 <template>
@@ -419,7 +429,12 @@ onMounted(() => {
                 </div>
                 <small>回避命中项已自动禁选，无法强制跳过</small>
               </header>
-              <CandidateExpertTable v-if="selectedThesisId" v-model="selectedExpertIds" :rows="candidateRows()" />
+              <CandidateExpertTable
+                v-if="selectedThesisId"
+                v-model="selectedExpertIds"
+                :rows="candidateRows()"
+                :mobile="isMobile"
+              />
               <p v-else class="candidate-section__empty">请先选择一篇待派论文。</p>
             </section>
             <FeeRuleSnapshot amount="300.00" currency="¥" version="FEE-2026-SPRING-v1" settlement="专家提交有效终审意见后进入学校人工结算清单" />
