@@ -224,6 +224,26 @@ describe('expert withdrawal service (PAGE-014)', () => {
     expect(rejected.availableAmount).toBe(900)
   })
 
+  it('never drives frozen amount negative across a failed then successful payment', async () => {
+    // 评审修复：付款失败 REVERSAL 已解除冻结并回补可提现，随后重试成功必须从可提现
+    // 出账（正数 PAYMENT），否则冻结会被二次扣减为负数。
+    const service = createScenarioService({ storage: createMemoryStorage(), demoMode: true })
+    await service.loadPlatformScenario('CORRECTION_PENDING')
+    await service.reviewWithdrawal('WD-2026-0088', 'APPROVE', '余额充足')
+
+    await service.recordWithdrawalPayment('WD-2026-0088', 'FAILED', 'V-FAIL-01')
+    const afterFailed = await service.getExpertAccount()
+    // 冲正：冻结恢复为零，金额回补到可提现（REVERSAL 正数入账）
+    expect(afterFailed.pendingAmount).toBe(0)
+    expect(afterFailed.availableAmount).toBe(900)
+
+    await service.recordWithdrawalPayment('WD-2026-0088', 'SUCCESS', 'V-OK-01')
+    const afterSuccess = await service.getExpertAccount()
+    // 成功出账从可提现扣减：600 / 0，任何一步冻结都不为负
+    expect(afterSuccess.pendingAmount).toBe(0)
+    expect(afterSuccess.availableAmount).toBe(600)
+  })
+
   it('does not leak other experts withdrawals to the expert page', async () => {
     // 平台流水混入其他专家的申请（运营侧新增种子）：专家端不得展示（红线「专家仅访问本人申请」）
     const storage = createMemoryStorage()

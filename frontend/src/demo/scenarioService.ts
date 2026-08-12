@@ -360,7 +360,8 @@ function appendLedgerEntry(
  * - REVIEW_CREDIT 入账 → 可提现增加；
  * - WITHDRAWAL（负）→ 冻结增加，可提现减少（扣减不覆盖既有流水）；
  * - RELEASE（驳回解冻）/ REVERSAL（付款冲正）→ 冻结减少，可提现恢复；
- * - PAYMENT（负，付款出账）→ 冻结减少，金额已付清不再回到可提现。
+ * - PAYMENT 方向敏感：负（冻结期付款出账）→ 冻结减少；正（冲正后重试成功
+ *   从可提现出账，见平台运营服务 recordWithdrawalPayment）→ 可提现减少。
  */
 function projectExpertAccount(platform: PlatformState): ExpertAccountSummary {
   let available = 0
@@ -371,7 +372,8 @@ function projectExpertAccount(platform: PlatformState): ExpertAccountSummary {
       available -= abs
       frozen += abs
     } else if (entry.kind === 'PAYMENT') {
-      frozen -= abs
+      if (entry.amount < 0) frozen -= abs
+      else available -= abs
     } else if (entry.kind === 'RELEASE' || entry.kind === 'REVERSAL') {
       frozen -= abs
       available += abs

@@ -952,19 +952,27 @@ export function createPlatformOperationService(
               ],
             }),
       }
+      // 付款回填期间是否已发生冲正（付款失败）：决定成功回填时的入账方向。
+      let reversalMade = state.expertLedger.some(
+        (entry) => entry.kind === 'REVERSAL' && entry.withdrawalId === id,
+      )
       let nextState: PlatformState = {
         ...state,
         withdrawals: state.withdrawals.map((item) => (item.id === id ? recorded : item)),
       }
-      // Task 8 费用流水：付款回填只追加（成功记 PAYMENT 付款出账，失败记 REVERSAL 冲正留痕）。
+      // Task 8 费用流水：付款回填只追加（成功记 PAYMENT 出账，失败记 REVERSAL 冲正留痕）。
       if (result === 'SUCCESS') {
+        // 冲正平衡（评审修复）：付款失败时 REVERSAL 已解除冻结并把金额回补到可提现，
+        // 再次付款成功必须从可提现扣减（正数 PAYMENT），否则冻结会被二次扣成负数。
+        // 冻结期间的首次付款成功则保持负数 PAYMENT（从冻结中出账）。
         nextState = deps.appendLedgerEntry(nextState, {
           kind: 'PAYMENT',
-          amount: -withdrawal.amount,
+          amount: reversalMade ? withdrawal.amount : -withdrawal.amount,
           description: `提现付款：线下付款 ¥ ${withdrawal.amount.toFixed(2)}（凭证号 ${voucher.trim()}）。`,
           withdrawalId: id,
         })
       } else {
+        reversalMade = true
         nextState = deps.appendLedgerEntry(nextState, {
           kind: 'REVERSAL',
           amount: withdrawal.amount,
