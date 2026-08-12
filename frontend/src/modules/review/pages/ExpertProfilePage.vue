@@ -8,8 +8,12 @@ import PortalLayout from '@/layouts/PortalLayout.vue'
 import { menusByRole } from '@/router/menus'
 import { useAuthStore } from '@/stores/auth'
 import ExpertProfileForm from '../components/ExpertProfileForm.vue'
+import ExpertDemoScenarioController from '@/modules/expert-management/components/ExpertDemoScenarioController.vue'
 
 const service = useScenarioService()
+/** 演示场景控制器：仅 VITE_DEMO_MODE=true 时渲染入口（见 Task 10）。 */
+const demoEnabled = import.meta.env.VITE_DEMO_MODE === 'true'
+const demoDialogOpen = ref(false)
 
 const profile = ref<ExpertSelfProfile | null>(null)
 const loading = ref(true)
@@ -32,7 +36,7 @@ const statusTone = computed(() => {
   return 'danger'
 })
 
-onMounted(async () => {
+async function loadProfile() {
   try {
     profile.value = await service.getExpertProfile()
   } catch (err) {
@@ -40,7 +44,9 @@ onMounted(async () => {
   } finally {
     loading.value = false
   }
-})
+}
+
+onMounted(loadProfile)
 
 // 保存二次确认对话框状态
 const saveConfirmOpen = ref(false)
@@ -145,8 +151,14 @@ async function confirmSave() {
     active-path="/expert/profile"
     context-label="专家端 · 双盲评阅"
     :user-name="useAuthStore().user?.displayName ?? '周明远教授'"
+    :background-locked="Boolean(saveConfirmOpen) || resubmitPending || demoDialogOpen"
   >
     <div class="profile-page">
+      <ExpertDemoScenarioController
+        :enabled="demoEnabled"
+        @changed="loadProfile"
+        @reset-dialog-change="demoDialogOpen = $event"
+      />
       <PageHeader
         eyebrow="PAGE-021 · EXPERT PROFILE"
         title="个人资料与资格"

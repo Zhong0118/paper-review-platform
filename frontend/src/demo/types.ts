@@ -726,6 +726,25 @@ export type ExpertScenarioPreset =
   | 'CORRECTION_PENDING'
   | 'REJECTED'
 
+/**
+ * Task 10 专家库资格辅助场景（运营端控制器）。
+ * `reviewExpertQualification` 已支持通过/驳回/审核中，复用同一服务入口（演示投影）。
+ */
+export type PlatformDemoEligibilityScenario = ExpertQualificationStatus
+
+/** Task 10 专家账户余额辅助场景（运营端控制器；以费用流水投影呈现，不宣称真实结算）。 */
+export type PlatformDemoBalanceScenario = 'FULL' | 'FROZEN'
+
+/**
+ * Task 10 六维模板辅助场景（专家端控制器）。
+ * 页面按模板快照动态渲染（ReviewFormPane 读 REVIEW_SCORE_TEMPLATE 投影），
+ * 切换仅替换演示批次的模板快照文本，不改变评分维度结构。
+ */
+export type ExpertDemoTemplateScenario = 'STANDARD' | 'INNOVATION_WEIGHTED'
+
+/** Task 10 匿名版文件校验辅助场景（专家端控制器）。 */
+export type ExpertDemoFileValidationScenario = 'VALID' | 'INVALID'
+
 /** Task 4 更正申请的投影（PAGE-020）。 */
 export interface CorrectionRequest {
   id: string
@@ -917,6 +936,8 @@ export interface PlatformState {
   reviewVersions: ReviewVersion[]
   /** Task 9 起：两角色（platform_reviewer/expert）角色通知（PAGE-015 数据源）。 */
   notifications: RoleNotification[]
+  /** Task 10 起：匿名版文件校验辅助投影（演示场景控制器切换；默认 VALID）。 */
+  demoFileValidation: ExpertDemoFileValidationScenario
 }
 
 export class PlatformOperationError extends Error {
@@ -966,5 +987,15 @@ export interface ScenarioService extends StudentPortalService, PlatformOperation
   /** Task 5 专家端演示场景装载（任务列表/接单详情/逾期/已完成/需要更正/已拒绝）。 */
   loadExpertScenario(preset: ExpertScenarioPreset): Promise<void>
   loadPlatformScenario(preset: PlatformScenarioPreset): Promise<void>
+  /** Task 10 专家库资格辅助场景（复用 reviewExpertQualification 投影）。 */
+  setPlatformDemoEligibility(scenario: PlatformDemoEligibilityScenario): Promise<void>
+  /** Task 10 专家账户余额辅助场景（以费用流水投影呈现）。 */
+  setPlatformDemoBalance(scenario: PlatformDemoBalanceScenario): Promise<void>
+  /** Task 10 六维模板辅助场景（替换演示批次模板快照文本）。 */
+  setExpertDemoTemplate(scenario: ExpertDemoTemplateScenario): Promise<void>
+  /** Task 10 匿名版文件校验辅助场景（演示投影，不读取文件正文）。 */
+  setExpertDemoFileValidation(scenario: ExpertDemoFileValidationScenario): Promise<void>
+  /** 读回当前匿名版文件校验投影（默认 VALID）。 */
+  getExpertDemoFileValidation(): Promise<ExpertDemoFileValidationScenario>
   reset(): Promise<DemoScenarioSnapshot>
 }

@@ -9,9 +9,13 @@ import PortalLayout from '@/layouts/PortalLayout.vue'
 import { menusByRole } from '@/router/menus'
 import { useAuthStore } from '@/stores/auth'
 import ExpertTaskTable from '../components/ExpertTaskTable.vue'
+import ExpertDemoScenarioController from '@/modules/expert-management/components/ExpertDemoScenarioController.vue'
 
 const router = useRouter()
 const service = useScenarioService()
+/** 演示场景控制器：仅 VITE_DEMO_MODE=true 时渲染入口（见 Task 10）。 */
+const demoEnabled = import.meta.env.VITE_DEMO_MODE === 'true'
+const demoDialogOpen = ref(false)
 
 const tabs: Array<{ value: string; label: string; matcher: (t: ExpertTaskSummary) => boolean }> = [
   {
@@ -70,7 +74,7 @@ const tabCounts = computed(() => {
   return counts
 })
 
-onMounted(async () => {
+async function loadTasks() {
   try {
     tasks.value = await service.listExpertTasks({ own: true })
     // 默认停留在第一个非空分组，避免空 Tab 白屏
@@ -81,7 +85,9 @@ onMounted(async () => {
   } finally {
     loading.value = false
   }
-})
+}
+
+onMounted(loadTasks)
 
 function selectTab(value: string) {
   activeTab.value = value
@@ -153,8 +159,14 @@ async function confirmAccept() {
     active-path="/expert/tasks"
     context-label="专家端 · 双盲评阅"
     :user-name="useAuthStore().user?.displayName ?? '周明远教授'"
+    :background-locked="Boolean(acceptTarget) || demoDialogOpen"
   >
     <div class="tasks-page">
+      <ExpertDemoScenarioController
+        :enabled="demoEnabled"
+        @changed="loadTasks"
+        @reset-dialog-change="demoDialogOpen = $event"
+      />
       <PageHeader
         eyebrow="PAGE-008 · EXPERT TASKS"
         title="评审任务"

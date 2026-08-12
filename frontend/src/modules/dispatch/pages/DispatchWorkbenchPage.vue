@@ -14,12 +14,16 @@ import CandidateExpertTable, { type ExpertCandidate } from '../components/Candid
 import DispatchDetailPanel from '../components/DispatchDetailPanel.vue'
 import FeeRuleSnapshot from '../components/FeeRuleSnapshot.vue'
 import OperationsQueueTable from '../components/OperationsQueueTable.vue'
+import PlatformDemoScenarioController from '../components/PlatformDemoScenarioController.vue'
 import type { ExpertMatchCandidate } from '@/demo/types'
 
 type ConfirmationKind = 'ASSIGN' | 'REASSIGN' | 'REMIND' | 'EXTEND'
 
 const service = useScenarioService()
 const authStore = useAuthStore()
+/** 演示场景控制器：仅 VITE_DEMO_MODE=true 时渲染入口（见 Task 10）。 */
+const demoEnabled = import.meta.env.VITE_DEMO_MODE === 'true'
+const demoDialogOpen = ref(false)
 
 const queues = ref<{ key: OperationsQueue; label: string; count: number }[]>([])
 const activeQueue = ref<OperationsQueue>('PENDING_ASSIGNMENT')
@@ -353,9 +357,14 @@ onMounted(() => {
     active-path="/platform/dispatch"
     context-label="平台端 · 派审运营"
     :user-name="authStore.user?.displayName ?? '陈岚'"
-    :background-locked="Boolean(confirmation)"
+    :background-locked="Boolean(confirmation) || demoDialogOpen"
   >
     <div ref="workbenchRoot" class="dispatch-page">
+      <PlatformDemoScenarioController
+        :enabled="demoEnabled"
+        @changed="loadWorkbench"
+        @reset-dialog-change="demoDialogOpen = $event"
+      />
       <PageHeader
         eyebrow="PAGE-007 · REVIEW OPERATIONS"
         title="送审运营台"

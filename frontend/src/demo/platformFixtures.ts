@@ -318,6 +318,8 @@ export function createInitialPlatformState(): PlatformState {
     reviewVersions: structuredClone(demoReviewVersions),
     // 角色通知：初始为空，由业务动作/场景装载生成（见 scenarioService 通知事件）。
     notifications: [],
+    // Task 10：匿名版文件校验辅助投影（默认 VALID，场景控制器可切换）。
+    demoFileValidation: 'VALID',
   }
 }
 

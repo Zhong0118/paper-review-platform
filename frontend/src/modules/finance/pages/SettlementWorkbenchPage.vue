@@ -10,11 +10,15 @@ import { menusByRole } from '@/router/menus'
 import { useAuthStore } from '@/stores/auth'
 
 import WithdrawalDetailPanel from '../components/WithdrawalDetailPanel.vue'
+import PlatformDemoScenarioController from '@/modules/dispatch/components/PlatformDemoScenarioController.vue'
 
 type ConfirmationKind = 'APPROVE' | 'REJECT' | 'PAYMENT'
 
 const service = useScenarioService()
 const authStore = useAuthStore()
+/** 演示场景控制器：仅 VITE_DEMO_MODE=true 时渲染入口（见 Task 10）。 */
+const demoEnabled = import.meta.env.VITE_DEMO_MODE === 'true'
+const demoDialogOpen = ref(false)
 
 const rows = ref<WithdrawalRequest[]>([])
 const loading = ref(true)
@@ -214,9 +218,14 @@ onMounted(() => {
     active-path="/platform/settlements"
     context-label="百杰运营端 · 结算处理"
     :user-name="authStore.user?.displayName ?? '陈岚'"
-    :background-locked="Boolean(confirmationAction) || Boolean(selectedWithdrawal)"
+    :background-locked="Boolean(confirmationAction) || Boolean(selectedWithdrawal) || demoDialogOpen"
   >
     <div ref="pageRoot" class="settlement-page">
+      <PlatformDemoScenarioController
+        :enabled="demoEnabled"
+        @changed="loadWorkbench"
+        @reset-dialog-change="demoDialogOpen = $event"
+      />
       <PageHeader
         eyebrow="PAGE-022 · SETTLEMENTS"
         title="结算处理工作台"

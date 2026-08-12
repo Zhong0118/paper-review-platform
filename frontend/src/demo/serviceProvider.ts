@@ -83,6 +83,11 @@ function createUnavailableService(): ScenarioService {
     getExpertProfile: unavailable,
     saveExpertProfile: unavailable,
     loadPlatformScenario: unavailable,
+    setPlatformDemoEligibility: unavailable,
+    setPlatformDemoBalance: unavailable,
+    setExpertDemoTemplate: unavailable,
+    setExpertDemoFileValidation: unavailable,
+    getExpertDemoFileValidation: unavailable,
     reset: unavailable,
   }
 }

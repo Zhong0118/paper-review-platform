@@ -13,6 +13,7 @@ import { useAuthStore } from '@/stores/auth'
 
 import ExpertLibraryTable from '../components/ExpertLibraryTable.vue'
 import ExpertProfileDrawer from '../components/ExpertProfileDrawer.vue'
+import PlatformDemoScenarioController from '@/modules/dispatch/components/PlatformDemoScenarioController.vue'
 
 type ConfirmationKind =
   | 'PAUSE'
@@ -24,6 +25,9 @@ type ConfirmationKind =
 const service = useScenarioService()
 const authStore = useAuthStore()
 const router = useRouter()
+/** 演示场景控制器：仅 VITE_DEMO_MODE=true 时渲染入口（见 Task 10）。 */
+const demoEnabled = import.meta.env.VITE_DEMO_MODE === 'true'
+const demoDialogOpen = ref(false)
 
 const rows = ref<ExpertProfile[]>([])
 const loading = ref(true)
@@ -440,9 +444,14 @@ onUnmounted(() => window.removeEventListener('resize', updateMobileFlag))
     active-path="/platform/experts"
     context-label="百杰运营端 · 专家库"
     :user-name="authStore.user?.displayName ?? '陈岚'"
-    :background-locked="drawerOpen || Boolean(confirmationAction) || formOpen"
+    :background-locked="drawerOpen || Boolean(confirmationAction) || formOpen || demoDialogOpen"
   >
     <div ref="libraryRoot" class="library-page">
+      <PlatformDemoScenarioController
+        :enabled="demoEnabled"
+        @changed="loadLibrary"
+        @reset-dialog-change="demoDialogOpen = $event"
+      />
       <PageHeader
         eyebrow="PAGE-006 · EXPERT DIRECTORY"
         title="专家库"

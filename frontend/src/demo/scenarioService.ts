@@ -497,6 +497,39 @@ function applyExpertLedgerSeeds(platform: PlatformState): PlatformState {
   return { ...platform, expertLedger: demoLedgerSeed() }
 }
 
+/**
+ * Task 10 专家账户余额辅助场景：以费用流水投影呈现（可提现/冻结与
+ * projectExpertAccount 同源）。FULL = 3 笔入账（可提现 ¥ 900）；
+ * FROZEN = 入账 + 提现冻结（可提现 ¥ 600、冻结 ¥ 300，与结算场景口径一致）。
+ */
+function applyBalanceScenario(
+  platform: PlatformState,
+  scenario: import('./types').PlatformDemoBalanceScenario,
+): PlatformState {
+  if (scenario === 'FULL') {
+    return { ...platform, expertLedger: demoLedgerSeed() }
+  }
+  const ledger = demoLedgerSeed().concat([
+    {
+      id: 'ledger-demo-withdrawal-frozen',
+      kind: 'WITHDRAWAL' as const,
+      amount: -300,
+      description: '余额场景（FROZEN）：提现申请冻结 ¥ 300.00，等待平台审核。',
+      occurredAt: '2026-08-25 10:20',
+      withdrawalId: 'WD-2026-0088',
+    },
+  ])
+  return { ...platform, expertLedger: ledger }
+}
+
+/** Task 10 六维模板辅助场景：演示批次模板快照说明（合计 100 分，结构不变）。 */
+const DEMO_TEMPLATE_NOTES: Record<import('./types').ExpertDemoTemplateScenario, string> = {
+  STANDARD:
+    '六维评审模板（合计 100 分）：选题价值 15、文献与理论基础 15、研究设计与方法 20、研究内容与创新 25、写作规范 10、综合学术水平 15；另含总体评价、主要问题、修改建议与评审结论。',
+  INNOVATION_WEIGHTED:
+    '六维评审模板（合计 100 分）：选题价值 12、文献与理论基础 12、研究设计与方法 16、研究内容与创新 30、写作规范 10、综合学术水平 20；另含总体评价、主要问题、修改建议与评审结论。',
+}
+
 function createMemoryStorage(): StorageLike {
   const values = new Map<string, string>()
   return {
@@ -510,6 +543,7 @@ export function createScenarioService(
   options: { storage?: StorageLike; demoMode?: boolean } = {},
 ): ScenarioService {
   const storage = options.storage ?? createMemoryStorage()
+  const demoEnabled = options.demoMode ?? true
   const loaded = loadStudentDemo(storage)
   const loadedPlatform = loadPlatformDemo(storage)
   let state = loaded.scenario
@@ -861,6 +895,13 @@ export function createScenarioService(
     if (thesis.stage === stage && state.taskStatus === taskStatus) return
     // 学生端已进入结果处理/完成时，不把平台滞后状态投影回去（避免阶段回退）。
     if (state.stage === 'RESULT_PROCESSING' || state.stage === 'COMPLETED') return
+    // 演示场景装载（REJECTED 等终态任务）时，学生端旧 taskStatus 必须被清空：
+    // 否则专家任务列表的兼容回退会把过期状态补成幽灵任务，破坏快照原子性。
+    if (!taskStatus && state.taskStatus !== undefined) {
+      state = { ...state, stage, taskStatus: undefined }
+      persist()
+      return
+    }
     state = { ...state, stage, ...(taskStatus ? { taskStatus } : {}) }
     persist()
   }
@@ -1289,6 +1330,10 @@ export function createScenarioService(
     acceptExpertTask,
     rejectExpertTask,
     loadPlatformScenario: async (preset: PlatformScenarioPreset) => {
+      // 环境门禁：仅 VITE_DEMO_MODE=true 时允许装载（服务端强制，页面入口同样被门禁）。
+      if (!demoEnabled) {
+        throw new PlatformOperationError('DEMO_MODE_DISABLED', '演示模式未启用，无法装载运营端场景。')
+      }
       // 演示时钟固定 2026-08-12 09:00（与平台服务一致），时限派生以此为准。
       const NOW = new Date('2026-08-12T09:00:00')
       const at = (day: number, hour = 18, minute = 0) =>
@@ -1342,6 +1387,10 @@ export function createScenarioService(
       syncThesisStageToDispatch('thesis-main')
     },
     loadExpertScenario: async (preset: ExpertScenarioPreset) => {
+      // 环境门禁：仅 VITE_DEMO_MODE=true 时允许装载（服务端强制，页面入口同样被门禁）。
+      if (!demoEnabled) {
+        throw new PlatformOperationError('DEMO_MODE_DISABLED', '演示模式未启用，无法装载专家端场景。')
+      }
       // 专家端演示场景：原子替换本人任务与匿名材料投影（演示装载，不模拟真实时限调度）。
       const NOW = new Date('2026-08-12T09:00:00')
       const at = (day: number, hour = 18, minute = 0) =>
@@ -1382,7 +1431,67 @@ export function createScenarioService(
       persistPlatform()
       syncThesisStageToDispatch('thesis-main')
     },
+    setPlatformDemoEligibility: async (scenario) => {
+      // 环境门禁与业务入口一致（reviewExpertQualification 本身也有 ensureDemoMode 守卫）。
+      if (!demoEnabled) {
+        throw new PlatformOperationError('DEMO_MODE_DISABLED', '演示模式未启用，无法切换演示资格。')
+      }
+      // 演示辅助场景：仅作用于演示人格（expert-17），其他专家档案不受影响。
+      // REJECTED 同时停用服务状态，与专家库「驳回后不可接单」的业务语义一致。
+      platformState = {
+        ...platformState,
+        experts: platformState.experts.map((expert) =>
+          expert.id === EXPERT_PERSONA_ID
+            ? {
+                ...expert,
+                qualification: scenario,
+                qualificationNote:
+                  scenario === 'REJECTED' ? '演示场景：资格材料审核未通过。' : undefined,
+                serviceStatus: scenario === 'REJECTED' ? 'DISABLED' : 'ACTIVE',
+              }
+            : expert,
+        ),
+      }
+      persistPlatform()
+    },
+    setPlatformDemoBalance: async (scenario) => {
+      if (!demoEnabled) {
+        throw new PlatformOperationError('DEMO_MODE_DISABLED', '演示模式未启用，无法切换余额场景。')
+      }
+      platformState = applyBalanceScenario(platformState, scenario)
+      persistPlatform()
+    },
+    setExpertDemoTemplate: async (scenario) => {
+      if (!demoEnabled) {
+        throw new PlatformOperationError('DEMO_MODE_DISABLED', '演示模式未启用，无法切换评审模板。')
+      }
+      // 六维模板说明（PAGE-009 接单详情展示）随任务投影派生；替换演示批次文本即可。
+      platformState = {
+        ...platformState,
+        expertTasks: platformState.expertTasks.map((task) => ({
+          ...task,
+          templateNote: DEMO_TEMPLATE_NOTES[scenario],
+        })),
+      }
+      persistPlatform()
+    },
+    setExpertDemoFileValidation: async (scenario) => {
+      if (!demoEnabled) {
+        throw new PlatformOperationError('DEMO_MODE_DISABLED', '演示模式未启用，无法切换文件校验。')
+      }
+      platformState = { ...platformState, demoFileValidation: scenario }
+      persistPlatform()
+    },
+    getExpertDemoFileValidation: async () => {
+      if (!demoEnabled) {
+        throw new PlatformOperationError('DEMO_MODE_DISABLED', '演示模式未启用，无法读取文件校验投影。')
+      }
+      return platformState.demoFileValidation
+    },
     reset: async () => {
+      if (!demoEnabled) {
+        throw new PlatformOperationError('DEMO_MODE_DISABLED', '演示模式未启用，无法重置演示数据。')
+      }
       storage.removeItem?.('baijie-demo-student:v1')
       storage.removeItem?.('baijie-demo-platform:v1')
       state = createInitialScenarioState()

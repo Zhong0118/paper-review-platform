@@ -8,8 +8,12 @@ import type { ExpertAccountSummary, ExpertLedgerEntry, WithdrawalRequest } from 
 import PortalLayout from '@/layouts/PortalLayout.vue'
 import { menusByRole } from '@/router/menus'
 import { useAuthStore } from '@/stores/auth'
+import ExpertDemoScenarioController from '@/modules/expert-management/components/ExpertDemoScenarioController.vue'
 
 const service = useScenarioService()
+/** 演示场景控制器：仅 VITE_DEMO_MODE=true 时渲染入口（见 Task 10）。 */
+const demoEnabled = import.meta.env.VITE_DEMO_MODE === 'true'
+const demoDialogOpen = ref(false)
 
 const account = ref<ExpertAccountSummary | null>(null)
 const ledger = ref<ExpertLedgerEntry[]>([])
@@ -162,8 +166,14 @@ async function confirmWithdrawal() {
     active-path="/expert/finance"
     context-label="专家端 · 双盲评阅"
     :user-name="useAuthStore().user?.displayName ?? '周明远教授'"
+    :background-locked="confirmOpen || demoDialogOpen"
   >
     <div class="finance-page">
+      <ExpertDemoScenarioController
+        :enabled="demoEnabled"
+        @changed="loadFinance"
+        @reset-dialog-change="demoDialogOpen = $event"
+      />
       <PageHeader
         eyebrow="PAGE-014 · EXPERT FINANCE"
         title="费用与提现"

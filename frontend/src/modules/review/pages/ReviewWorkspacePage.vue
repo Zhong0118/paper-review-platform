@@ -12,9 +12,13 @@ import { useAuthStore } from '@/stores/auth'
 import AnonymousDocumentPane from '../components/AnonymousDocumentPane.vue'
 import ReviewFormPane from '../components/ReviewFormPane.vue'
 import WorkspaceSplitter from '../components/WorkspaceSplitter.vue'
+import ExpertDemoScenarioController from '@/modules/expert-management/components/ExpertDemoScenarioController.vue'
 
 const router = useRouter()
 const service = useScenarioService()
+/** 演示场景控制器：仅 VITE_DEMO_MODE=true 时渲染入口（见 Task 10）。 */
+const demoEnabled = import.meta.env.VITE_DEMO_MODE === 'true'
+const demoDialogOpen = ref(false)
 
 const task = ref<ExpertTaskSummary | null>(null)
 const locked = ref(false)
@@ -67,6 +71,16 @@ async function reloadCurrentTask() {
   const current = tasks.find((item) => item.id === task.value?.id) ?? tasks[0] ?? null
   task.value = current
   locked.value = current?.status === 'SUBMITTED'
+}
+
+/** 演示场景装载后整页重读服务投影：任务、草稿与提交锁定全部刷新。 */
+async function reloadWorkspaceProjection() {
+  await reloadCurrentTask()
+  if (task.value?.status === 'IN_REVIEW') {
+    draft.value = (await service.getSnapshot()).review?.scoreInput ?? null
+  } else {
+    draft.value = null
+  }
 }
 
 async function save(input: ReviewScoreInput) {
@@ -243,8 +257,14 @@ async function confirmCorrection() {
     active-path="/expert/review"
     context-label="专家端 · 双盲评阅"
     :user-name="useAuthStore().user?.displayName ?? '周明远教授'"
+    :background-locked="Boolean(pendingInput) || Boolean(correctionOpen) || demoDialogOpen"
   >
     <div class="workspace-page">
+      <ExpertDemoScenarioController
+        :enabled="demoEnabled"
+        @changed="reloadWorkspaceProjection"
+        @reset-dialog-change="demoDialogOpen = $event"
+      />
       <PageHeader
         eyebrow="PAGE-010 · REVIEW WORKSPACE"
         title="在线评阅"

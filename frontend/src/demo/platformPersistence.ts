@@ -535,6 +535,9 @@ export function loadPlatformDemo(storage: StorageLike): LoadedPlatformDemo {
         auditLog: normalizeAuditLog(saved.platform.auditLog),
         // 旧存档（Task 1–8 写入）没有角色通知字段：以种子投影兜底（行为同首次加载）。
         notifications: normalizeRoleNotifications(saved.platform.notifications),
+        // 旧存档（Task 1–9 写入）没有文件校验辅助投影：以默认值兜底（行为同首次加载）。
+        demoFileValidation:
+          saved.platform.demoFileValidation === 'INVALID' ? 'INVALID' : 'VALID',
       },
       reset: false,
     }

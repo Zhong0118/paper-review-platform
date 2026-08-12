@@ -10,11 +10,15 @@ import { menusByRole } from '@/router/menus'
 import { useAuthStore } from '@/stores/auth'
 
 import CorrectionDetailPanel from '../components/CorrectionDetailPanel.vue'
+import PlatformDemoScenarioController from '@/modules/dispatch/components/PlatformDemoScenarioController.vue'
 
 type ConfirmationKind = 'APPROVE' | 'REJECT'
 
 const service = useScenarioService()
 const authStore = useAuthStore()
+/** 演示场景控制器：仅 VITE_DEMO_MODE=true 时渲染入口（见 Task 10）。 */
+const demoEnabled = import.meta.env.VITE_DEMO_MODE === 'true'
+const demoDialogOpen = ref(false)
 
 const rows = ref<CorrectionRequest[]>([])
 const loading = ref(true)
@@ -173,9 +177,14 @@ onMounted(() => {
     active-path="/platform/corrections"
     context-label="百杰运营端 · 评阅更正审批"
     :user-name="authStore.user?.displayName ?? '陈岚'"
-    :background-locked="Boolean(confirmationAction) || Boolean(selectedRequest)"
+    :background-locked="Boolean(confirmationAction) || Boolean(selectedRequest) || demoDialogOpen"
   >
     <div ref="pageRoot" class="correction-page">
+      <PlatformDemoScenarioController
+        :enabled="demoEnabled"
+        @changed="loadRequests"
+        @reset-dialog-change="demoDialogOpen = $event"
+      />
       <PageHeader
         eyebrow="PAGE-020 · RESULT CORRECTIONS"
         title="评阅更正审批"
