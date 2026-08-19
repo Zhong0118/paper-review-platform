@@ -11,7 +11,15 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    AppHeader: typeof import('./src/components/app/AppHeader.vue')['default']
+    AppSidebar: typeof import('./src/components/app/AppSidebar.vue')['default']
+    BlindRail: typeof import('./src/components/app/BlindRail.vue')['default']
+    BrandMark: typeof import('./src/components/app/BrandMark.vue')['default']
+    PageHeader: typeof import('./src/components/app/PageHeader.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    ScenarioStageRibbon: typeof import('./src/components/app/ScenarioStageRibbon.vue')['default']
+    StatusTag: typeof import('./src/components/app/StatusTag.vue')['default']
+    WorkflowSteps: typeof import('./src/components/app/WorkflowSteps.vue')['default']
   }
 }

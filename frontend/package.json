@@ -8,6 +8,7 @@
     "build": "vue-tsc -b && vite build",
     "preview": "vite preview",
     "test:unit": "vitest",
+    "test:unit:run": "vitest run",
     "type-check": "vue-tsc --build",
     "format": "prettier --write --experimental-cli src/"
   },

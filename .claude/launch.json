@@ -1,0 +1,19 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "frontend-dev-demo",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--", "--host", "127.0.0.1"],
+      "port": 5173,
+      "autoPort": true,
+      "cwd": "/Users/zhongxu/Desktop/0-Inbox/paper-review-platform/frontend",
+      "env": { "VITE_DEMO_MODE": "true" }
+    },
+    {
+      "name": "frontend-demo-attach",
+      "url": "http://127.0.0.1:5173",
+      "port": 5173
+    }
+  ]
+}

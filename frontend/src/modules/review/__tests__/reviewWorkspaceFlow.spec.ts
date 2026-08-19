@@ -378,6 +378,33 @@ describe('review workspace page (PAGE-010)', () => {
     })
     expect(wrapper.get('[data-autosave]').text()).toContain('已自动保存草稿')
   })
+
+  it('resets the correction dialog after a successful submission', async () => {
+    // 浏览器回归（Task 11）：提交更正申请成功后 correctionPending 未复位，
+    // 重新打开对话框显示常驻「正在提交…」且取消/Esc 均失效（cancel 被同一守卫拦截）。
+    const storage = createMemoryStorage()
+    const service = createScenarioService({ storage, demoMode: true })
+    await service.loadExpertScenario('SUBMITTED')
+    const { wrapper } = await mountWorkspace(service)
+
+    await wrapper.get('[data-action="open-correction-dialog"]').trigger('click')
+    await wrapper.get('textarea[name="correctionReason"]').setValue('总分计算有误')
+    await wrapper.get('[data-action="confirm-correction"]').trigger('click')
+    await flushPromises()
+    // 提交成功：对话框关闭，页面出现成功提示
+    expect(wrapper.find('[data-action="cancel-correction"]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('更正申请已提交')
+
+    // 再次打开：按钮复位为「提交更正申请」（此时因原因未填而禁用，属正常校验）
+    await wrapper.get('[data-action="open-correction-dialog"]').trigger('click')
+    const confirm = wrapper.get('[data-action="confirm-correction"]')
+    expect(confirm.text()).toBe('提交更正申请')
+    expect(confirm.attributes('disabled')).toBeDefined()
+    await wrapper.get('textarea[name="correctionReason"]').setValue('再次提交更正')
+    expect(confirm.attributes('disabled')).toBeUndefined()
+    await wrapper.get('[data-action="cancel-correction"]').trigger('click')
+    expect(wrapper.find('[data-action="cancel-correction"]').exists()).toBe(false)
+  })
 })
 
 describe('review form pane (six-dimension template)', () => {

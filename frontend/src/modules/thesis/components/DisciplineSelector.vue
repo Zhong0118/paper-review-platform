@@ -134,7 +134,7 @@ onBeforeUnmount(() => {
 <template>
   <div ref="root" class="discipline-selector" :class="{ 'is-open': open }">
     <label :for="controlId"
-      >学科专业　按代码或名称搜索，请选择与论文研究内容最匹配的送审专业。</label
+      >学科专业　<small>按代码或名称搜索，请选择与论文研究内容最匹配的送审专业。</small></label
     >
     <button
       :id="controlId"
@@ -208,6 +208,12 @@ onBeforeUnmount(() => {
   font-weight: 650;
   line-height: 1.5;
 }
+
+.discipline-selector small {
+  color: #7a8791;
+  font-size: 0.6875rem;
+}
+
 
 .discipline-selector__control {
   display: flex;

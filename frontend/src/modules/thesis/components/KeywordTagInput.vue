@@ -32,7 +32,7 @@ function removeKeyword(keyword: string) {
 
 <template>
   <div class="keyword-input">
-    <label for="keyword-draft">关键词</label>
+    <label for="keyword-draft">关键词 <small>关键词用于辅助专家匹配，完全重复的词会自动合并。</small></label>
     <div class="keyword-input__box">
       <span v-for="keyword in modelValue" :key="keyword" class="keyword-tag">
         {{ keyword }}
@@ -54,7 +54,6 @@ function removeKeyword(keyword: string) {
       />
     </div>
     <small v-if="limitError" class="keyword-input__error" role="alert">{{ limitError }}</small>
-    <small v-else>关键词用于辅助专家匹配，完全重复的词会自动合并。</small>
   </div>
 </template>
 

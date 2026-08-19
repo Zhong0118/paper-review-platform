@@ -1,7 +1,7 @@
 /**
  * @file 前端路由配置
  * @description
- *    定义应用路由。业务模块路由随实施计划增量注册。
+ *    定义应用路由。当前为骨架，业务模块路由随实施计划增量注册。
 
  * 主要功能：
  *    1. 创建路由实例（HTML5 history）。
@@ -11,17 +11,29 @@
  *    - 路由守卫只改善体验，不能替代服务端授权。
  */
 
-import { createRouter, createWebHistory, type RouterHistory } from 'vue-router'
+import { createRouter, createWebHistory } from 'vue-router'
 
-import { studentNotificationRoutes } from './studentNotificationRoutes'
+import { useAuthStore } from '@/stores/auth'
 
-export function createAppRouter(history: RouterHistory) {
-  return createRouter({
-    history,
-    routes: studentNotificationRoutes,
-  })
-}
+import { appRoutes } from './routes'
 
-const router = createAppRouter(createWebHistory(import.meta.env.BASE_URL))
+const router = createRouter({
+  history: createWebHistory(import.meta.env.BASE_URL),
+  routes: [
+    { path: '/', redirect: '/login' },
+    ...appRoutes,
+    { path: '/:pathMatch(.*)*', redirect: '/login' },
+  ],
+})
+
+router.beforeEach((to) => {
+  if (to.path === '/login') return true
+
+  const authStore = useAuthStore()
+  const role = authStore.user?.role
+  if (!role) return { path: '/login', query: { redirect: to.fullPath } }
+  if (!to.meta.roleCodes.includes(role)) return authStore.defaultRoute
+  return true
+})
 
 export default router
