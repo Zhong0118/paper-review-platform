@@ -4,13 +4,15 @@ import { useRouter } from 'vue-router'
 import BlindRail from '@/components/app/BlindRail.vue'
 import PageHeader from '@/components/app/PageHeader.vue'
 import { useScenarioService } from '@/demo/serviceProvider'
+import { acceptTask, getInvitation, listExpertTasks, rejectTask } from '@/api/expertTasks'
 import type { ExpertTaskSummary } from '@/demo/types'
 import PortalLayout from '@/layouts/PortalLayout.vue'
 import { menusByRole } from '@/router/menus'
 import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
-const service = useScenarioService()
+const demoEnabled = import.meta.env.VITE_DEMO_MODE === 'true'
+const service = demoEnabled ? useScenarioService() : null
 
 const task = ref<ExpertTaskSummary | null>(null)
 const loading = ref(true)
@@ -47,8 +49,29 @@ const canConfirmReject = computed(
 
 onMounted(async () => {
   try {
-    const tasks = await service.listExpertTasks({ own: true })
-    task.value = tasks.find((t) => t.status === 'INVITED') ?? tasks[0] ?? null
+    if (demoEnabled && service) {
+      const tasks = await service.listExpertTasks({ own: true })
+      task.value = tasks.find((t) => t.status === 'INVITED') ?? tasks[0] ?? null
+    } else {
+      const tasks = await listExpertTasks()
+      const invited = tasks.find((t) => t.status === 'INVITED') ?? tasks[0]
+      task.value = invited
+        ? ({
+            id: invited.id,
+            status: invited.status,
+            thesisTitle: '',
+            anonymousId: invited.id.slice(0, 8),
+          } as unknown as ExpertTaskSummary)
+        : null
+      if (invited) {
+        const invitation = await getInvitation(invited.id)
+        task.value = {
+          ...(task.value as ExpertTaskSummary),
+          anonymousId: invitation.anonymous_id,
+          disciplineName: invitation.discipline_name,
+        } as ExpertTaskSummary
+      }
+    }
   } catch (err) {
     error.value = err instanceof Error ? err.message : '邀请信息加载失败。'
   } finally {
@@ -106,7 +129,12 @@ async function confirmAccept() {
   acceptPending.value = true
   acceptError.value = ''
   try {
-    await service.acceptExpertTask(task.value.id)
+    if (!demoEnabled) {
+      await acceptTask(task.value.id)
+      await router.push('/expert/tasks')
+      return
+    }
+    if (service) await service.acceptExpertTask(task.value.id)
     await router.push('/expert/review')
   } catch (err) {
     acceptError.value = err instanceof Error ? err.message : '接受任务失败，请稍后重试。'
@@ -165,7 +193,8 @@ async function confirmReject() {
   rejectPending.value = true
   rejectError.value = ''
   try {
-    await service.rejectExpertTask(task.value.id, submittedReason.value)
+    if (!demoEnabled) await rejectTask(task.value.id, submittedReason.value)
+    else if (service) await service.rejectExpertTask(task.value.id, submittedReason.value)
     rejectOpen.value = false
     task.value = null
   } catch (err) {

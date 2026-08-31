@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import BlindRail from '@/components/app/BlindRail.vue'
 import PageHeader from '@/components/app/PageHeader.vue'
 import { useScenarioService } from '@/demo/serviceProvider'
+import { acceptTask, listExpertTasks } from '@/api/expertTasks'
 import type { ExpertTaskSummary } from '@/demo/types'
 import PortalLayout from '@/layouts/PortalLayout.vue'
 import { menusByRole } from '@/router/menus'
@@ -12,9 +13,8 @@ import ExpertTaskTable from '../components/ExpertTaskTable.vue'
 import ExpertDemoScenarioController from '@/modules/expert-management/components/ExpertDemoScenarioController.vue'
 
 const router = useRouter()
-const service = useScenarioService()
-/** 演示场景控制器：仅 VITE_DEMO_MODE=true 时渲染入口（见 Task 10）。 */
 const demoEnabled = import.meta.env.VITE_DEMO_MODE === 'true'
+const service = demoEnabled ? useScenarioService() : null
 const demoDialogOpen = ref(false)
 
 const tabs: Array<{ value: string; label: string; matcher: (t: ExpertTaskSummary) => boolean }> = [
@@ -76,7 +76,9 @@ const tabCounts = computed(() => {
 
 async function loadTasks() {
   try {
-    tasks.value = await service.listExpertTasks({ own: true })
+    tasks.value = demoEnabled && service
+      ? await service.listExpertTasks({ own: true })
+      : ((await listExpertTasks()) as unknown as ExpertTaskSummary[])
     // 默认停留在第一个非空分组，避免空 Tab 白屏
     activeTab.value =
       tabs.find((tab) => tasks.value.some(tab.matcher))?.value ?? tabs[0].value
@@ -143,7 +145,13 @@ async function confirmAccept() {
   acceptPending.value = true
   acceptError.value = ''
   try {
-    await service.acceptExpertTask(target.id)
+    if (!demoEnabled) {
+      await acceptTask(target.id)
+      acceptTarget.value = null
+      await loadTasks()
+      return
+    }
+    if (service) await service.acceptExpertTask(target.id)
     acceptTarget.value = null
     await router.push('/expert/review')
   } catch (err) {

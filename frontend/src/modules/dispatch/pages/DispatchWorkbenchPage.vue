@@ -4,6 +4,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import BlindRail from '@/components/app/BlindRail.vue'
 import PageHeader from '@/components/app/PageHeader.vue'
 import { useScenarioService } from '@/demo/serviceProvider'
+import { assignExpert, dispatchCandidates, dispatchQueue } from '@/api/dispatch'
 import type { DispatchThesisSeed, ExpertTaskSummary, OperationsQueue } from '@/demo/types'
 import { isDueSoon } from '@/modules/expert-management/services/platformOperationService'
 import PortalLayout from '@/layouts/PortalLayout.vue'
@@ -19,10 +20,9 @@ import type { ExpertMatchCandidate } from '@/demo/types'
 
 type ConfirmationKind = 'ASSIGN' | 'REASSIGN' | 'REMIND' | 'EXTEND'
 
-const service = useScenarioService()
-const authStore = useAuthStore()
-/** 演示场景控制器：仅 VITE_DEMO_MODE=true 时渲染入口（见 Task 10）。 */
 const demoEnabled = import.meta.env.VITE_DEMO_MODE === 'true'
+const service = demoEnabled ? useScenarioService() : null
+const authStore = useAuthStore()
 const demoDialogOpen = ref(false)
 
 const queues = ref<{ key: OperationsQueue; label: string; count: number }[]>([])
@@ -160,11 +160,13 @@ function queueToThesisStatus(queue: OperationsQueue): DispatchThesisSeed['status
 }
 
 async function refreshQueueCounts() {
+  if (!service) return
   const counts = await service.listOperationsQueues()
   queues.value = queueOrder.map((key) => ({ key, label: queueLabels[key], count: counts[key] }))
 }
 
 async function refreshDispatchTheses() {
+  if (!service) return
   dispatchTheses.value = await service.listDispatchTheses()
   if (
     selectedThesisId.value &&
@@ -175,6 +177,7 @@ async function refreshDispatchTheses() {
 }
 
 async function refreshTasks() {
+  if (!service) return
   tasks.value = await service.listExpertTasks()
 }
 
@@ -184,6 +187,27 @@ async function loadWorkbench() {
   feedback.value = ''
   actionError.value = ''
   try {
+    if (!demoEnabled) {
+      const queue = await dispatchQueue()
+      dispatchTheses.value = queue.map((item) => ({
+        id: item.thesis_id,
+        title: item.title,
+        studentName: item.student_name,
+        status: item.stage === 'READY_FOR_DISPATCH' ? 'PENDING_DISPATCH' : 'IN_REVIEW',
+        discipline: { code: item.discipline_code, name: item.discipline_code },
+      })) as unknown as DispatchThesisSeed[]
+      queues.value = [
+        {
+          key: 'PENDING_ASSIGNMENT',
+          label: '待匹配',
+          count: queue.filter((item) => item.stage === 'READY_FOR_DISPATCH').length,
+        },
+      ]
+      selectedThesisId.value = dispatchTheses.value[0]?.id ?? ''
+      if (selectedThesisId.value) await selectThesis(selectedThesisId.value, true)
+      return
+    }
+    if (!service) return
     await Promise.all([refreshQueueCounts(), refreshDispatchTheses(), refreshTasks()])
     if (
       selectedThesisId.value &&
@@ -216,6 +240,29 @@ async function selectThesis(thesisId: string, silent = false) {
   if (!silent) assigned.value = false
   matches.value = []
   if (!thesisId) return
+  if (!demoEnabled) {
+    const rows = await dispatchCandidates(thesisId)
+    matches.value = rows.map((row) => ({
+      id: row.expert_id,
+      name: row.display_name || row.username || '',
+      unit: '',
+      title: '',
+      discipline: { code: row.discipline_codes[0] ?? '', name: row.discipline_codes.join(',') },
+      fields: row.discipline_codes,
+      keywordHits: [],
+      conflictHit: row.avoided,
+      conflictReason: row.avoided ? '回避' : row.direction_mismatch ? '方向不符' : '',
+      activeTasks: 0,
+      acceptanceRate: 0,
+      onTimeRate: 0,
+      avgCompletionDays: 0,
+      feeStandard: '未启用',
+      matchReason: row.direction_mismatch ? '方向不符' : '可派',
+    })) as unknown as ExpertMatchCandidate[]
+    refreshRows()
+    return
+  }
+  if (!service) return
   matches.value = (await service.listExpertMatches(thesisId)).map((candidate) => candidate)
   refreshRows()
 }
@@ -305,20 +352,24 @@ async function confirmAction() {
       const thesis = selectedThesis.value
       const expertId = selectedExpertIds.value[0]
       if (!thesis || !expertId) return
-      await service.assignExpertToThesis(thesis.id, expertId)
+      if (!demoEnabled) {
+        await assignExpert(thesis.id, expertId, { idempotencyKey: crypto.randomUUID() })
+      } else if (service) {
+        await service.assignExpertToThesis(thesis.id, expertId)
+      }
       assigned.value = true
       message = '已生成 1 个评审任务，论文进入「专家待接受」队列。'
-    } else if (current.kind === 'REASSIGN' && current.taskId) {
+    } else if (current.kind === 'REASSIGN' && current.taskId && service) {
       await service.reassignExpertTask(
         current.taskId,
         reassignExpertId.value,
         reason.value.trim(),
       )
       message = `已改派（原因：${reason.value.trim()}），新任务等待专家接单。`
-    } else if (current.kind === 'REMIND' && current.taskId) {
+    } else if (current.kind === 'REMIND' && current.taskId && service) {
       await service.remindExpertTask(current.taskId)
       message = '已发送催审提醒（演示投影）。'
-    } else if (current.kind === 'EXTEND' && current.taskId) {
+    } else if (current.kind === 'EXTEND' && current.taskId && service) {
       await service.extendExpertTask(current.taskId, extendDays.value)
       message = `已延期 ${extendDays.value} 天。`
     }

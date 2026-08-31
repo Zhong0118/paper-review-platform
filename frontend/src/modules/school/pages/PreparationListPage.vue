@@ -5,6 +5,7 @@ import BlindRail from '@/components/app/BlindRail.vue'
 import PageHeader from '@/components/app/PageHeader.vue'
 import { useScenarioService } from '@/demo/serviceProvider'
 import { confirmAnonymization, listSchoolTheses } from '@/api/schoolReview'
+import { confirmDispatch } from '@/api/dispatch'
 import { toSchoolRow } from '@/api/adapters'
 import type { BatchImportRow, DemoThesisSummary, SchoolSubmissionInput } from '@/demo/types'
 import PortalLayout from '@/layouts/PortalLayout.vue'
@@ -64,6 +65,24 @@ async function decide(decision: 'PASS' | 'REJECT') {
   }
 }
 
+async function sendOut() {
+  if (!selectedId.value) return
+  const row = rows.value.find((item) => item.id === selectedId.value)
+  saving.value = true
+  notice.value = ''
+  try {
+    const result = await confirmDispatch(selectedId.value, Number((row as { version?: number } | undefined)?.version ?? 1), {
+      idempotencyKey: crypto.randomUUID(),
+    })
+    rows.value = (await listSchoolTheses()).map(toSchoolRow)
+    notice.value = `已确认送出 · ${(result as { stage?: string }).stage ?? ''}`
+  } catch (error) {
+    notice.value = error instanceof Error ? error.message : '确认送出失败'
+  } finally {
+    saving.value = false
+  }
+}
+
 async function submitForStudent(input: SchoolSubmissionInput) {
   if (!demoEnabled || !service) return
   saving.value = true
@@ -104,6 +123,7 @@ async function showBatchPreview() {
           <textarea v-model="decisionReason" placeholder="退回原因（退回时必填）"></textarea>
           <button type="button" class="action primary" :disabled="saving" @click="decide('PASS')">通过匿名核验</button>
           <button type="button" class="action secondary" :disabled="saving" @click="decide('REJECT')">退回草稿</button>
+          <button type="button" class="action primary" :disabled="saving" @click="sendOut">确认送出</button>
           <p v-if="notice" role="status">{{ notice }}</p>
         </div>
       </section>
