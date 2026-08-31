@@ -7,6 +7,7 @@ import PageHeader from '@/components/app/PageHeader.vue'
 import { useScenarioService } from '@/demo/serviceProvider'
 import { createThesis, getThesis, patchThesis, submitThesis } from '@/api/theses'
 import { uploadThesisFile } from '@/api/files'
+import { fetchEligibility } from '@/api/auth'
 import { toStudentThesisDetail } from '@/api/adapters'
 import type { StudentDraftInput, ThesisFileMeta } from '@/demo/types'
 import PortalLayout from '@/layouts/PortalLayout.vue'
@@ -102,10 +103,30 @@ async function loadDraft() {
     }
     identity.value = {
       ...identity.value,
-      school: thesis.student.tenantName,
-      studentId: thesis.student.id,
-      studentName: thesis.student.name,
-      batch: thesis.batchName,
+      school: thesis.student.tenantName || identity.value.school,
+      college: identity.value.college,
+      studentId: thesis.studentId || thesis.student.id,
+      studentName: thesis.studentName || thesis.student.name,
+      supervisor: identity.value.supervisor,
+      batch: thesis.batchName || identity.value.batch,
+    }
+    if (!demoEnabled) {
+      try {
+        const elig = await fetchEligibility()
+        identity.value = {
+          school: elig.tenant_name || identity.value.school,
+          college: elig.college_name || identity.value.college,
+          studentId: elig.student_no,
+          studentName: elig.student_name,
+          trainingLevel: identity.value.trainingLevel,
+          degreeType: elig.degree_type || identity.value.degreeType,
+          supervisor: elig.supervisor_name ? `${elig.supervisor_name}教授` : identity.value.supervisor,
+          batch: elig.batch_name || identity.value.batch,
+          deadline: elig.deadline || identity.value.deadline,
+        }
+      } catch {
+        /* keep thesis projection */
+      }
     }
     if (requestedId === 'new') {
       await router.replace({ query: { ...route.query, thesisId: thesis.id } })

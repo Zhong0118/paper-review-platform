@@ -12,8 +12,8 @@ from app.core.security import (
     verify_password,
 )
 from app.modules.auth.models import AuthSession
-from app.modules.tenant.models import Tenant
-from app.modules.user.models import Role, User, UserRoleAssignment
+from app.modules.tenant.models import Organization, ReviewBatch, Tenant
+from app.modules.user.models import Role, StudentEligibility, TenantUserMembership, User, UserRoleAssignment
 
 
 async def _load_assignment(session: AsyncSession, user: User) -> tuple[Role, UserRoleAssignment]:
@@ -108,11 +108,52 @@ async def me_payload(session: AsyncSession, user_id: UUID, role: str, tenant_id:
     user = await session.get(User, user_id)
     if user is None:
         raise AppError("AUTH_REQUIRED", 401, "未认证或会话失效")
+    tenant = await session.get(Tenant, tenant_id) if tenant_id else None
     return {
         "id": str(user.id),
         "username": user.username,
         "display_name": user.display_name,
         "role": role,
         "tenant_id": str(tenant_id) if tenant_id else None,
-        "tenant_code": await _tenant_code(session, tenant_id),
+        "tenant_code": tenant.code if tenant else None,
+        "tenant_name": tenant.name if tenant else None,
+    }
+
+
+async def eligibility_payload(session: AsyncSession, user_id: UUID, tenant_id: UUID | None) -> dict:
+    if tenant_id is None:
+        raise AppError("ACCESS_DENIED", 403, "无权执行该操作")
+    membership = (
+        await session.execute(
+            select(TenantUserMembership).where(
+                TenantUserMembership.user_id == user_id,
+                TenantUserMembership.tenant_id == tenant_id,
+                TenantUserMembership.membership_type == "STUDENT",
+            )
+        )
+    ).scalar_one_or_none()
+    if membership is None:
+        raise AppError("ACCESS_DENIED", 403, "无权执行该操作")
+    elig = (
+        await session.execute(
+            select(StudentEligibility).where(StudentEligibility.student_membership_id == membership.id)
+        )
+    ).scalar_one_or_none()
+    if elig is None:
+        raise AppError("ACCESS_DENIED", 403, "当前没有有效送审资格")
+    tenant = await session.get(Tenant, tenant_id)
+    org = await session.get(Organization, membership.organization_id)
+    batch = await session.get(ReviewBatch, elig.review_batch_id)
+    return {
+        "eligible": elig.status == "ELIGIBLE",
+        "status": elig.status,
+        "student_no": elig.student_no,
+        "student_name": elig.student_name,
+        "supervisor_name": elig.supervisor_name,
+        "degree_type": elig.degree_type,
+        "tenant_name": tenant.name if tenant else "",
+        "college_name": org.name if org else "",
+        "batch_id": str(elig.review_batch_id),
+        "batch_name": batch.name if batch else "",
+        "deadline": batch.end_at.isoformat() if batch and batch.end_at else "",
     }

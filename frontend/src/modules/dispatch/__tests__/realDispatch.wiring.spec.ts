@@ -23,5 +23,6 @@ describe('real dispatch wiring', () => {
     expect(view.anonymousId).toBe('ab12cd34')
     expect(view).not.toHaveProperty('files')
     expect(JSON.stringify(view)).not.toContain('original')
+    expect(JSON.stringify(view)).not.toContain('林知远')
   })
 })

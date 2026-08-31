@@ -68,7 +68,8 @@ onMounted(async () => {
         task.value = {
           ...(task.value as ExpertTaskSummary),
           anonymousId: invitation.anonymous_id,
-          disciplineName: invitation.discipline_name,
+          anonymousTitle: invitation.anonymous_title || '匿名论文',
+          discipline: { code: invitation.discipline_code, name: invitation.discipline_name },
         } as ExpertTaskSummary
       }
     }

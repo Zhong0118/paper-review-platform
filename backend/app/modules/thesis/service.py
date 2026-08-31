@@ -11,7 +11,7 @@ from app.core.exceptions import AppError
 from app.modules.audit import service as audit_service
 from app.modules.auth.deps import CurrentUser
 from app.modules.files.models import FileObject
-from app.modules.tenant.models import DisciplineCatalog, ReviewBatch
+from app.modules.tenant.models import DisciplineCatalog, Organization, ReviewBatch, Tenant
 from app.modules.thesis.detector import run_anonymization_check
 from app.modules.thesis.models import AnonymizationCheck, Thesis, ThesisVersion, ThesisVersionFile
 from app.modules.user.models import StudentEligibility, TenantUserMembership
@@ -158,12 +158,35 @@ async def serialize_thesis(session: AsyncSession, user: CurrentUser, thesis: The
     check = await _latest_check(session, thesis)
     events = await _events(session, thesis.id)
     submitted_before = any(e.action == "submit" for e in events)
+    membership = await session.get(TenantUserMembership, thesis.student_membership_id)
+    elig = (
+        await session.execute(
+            select(StudentEligibility).where(
+                StudentEligibility.student_membership_id == thesis.student_membership_id,
+                StudentEligibility.review_batch_id == thesis.review_batch_id,
+            )
+        )
+    ).scalar_one_or_none()
+    tenant = await session.get(Tenant, thesis.tenant_id)
+    org = await session.get(Organization, membership.organization_id) if membership else None
+    batch = await session.get(ReviewBatch, thesis.review_batch_id)
+    student_block = None
+    if user.role in {RoleCode.STUDENT, RoleCode.SCHOOL_REVIEWER, RoleCode.PLATFORM_REVIEWER} and elig:
+        student_block = {
+            "name": elig.student_name,
+            "student_no": elig.student_no,
+            "supervisor_name": elig.supervisor_name,
+            "tenant_name": tenant.name if tenant else "",
+            "college_name": org.name if org else "",
+        }
     return {
         "id": str(thesis.id),
         "stage": thesis.stage,
         "version": thesis.version,
         "return_reason": thesis.return_reason,
         "allowed_actions": allowed_actions(user.role, thesis, check, submitted_before),
+        "student": student_block,
+        "batch_name": batch.name if batch else "",
         "anonymization": {
             "auto_conclusion": check.auto_conclusion if check else None,
             "manual_conclusion": check.manual_conclusion if check else None,

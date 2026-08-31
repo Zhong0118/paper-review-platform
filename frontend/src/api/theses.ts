@@ -28,6 +28,14 @@ export interface ThesisDetail {
     files: ThesisFileRef[]
   } | null
   recent_events: Array<{ action: string; from_stage: string | null; to_stage: string; reason: string | null }>
+  student?: {
+    name: string
+    student_no: string
+    supervisor_name: string | null
+    tenant_name: string
+    college_name: string
+  } | null
+  batch_name?: string
 }
 
 export interface DraftPayload {

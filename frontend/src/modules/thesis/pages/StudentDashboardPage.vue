@@ -6,7 +6,8 @@ import BlindRail from '@/components/app/BlindRail.vue'
 import PageHeader from '@/components/app/PageHeader.vue'
 import { useStudentPortalService } from '@/demo/serviceProvider'
 import { createThesis as createThesisApi, deleteThesis, getThesis, listTheses, withdrawThesis } from '@/api/theses'
-import { fallbackEligibility, toStudentThesisDetail } from '@/api/adapters'
+import { toStudentThesisDetail } from '@/api/adapters'
+import { fetchEligibility } from '@/api/auth'
 import type {
   DemoAction,
   StudentAction,
@@ -127,7 +128,14 @@ async function loadWorkspaceData(preserveSelection = true) {
     const [loadedEligibility, loaded] = await Promise.all([
       demoEnabled && service
         ? service.getStudentEligibility()
-        : Promise.resolve(fallbackEligibility()),
+        : fetchEligibility().then((elig) => ({
+            eligible: elig.eligible,
+            status: (elig.status as StudentEligibility['status']) || 'ELIGIBLE',
+            reason: elig.eligible ? '' : '当前没有有效送审资格',
+            batchId: elig.batch_id,
+            batchName: elig.batch_name,
+            deadline: elig.deadline,
+          })),
       demoEnabled && service
         ? service.listStudentTheses()
         : listTheses().then((items) => items.map(toStudentThesisDetail)),

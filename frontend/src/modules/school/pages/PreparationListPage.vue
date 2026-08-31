@@ -29,6 +29,8 @@ const drawerOpen = ref(false)
 const batchOpen = ref(false)
 const saving = ref(false)
 const query = ref('')
+const selectedRow = computed(() => rows.value.find((item) => item.id === selectedId.value) ?? null)
+const selectedActions = computed(() => selectedRow.value?.allowedActions ?? [])
 const filteredRows = computed(() => {
   const keyword = query.value.trim().toLowerCase()
   if (!keyword) return rows.value
@@ -117,13 +119,41 @@ async function showBatchPreview() {
         <header><div><span>THESIS INTAKE</span><h2>本校论文</h2></div><label>搜索<input v-model="query" placeholder="学号、姓名、论文或专业" /></label></header>
         <SchoolThesisTable :rows="filteredRows" @select="selectedId = $event" />
         <p v-if="!demoEnabled" class="submission-policy">
-          当前为真实审核：选择论文后可通过或退回。检测失败的论文不能通过。
+          当前为真实审核：按钮由服务端允许动作驱动。检测失败不能通过。
         </p>
         <div v-if="!demoEnabled && selectedId" class="review-actions">
-          <textarea v-model="decisionReason" placeholder="退回原因（退回时必填）"></textarea>
-          <button type="button" class="action primary" :disabled="saving" @click="decide('PASS')">通过匿名核验</button>
-          <button type="button" class="action secondary" :disabled="saving" @click="decide('REJECT')">退回草稿</button>
-          <button type="button" class="action primary" :disabled="saving" @click="sendOut">确认送出</button>
+          <textarea
+            v-if="selectedActions.includes('REJECT_ANONYMIZATION')"
+            v-model="decisionReason"
+            placeholder="退回原因（退回时必填）"
+          ></textarea>
+          <button
+            v-if="selectedActions.includes('CONFIRM_ANONYMIZATION')"
+            type="button"
+            class="action primary"
+            :disabled="saving"
+            @click="decide('PASS')"
+          >
+            通过匿名核验
+          </button>
+          <button
+            v-if="selectedActions.includes('REJECT_ANONYMIZATION')"
+            type="button"
+            class="action secondary"
+            :disabled="saving"
+            @click="decide('REJECT')"
+          >
+            退回草稿
+          </button>
+          <button
+            v-if="selectedActions.includes('CONFIRM_DISPATCH')"
+            type="button"
+            class="action primary"
+            :disabled="saving"
+            @click="sendOut"
+          >
+            确认送出
+          </button>
           <p v-if="notice" role="status">{{ notice }}</p>
         </div>
       </section>

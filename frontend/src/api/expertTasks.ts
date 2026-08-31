@@ -16,6 +16,7 @@ export interface ExpertInvitation {
   discipline_code: string
   discipline_name: string
   anonymous_id: string
+  anonymous_title?: string
   fee: string
 }
 

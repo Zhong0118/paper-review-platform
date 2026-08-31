@@ -42,3 +42,13 @@ async def me(
 ):
     data = await auth_service.me_payload(session, current.id, current.role, current.tenant_id)
     return ok(data, request_id=getattr(request.state, "request_id", None))
+
+
+@me_router.get("/me/eligibility")
+async def me_eligibility(
+    request: Request,
+    current: CurrentUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    data = await auth_service.eligibility_payload(session, current.id, current.tenant_id)
+    return ok(data, request_id=getattr(request.state, "request_id", None))

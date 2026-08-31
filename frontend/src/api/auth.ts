@@ -28,3 +28,21 @@ export function logoutSession(refreshToken: string) {
 export function fetchMe() {
   return httpApi.get<LoginUser>('/me')
 }
+
+export interface Eligibility {
+  eligible: boolean
+  status: string
+  student_no: string
+  student_name: string
+  supervisor_name: string | null
+  degree_type: string | null
+  tenant_name: string
+  college_name: string
+  batch_id: string
+  batch_name: string
+  deadline: string
+}
+
+export function fetchEligibility() {
+  return httpApi.get<Eligibility>('/me/eligibility')
+}

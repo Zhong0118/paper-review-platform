@@ -36,4 +36,36 @@ describe('real submit wiring adapters', () => {
     expect(mapped.studentVisibleStage).toBe('SCHOOL_REVIEW')
     expect(mapped.allowedActions).toContain('WITHDRAW_BEFORE_DISPATCH')
   })
+
+  it('copies student identity from API projection', () => {
+    const mapped = toStudentThesisDetail({
+      id: 't1',
+      stage: 'DRAFT',
+      version: 1,
+      return_reason: null,
+      allowed_actions: ['EDIT_THESIS'],
+      anonymization: { auto_conclusion: null, manual_conclusion: null, findings: [] },
+      current_version: {
+        id: 'v1',
+        title: '题',
+        abstract: '',
+        discipline_code: '0812',
+        discipline_name: '计算机科学与技术',
+        keywords: ['盲审'],
+        is_editable: true,
+        files: [],
+      },
+      recent_events: [],
+      student: {
+        name: '林知远',
+        student_no: '20260042',
+        supervisor_name: '赵文博',
+        tenant_name: '演示大学',
+        college_name: '计算机学院',
+      },
+      batch_name: '2026 年春季硕士论文盲审',
+    })
+    expect(mapped.studentName).toBe('林知远')
+    expect(mapped.student.tenantName).toBe('演示大学')
+  })
 })

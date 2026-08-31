@@ -223,7 +223,7 @@ async def list_expert_tasks(session: AsyncSession, user: CurrentUser) -> list[di
                 "id": str(task.id),
                 "status": task.status,
                 "anonymous_id": str(task.id)[:8],
-                "anonymous_title": "匿名论文",
+                "anonymous_title": (version.title if version else "匿名论文") or "匿名论文",
                 "discipline_code": round_.discipline_code if round_ else "",
                 "discipline_name": round_.discipline_name if round_ else "",
                 "allowed_actions": ["ACCEPT_TASK"] if task.status == ExpertTaskStatus.INVITED else [],
@@ -235,11 +235,13 @@ async def list_expert_tasks(session: AsyncSession, user: CurrentUser) -> list[di
 async def invitation(session: AsyncSession, user: CurrentUser, task_id: UUID) -> dict:
     task = await get_task_for_expert(session, user, task_id)
     round_ = await session.get(ReviewRound, task.round_id)
+    version = await session.get(ThesisVersion, round_.thesis_version_id) if round_ else None
     return {
         "id": str(task.id),
         "status": task.status,
         "discipline_code": round_.discipline_code if round_ else "",
         "discipline_name": round_.discipline_name if round_ else "",
+        "anonymous_title": (version.title if version else "匿名论文") or "匿名论文",
         "anonymous_id": str(task.id)[:8],
         "fee": "未启用",
     }
