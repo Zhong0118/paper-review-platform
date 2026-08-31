@@ -144,6 +144,9 @@ export const httpApi = {
   patch<T>(url: string, data?: unknown, config?: RequestOptions): Promise<T> {
     return unwrap(http.patch<ApiResponse<T>>(url, data, config))
   },
+  put<T>(url: string, data?: unknown, config?: RequestOptions): Promise<T> {
+    return unwrap(http.put<ApiResponse<T>>(url, data, config))
+  },
   delete<T>(url: string, config?: RequestOptions): Promise<T> {
     return unwrap(http.delete<ApiResponse<T>>(url, config))
   },

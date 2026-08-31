@@ -158,7 +158,7 @@ async function confirmAccept() {
     if (!demoEnabled) {
       await acceptTask(target.id)
       acceptTarget.value = null
-      await loadTasks()
+      await router.push('/expert/review')
       return
     }
     if (service) await service.acceptExpertTask(target.id)

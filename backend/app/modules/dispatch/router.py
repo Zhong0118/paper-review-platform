@@ -8,6 +8,8 @@ from app.core.response import ok
 from app.db.session import get_session
 from app.modules.auth.deps import CurrentUser, require_roles
 from app.modules.dispatch import service as dispatch_service
+from app.modules.review.service import ReviewPayload
+from app.modules.review import service as review_service
 from app.modules.thesis import service as thesis_service
 from app.shared.enums import RoleCode
 
@@ -100,6 +102,52 @@ async def expert_materials(
     session: AsyncSession = Depends(get_session),
 ):
     data = await dispatch_service.materials(session, current, task_id)
+    return ok(data, request_id=getattr(request.state, "request_id", None))
+
+
+@expert_router.get("/tasks/{task_id}/draft")
+async def expert_get_draft(
+    task_id: UUID,
+    request: Request,
+    current: CurrentUser = Depends(require_roles(RoleCode.EXPERT)),
+    session: AsyncSession = Depends(get_session),
+):
+    data = await review_service.get_draft(session, current, task_id)
+    return ok(data, request_id=getattr(request.state, "request_id", None))
+
+
+@expert_router.put("/tasks/{task_id}/draft")
+async def expert_put_draft(
+    task_id: UUID,
+    body: ReviewPayload,
+    request: Request,
+    current: CurrentUser = Depends(require_roles(RoleCode.EXPERT)),
+    session: AsyncSession = Depends(get_session),
+):
+    data = await review_service.save_draft(session, current, task_id, body)
+    await session.commit()
+    return ok(data, request_id=getattr(request.state, "request_id", None))
+
+
+@expert_router.post("/tasks/{task_id}:submit-final")
+async def expert_submit_final(
+    task_id: UUID,
+    body: ReviewPayload,
+    request: Request,
+    current: CurrentUser = Depends(require_roles(RoleCode.EXPERT)),
+    session: AsyncSession = Depends(get_session),
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+):
+    from app.modules.thesis import service as thesis_service
+
+    cached = await thesis_service.remember_idempotent(
+        session, current, idempotency_key, "submit-final", {"id": str(task_id)}
+    )
+    if cached:
+        return ok(cached, request_id=getattr(request.state, "request_id", None))
+    data = await review_service.submit_final(session, current, task_id, body)
+    await thesis_service.store_idempotent(session, current, idempotency_key, "submit-final", {"id": str(task_id)}, data)
+    await session.commit()
     return ok(data, request_id=getattr(request.state, "request_id", None))
 
 

@@ -81,3 +81,30 @@ async def ready_thesis(client: AsyncClient, seed: SimpleNamespace) -> tuple[dict
     )
     assert confirmed.status_code == 200, confirmed.text
     return student, school, confirmed.json()["data"]
+
+
+async def accepted_task(client: AsyncClient, seed: SimpleNamespace) -> tuple[dict, dict, str]:
+    from tests.test_dispatch import expert_id
+
+    student, school, thesis = await ready_thesis(client, seed)
+    platform = await login(client, "platform.chen", seed.password)
+    expert_user = await login(client, "expert.zhou", seed.password)
+    await client.post(
+        f"/api/v1/school-review/theses/{thesis['id']}:confirm-dispatch",
+        headers=auth(school, idempotency=f"cd-{thesis['id'][:8]}"),
+        json={"version": thesis["version"]},
+    )
+    zhou = await expert_id(client, platform, thesis["id"], "zhou")
+    assigned = await client.post(
+        f"/api/v1/platform-review/theses/{thesis['id']}:assign",
+        headers=auth(platform, idempotency=f"as-{thesis['id'][:8]}"),
+        json={"expert_id": zhou},
+    )
+    assert assigned.status_code == 200, assigned.text
+    task_id = assigned.json()["data"]["task"]["id"]
+    accepted = await client.post(
+        f"/api/v1/expert/tasks/{task_id}:accept",
+        headers=auth(expert_user, idempotency=f"ac-{task_id[:8]}"),
+    )
+    assert accepted.status_code == 200, accepted.text
+    return expert_user, student, task_id

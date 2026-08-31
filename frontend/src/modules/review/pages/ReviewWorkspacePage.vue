@@ -5,6 +5,8 @@ import BlindRail from '@/components/app/BlindRail.vue'
 import PageHeader from '@/components/app/PageHeader.vue'
 import StatusTag from '@/components/app/StatusTag.vue'
 import { useScenarioService } from '@/demo/serviceProvider'
+import { getReviewDraft, saveReviewDraft, submitFinalReview } from '@/api/review'
+import { listExpertTasks } from '@/api/expertTasks'
 import type { ExpertTaskSummary, ReviewScoreInput } from '@/demo/types'
 import PortalLayout from '@/layouts/PortalLayout.vue'
 import { menusByRole } from '@/router/menus'
@@ -15,9 +17,8 @@ import WorkspaceSplitter from '../components/WorkspaceSplitter.vue'
 import ExpertDemoScenarioController from '@/modules/expert-management/components/ExpertDemoScenarioController.vue'
 
 const router = useRouter()
-const service = useScenarioService()
-/** 演示场景控制器：仅 VITE_DEMO_MODE=true 时渲染入口（见 Task 10）。 */
 const demoEnabled = import.meta.env.VITE_DEMO_MODE === 'true'
+const service = demoEnabled ? useScenarioService() : null
 const demoDialogOpen = ref(false)
 
 const task = ref<ExpertTaskSummary | null>(null)
@@ -37,7 +38,9 @@ const formLocked = computed(() => locked.value || submitted.value)
 
 onMounted(async () => {
   try {
-    const tasks = await service.listExpertTasks({ own: true })
+    const tasks = demoEnabled && service
+      ? await service.listExpertTasks({ own: true })
+      : ((await listExpertTasks()) as unknown as ExpertTaskSummary[])
     // 本人当前在评/已提交任务：工作台一次只处理一条（单专家评审约束）。
     const current =
       tasks.find((item) => ['IN_REVIEW', 'SUBMITTED'].includes(item.status)) ??
@@ -50,8 +53,13 @@ onMounted(async () => {
     task.value = current
     locked.value = current.status === 'SUBMITTED'
     // 刷新后恢复草稿：工作台在评任务（IN_REVIEW）且已保存过草稿时回填表单。
-    if (current.status === 'IN_REVIEW' && (await service.getSnapshot()).review?.scoreInput) {
-      draft.value = (await service.getSnapshot()).review?.scoreInput ?? null
+    if (current.status === 'IN_REVIEW') {
+      if (demoEnabled && service && (await service.getSnapshot()).review?.scoreInput) {
+        draft.value = (await service.getSnapshot()).review?.scoreInput ?? null
+      } else if (!demoEnabled) {
+        const saved = await getReviewDraft(current.id)
+        draft.value = Object.keys(saved).length ? (saved as ReviewScoreInput) : null
+      }
     }
   } catch (err) {
     loadError.value = err instanceof Error ? err.message : '任务加载失败。'
@@ -67,7 +75,9 @@ onBeforeUnmount(() => {
 
 /** 从服务端投影重新载入当前任务（提交后刷新状态，页面反映最新流转）。 */
 async function reloadCurrentTask() {
-  const tasks = await service.listExpertTasks({ own: true })
+    const tasks = demoEnabled && service
+      ? await service.listExpertTasks({ own: true })
+      : ((await listExpertTasks()) as unknown as ExpertTaskSummary[])
   const current = tasks.find((item) => item.id === task.value?.id) ?? tasks[0] ?? null
   task.value = current
   locked.value = current?.status === 'SUBMITTED'
@@ -77,7 +87,12 @@ async function reloadCurrentTask() {
 async function reloadWorkspaceProjection() {
   await reloadCurrentTask()
   if (task.value?.status === 'IN_REVIEW') {
-    draft.value = (await service.getSnapshot()).review?.scoreInput ?? null
+    if (demoEnabled && service) {
+      draft.value = (await service.getSnapshot()).review?.scoreInput ?? null
+    } else {
+      const saved = await getReviewDraft(task.value.id)
+      draft.value = Object.keys(saved).length ? (saved as ReviewScoreInput) : null
+    }
   } else {
     draft.value = null
   }
@@ -86,7 +101,8 @@ async function reloadWorkspaceProjection() {
 async function save(input: ReviewScoreInput) {
   saving.value = true
   try {
-    await service.saveReviewDraft(input)
+    if (demoEnabled && service) await service.saveReviewDraft(input)
+    else if (task.value) await saveReviewDraft(task.value.id, input)
     notice.value = '草稿已保存。'
     autosaveVisible.value = true
     if (autosaveHideTimer !== null) clearTimeout(autosaveHideTimer)
@@ -167,7 +183,8 @@ async function confirmSubmit() {
   submitPending.value = true
   submitError.value = ''
   try {
-    await service.submitFinalReview(input)
+    if (demoEnabled && service) await service.submitFinalReview(input)
+    else if (task.value) await submitFinalReview(task.value.id, input)
     await reloadCurrentTask()
     pendingInput.value = null
     notice.value = '最终意见已提交并锁定。'
@@ -241,12 +258,16 @@ async function confirmCorrection() {
   correctionPending.value = true
   correctionError.value = ''
   try {
-    await service.requestCorrection(task.value.id, correctionReason.value.trim())
-    correctionOpen.value = false
-    correctionPending.value = false
-    notice.value = '更正申请已提交，等待平台审批；原评阅版本仍保留。'
+    if (demoEnabled && service) {
+      await service.requestCorrection(task.value.id, correctionReason.value.trim())
+      correctionOpen.value = false
+      notice.value = '更正申请已提交，等待平台审批；原评阅版本仍保留。'
+    } else {
+      notice.value = '评阅更正申请尚未接入真实接口。'
+    }
   } catch (err) {
     correctionError.value = err instanceof Error ? err.message : '更正申请提交失败。'
+  } finally {
     correctionPending.value = false
   }
 }
