@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.security import hash_password
+from app.modules.expert.models import Expert
 from app.modules.tenant.models import DisciplineCatalog, Organization, ReviewBatch, Tenant
 from app.modules.user.models import (
     Role,
@@ -122,6 +123,7 @@ async def seed_database(session: AsyncSession) -> None:
     school = await _user(session, "school.wang", "王老师", password)
     platform = await _user(session, "platform.chen", "陈岚", password)
     expert = await _user(session, "expert.zhou", "周明远教授", password)
+    expert_qian = await _user(session, "expert.qian", "钱教授", password)
     admin = await _user(session, "admin.system", "系统管理员", password)
     other_student = await _user(session, "other.student", "对照学生", password)
     supervisor = await _user(session, "supervisor.zhao", "赵文博教授", password)
@@ -183,6 +185,7 @@ async def seed_database(session: AsyncSession) -> None:
     await assign(school, "school_reviewer", demo)
     await assign(platform, "platform_reviewer", None)
     await assign(expert, "expert", None)
+    await assign(expert_qian, "expert", None)
     await assign(admin, "system_admin", None)
     await assign(other_student, "student", other)
     await assign(supervisor, "supervisor", demo)
@@ -237,6 +240,10 @@ async def seed_database(session: AsyncSession) -> None:
                 source_updated_at=now,
             )
         )
+    for user_obj, codes in ((expert, ["0812"]), (expert_qian, ["0835"])):
+        found_ex = (await session.execute(select(Expert).where(Expert.user_id == user_obj.id))).scalar_one_or_none()
+        if not found_ex:
+            session.add(Expert(id=uuid4(), user_id=user_obj.id, service_status="AVAILABLE", discipline_codes=codes))
     await session.commit()
 
 

@@ -86,3 +86,25 @@ class FileScanStatus(StrEnum):
     PENDING = "PENDING"
     CLEAN = "CLEAN"
     FAILED = "FAILED"
+
+
+class ExpertServiceStatus(StrEnum):
+    AVAILABLE = "AVAILABLE"
+    UNAVAILABLE = "UNAVAILABLE"
+
+
+class RoundStatus(StrEnum):
+    CREATED = "CREATED"
+    ACTIVE = "ACTIVE"
+    RESULT_READY = "RESULT_READY"
+    COMPLETED = "COMPLETED"
+    CANCELLED = "CANCELLED"
+
+
+class ExpertTaskStatus(StrEnum):
+    INVITED = "INVITED"
+    IN_REVIEW = "IN_REVIEW"
+    SUBMITTED = "SUBMITTED"
+    REJECTED = "REJECTED"
+    ACCEPT_TIMEOUT = "ACCEPT_TIMEOUT"
+    CANCELLED = "CANCELLED"

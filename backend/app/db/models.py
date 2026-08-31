@@ -18,3 +18,5 @@ from app.modules.user.models import (  # noqa: F401
     UserRoleAssignment,
 )
 from app.modules.workflow.models import TerminationRecord, WorkflowEvent  # noqa: F401
+from app.modules.expert.models import Expert, ExpertConflict  # noqa: F401
+from app.modules.dispatch.models import ExpertTask, ReviewRound  # noqa: F401

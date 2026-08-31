@@ -118,13 +118,56 @@ async def _bind_to_current_version(session: AsyncSession, obj: FileObject) -> No
 
 
 async def can_access_file(session: AsyncSession, user: CurrentUser, obj: FileObject) -> bool:
-    if user.role in {RoleCode.SYSTEM_ADMIN, RoleCode.EXPERT, RoleCode.PLATFORM_REVIEWER}:
+    if user.role == RoleCode.SYSTEM_ADMIN:
         return False
-    if obj.purpose in {FilePurpose.ORIGINAL, FilePurpose.ANONYMOUS}:
+    if obj.purpose == FilePurpose.ORIGINAL:
         if user.role == RoleCode.STUDENT and obj.uploaded_by == user.id:
             return True
         if user.role == RoleCode.SCHOOL_REVIEWER and user.tenant_id == obj.tenant_id:
             return True
+        return False
+    if obj.purpose == FilePurpose.ANONYMOUS:
+        if user.role == RoleCode.STUDENT and obj.uploaded_by == user.id:
+            return True
+        if user.role == RoleCode.SCHOOL_REVIEWER and user.tenant_id == obj.tenant_id:
+            return True
+        if user.role == RoleCode.PLATFORM_REVIEWER:
+            return True
+        if user.role == RoleCode.EXPERT:
+            from app.modules.dispatch.models import ExpertTask, ReviewRound
+            from app.modules.expert.models import Expert
+            from app.modules.thesis.models import ThesisVersionFile
+            from app.shared.enums import ExpertTaskStatus
+
+            expert = (
+                await session.execute(select(Expert).where(Expert.user_id == user.id))
+            ).scalar_one_or_none()
+            if expert is None:
+                return False
+            link = (
+                await session.execute(
+                    select(ThesisVersionFile).where(ThesisVersionFile.file_id == obj.id)
+                )
+            ).scalar_one_or_none()
+            if link is None:
+                return False
+            round_ = (
+                await session.execute(
+                    select(ReviewRound).where(ReviewRound.thesis_version_id == link.thesis_version_id)
+                )
+            ).scalar_one_or_none()
+            if round_ is None:
+                return False
+            task = (
+                await session.execute(
+                    select(ExpertTask).where(
+                        ExpertTask.round_id == round_.id,
+                        ExpertTask.expert_id == expert.id,
+                        ExpertTask.status == ExpertTaskStatus.IN_REVIEW,
+                    )
+                )
+            ).scalar_one_or_none()
+            return task is not None
     return False
 
 

@@ -135,6 +135,8 @@ def allowed_actions(role: str, thesis: Thesis, check: AnonymizationCheck | None,
         if check is None or check.auto_conclusion != AnonymizationConclusion.FAIL:
             actions.append("CONFIRM_ANONYMIZATION")
         actions.extend(["REJECT_ANONYMIZATION", "TERMINATE"])
+    if role == RoleCode.SCHOOL_REVIEWER and thesis.stage == ThesisStage.READY_FOR_DISPATCH:
+        actions.append("CONFIRM_DISPATCH")
     return actions
 
 

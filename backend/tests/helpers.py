@@ -61,3 +61,23 @@ async def attach_files(
         assert put.status_code == 200, put.text
         done = await client.post(f"/api/v1/files/{file_id}:complete", headers=auth(tokens))
         assert done.status_code == 200, done.text
+
+
+async def ready_thesis(client: AsyncClient, seed: SimpleNamespace) -> tuple[dict, dict, dict]:
+    student = await login(client, "student.lin", seed.password)
+    school = await login(client, "school.wang", seed.password)
+    thesis = await create_draft(client, student)
+    await attach_files(client, student, thesis["id"])
+    submitted = await client.post(
+        f"/api/v1/theses/{thesis['id']}:submit",
+        headers=auth(student, idempotency=f"s-{thesis['id'][:8]}"),
+        json={"version": thesis["version"]},
+    )
+    assert submitted.status_code == 200, submitted.text
+    confirmed = await client.post(
+        f"/api/v1/school-review/theses/{thesis['id']}:confirm-anonymization",
+        headers=auth(school, idempotency=f"c-{thesis['id'][:8]}"),
+        json={"decision": "PASS", "version": submitted.json()["data"]["version"]},
+    )
+    assert confirmed.status_code == 200, confirmed.text
+    return student, school, confirmed.json()["data"]
