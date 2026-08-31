@@ -5,6 +5,9 @@ import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import BlindRail from '@/components/app/BlindRail.vue'
 import PageHeader from '@/components/app/PageHeader.vue'
 import { useScenarioService } from '@/demo/serviceProvider'
+import { createThesis, getThesis, patchThesis, submitThesis } from '@/api/theses'
+import { uploadThesisFile } from '@/api/files'
+import { toStudentThesisDetail } from '@/api/adapters'
 import type { StudentDraftInput, ThesisFileMeta } from '@/demo/types'
 import PortalLayout from '@/layouts/PortalLayout.vue'
 import { menusByRole } from '@/router/menus'
@@ -22,7 +25,9 @@ const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const demoEnabled = import.meta.env.VITE_DEMO_MODE === 'true'
-const service = useScenarioService()
+const service = demoEnabled ? useScenarioService() : null
+const pendingUploads = ref<Partial<Record<'SCHOOL_ARCHIVE' | 'EXPERT_REVIEW', File>>>({})
+const liveVersion = ref(1)
 const editor = ref<InstanceType<typeof ThesisMaterialEditor>>()
 const submitOpener = ref<HTMLButtonElement>()
 const confirmDialog = ref<HTMLElement>()
@@ -68,11 +73,24 @@ async function loadDraft() {
   loading.value = true
   loadError.value = ''
   try {
-    const requestedId = String(route.query.thesisId ?? 'thesis-main')
+    const requestedId = String(route.query.thesisId ?? (demoEnabled ? 'thesis-main' : 'new'))
     const thesis =
-      requestedId === 'new'
-        ? await service.createStudentDraft()
-        : await service.getStudentThesis(requestedId)
+      demoEnabled && service
+        ? requestedId === 'new'
+          ? await service.createStudentDraft()
+          : await service.getStudentThesis(requestedId)
+        : toStudentThesisDetail(
+            requestedId === 'new'
+              ? await createThesis({
+                  title: '未命名论文',
+                  abstract: '待补充摘要',
+                  discipline_code: '0812',
+                  discipline_name: '计算机科学与技术',
+                  keywords: ['盲审'],
+                })
+              : await getThesis(requestedId),
+          )
+    liveVersion.value = Number((thesis as { version?: number }).version ?? 1)
     thesisId.value = thesis.id
     anonymousId.value = thesis.anonymousId
     form.value = {
@@ -108,6 +126,12 @@ function updateForm(value: StudentDraftInput) {
   validationError.value = ''
 }
 
+function onNativeFile(payload: { purpose: ThesisFileMeta['purpose']; file: File }) {
+  if (payload.purpose === 'SCHOOL_ARCHIVE' || payload.purpose === 'EXPERT_REVIEW') {
+    pendingUploads.value[payload.purpose] = payload.file
+  }
+}
+
 function draftSnapshot(): StudentDraftInput {
   return {
     title: form.value.title,
@@ -123,9 +147,22 @@ async function persistDraft(snapshot: StudentDraftInput, revision: number) {
   saving.value = true
   saveFailed.value = false
   try {
-    const saved = await service.saveStudentDraft(thesisId.value, snapshot)
+    const saved =
+      demoEnabled && service
+        ? await service.saveStudentDraft(thesisId.value, snapshot)
+        : await patchThesis(thesisId.value, {
+            title: snapshot.title,
+            abstract: snapshot.abstract,
+            discipline_code: snapshot.discipline.code,
+            discipline_name: snapshot.discipline.name,
+            keywords: snapshot.keywords,
+          })
+    if (!demoEnabled) liveVersion.value = (saved as { version?: number }).version ?? liveVersion.value
     if (formRevision.value === revision) dirty.value = false
-    lastSavedAt.value = saved.updatedAt
+    lastSavedAt.value =
+      demoEnabled && saved && 'updatedAt' in saved
+        ? String(saved.updatedAt)
+        : new Date().toISOString()
     return true
   } catch {
     saveFailed.value = true
@@ -225,7 +262,20 @@ async function confirmSubmit() {
         return
       }
     }
-    await service.submitStudentThesis(thesisId.value)
+    await persistDraft(draftSnapshot(), formRevision.value)
+    if (!demoEnabled && authStore.accessToken) {
+      for (const [purpose, raw] of Object.entries(pendingUploads.value)) {
+        if (!raw) continue
+        await uploadThesisFile({
+          thesisId: thesisId.value,
+          purpose: purpose === 'SCHOOL_ARCHIVE' ? 'original' : 'anonymous',
+          file: raw,
+          token: authStore.accessToken,
+        })
+      }
+    }
+    if (demoEnabled && service) await service.submitStudentThesis(thesisId.value)
+    else await submitThesis(thesisId.value, liveVersion.value, { idempotencyKey: crypto.randomUUID() })
     dirty.value = false
     showConfirmation.value = false
     await router.push('/student/dashboard')
@@ -285,6 +335,7 @@ void loadDraft()
           :model-value="form"
           :identity-tokens="[identity.studentName, identity.studentId]"
           @update:model-value="updateForm"
+          @native-file="onNativeFile"
         />
 
         <p v-if="validationError" class="validation-error" data-validation-error role="alert">

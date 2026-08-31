@@ -4,6 +4,8 @@ import { computed, onMounted, ref } from 'vue'
 import BlindRail from '@/components/app/BlindRail.vue'
 import PageHeader from '@/components/app/PageHeader.vue'
 import { useScenarioService } from '@/demo/serviceProvider'
+import { confirmAnonymization, listSchoolTheses } from '@/api/schoolReview'
+import { toSchoolRow } from '@/api/adapters'
 import type { BatchImportRow, DemoThesisSummary, SchoolSubmissionInput } from '@/demo/types'
 import PortalLayout from '@/layouts/PortalLayout.vue'
 import { menusByRole } from '@/router/menus'
@@ -14,7 +16,11 @@ import BatchImportPreview from '../components/BatchImportPreview.vue'
 import SchoolSubmissionDrawer from '../components/SchoolSubmissionDrawer.vue'
 import SchoolThesisTable from '../components/SchoolThesisTable.vue'
 
-const service = useScenarioService()
+const demoEnabled = import.meta.env.VITE_DEMO_MODE === 'true'
+const service = demoEnabled ? useScenarioService() : null
+const selectedId = ref<string | null>(null)
+const decisionReason = ref('')
+const notice = ref('')
 const authStore = useAuthStore()
 const rows = ref<DemoThesisSummary[]>([])
 const batchRows = ref<BatchImportRow[]>([])
@@ -29,11 +35,37 @@ const filteredRows = computed(() => {
 })
 
 onMounted(async () => {
-  await service.loginAs('school_reviewer')
-  rows.value = await service.listSchoolTheses()
+  if (demoEnabled && service) {
+    await service.loginAs('school_reviewer')
+    rows.value = await service.listSchoolTheses()
+    return
+  }
+  const items = await listSchoolTheses()
+  rows.value = items.map(toSchoolRow)
 })
 
+async function decide(decision: 'PASS' | 'REJECT') {
+  if (!selectedId.value) return
+  const row = rows.value.find((item) => item.id === selectedId.value)
+  saving.value = true
+  notice.value = ''
+  try {
+    const result = await confirmAnonymization(
+      selectedId.value,
+      { decision, version: Number((row as { version?: number } | undefined)?.version ?? 1), reason: decisionReason.value },
+      { idempotencyKey: crypto.randomUUID() },
+    )
+    rows.value = (await listSchoolTheses()).map(toSchoolRow)
+    notice.value = result.stage
+  } catch (error) {
+    notice.value = error instanceof Error ? error.message : '审核失败'
+  } finally {
+    saving.value = false
+  }
+}
+
 async function submitForStudent(input: SchoolSubmissionInput) {
+  if (!demoEnabled || !service) return
   saving.value = true
   try {
     await service.submitThesisAsSchool(input)
@@ -43,6 +75,7 @@ async function submitForStudent(input: SchoolSubmissionInput) {
 }
 
 async function showBatchPreview() {
+  if (!demoEnabled || !service) return
   batchRows.value = await service.previewBatchImport()
   batchOpen.value = true
 }
@@ -53,9 +86,9 @@ async function showBatchPreview() {
     <div class="preparation-page">
       <PageHeader eyebrow="PAGE-004 · REVIEW PREPARATION" title="送审准备" description="统一管理学生自提、学校单篇代传与批量导入论文，并在送出前完成材料与匿名化核验。">
         <template #actions>
-          <button type="button" class="action secondary" data-action="open-school-submission" @click="drawerOpen = true">单篇代传</button>
-          <button type="button" class="action primary" data-action="open-batch-preview" @click="showBatchPreview">批量导入</button>
-          <button type="button" class="action quiet">下载导入模板</button>
+          <button v-if="demoEnabled" type="button" class="action secondary" data-action="open-school-submission" @click="drawerOpen = true">单篇代传</button>
+          <button v-if="demoEnabled" type="button" class="action primary" data-action="open-batch-preview" @click="showBatchPreview">批量导入</button>
+          <button v-if="demoEnabled" type="button" class="action quiet">下载导入模板</button>
         </template>
       </PageHeader>
       <BlindRail audience="本校学生身份、原始论文与匿名材料" hidden-from="专家身份与专家联系方式不在学校准备页展示" stage="材料准备与匿名核验" />
@@ -63,7 +96,16 @@ async function showBatchPreview() {
       <AnonymizationCheckPanel :pass="18" :review-required="3" :failed="1" />
       <section class="workbench" aria-label="学校论文列表">
         <header><div><span>THESIS INTAKE</span><h2>本校论文</h2></div><label>搜索<input v-model="query" placeholder="学号、姓名、论文或专业" /></label></header>
-        <SchoolThesisTable :rows="filteredRows" />
+        <SchoolThesisTable :rows="filteredRows" @select="selectedId = $event" />
+        <p v-if="!demoEnabled" class="submission-policy">
+          当前为真实审核：选择论文后可通过或退回。检测失败的论文不能通过。
+        </p>
+        <div v-if="!demoEnabled && selectedId" class="review-actions">
+          <textarea v-model="decisionReason" placeholder="退回原因（退回时必填）"></textarea>
+          <button type="button" class="action primary" :disabled="saving" @click="decide('PASS')">通过匿名核验</button>
+          <button type="button" class="action secondary" :disabled="saving" @click="decide('REJECT')">退回草稿</button>
+          <p v-if="notice" role="status">{{ notice }}</p>
+        </div>
       </section>
       <BatchImportPreview v-if="batchOpen" :rows="batchRows" />
     </div>

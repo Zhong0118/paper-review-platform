@@ -1,0 +1,67 @@
+import { httpApi, type RequestOptions } from './request'
+
+export interface ThesisFileRef {
+  file_id: string
+  purpose: string
+  filename: string
+}
+
+export interface ThesisDetail {
+  id: string
+  stage: string
+  version: number
+  return_reason: string | null
+  allowed_actions: string[]
+  anonymization: {
+    auto_conclusion: string | null
+    manual_conclusion: string | null
+    findings: Array<{ field: string; matched_text: string; location: string }>
+  }
+  current_version: {
+    id: string
+    title: string
+    abstract: string
+    discipline_code: string
+    discipline_name: string
+    keywords: string[]
+    is_editable: boolean
+    files: ThesisFileRef[]
+  } | null
+  recent_events: Array<{ action: string; from_stage: string | null; to_stage: string; reason: string | null }>
+}
+
+export interface DraftPayload {
+  title: string
+  abstract: string
+  discipline_code: string
+  discipline_name: string
+  keywords: string[]
+}
+
+export function listTheses() {
+  return httpApi.get<ThesisDetail[]>('/theses')
+}
+
+export function getThesis(id: string) {
+  return httpApi.get<ThesisDetail>(`/theses/${id}`)
+}
+
+export function createThesis(payload: DraftPayload) {
+  return httpApi.post<ThesisDetail>('/theses', payload)
+}
+
+export function patchThesis(id: string, payload: DraftPayload) {
+  return httpApi.patch<ThesisDetail>(`/theses/${id}`, payload)
+}
+
+export function deleteThesis(id: string) {
+  return httpApi.delete(`/theses/${id}`)
+}
+
+export function submitThesis(id: string, version: number, options?: RequestOptions) {
+  return httpApi.post<ThesisDetail>(`/theses/${id}:submit`, { version }, options)
+}
+
+export function withdrawThesis(id: string, version: number, reason: string, options?: RequestOptions) {
+  return httpApi.post<ThesisDetail>(`/theses/${id}:withdraw`, { version, reason }, options)
+}

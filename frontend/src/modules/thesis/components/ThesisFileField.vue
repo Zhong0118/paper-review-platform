@@ -12,7 +12,10 @@ const props = withDefaults(
   }>(),
   { modelValue: null, identityTokens: () => [] },
 )
-const emit = defineEmits<{ 'update:modelValue': [value: ThesisFileMeta | null] }>()
+const emit = defineEmits<{
+  'update:modelValue': [value: ThesisFileMeta | null]
+  'native-file': [value: { purpose: ThesisFileMeta['purpose']; file: File }]
+}>()
 
 const input = ref<HTMLInputElement>()
 const progress = ref(0)
@@ -76,6 +79,7 @@ function onFileChange(event: Event) {
     }
     selected.value = meta
     emit('update:modelValue', meta)
+    emit('native-file', { purpose: props.purpose, file })
     progress.value = 100
   }, 20)
 }

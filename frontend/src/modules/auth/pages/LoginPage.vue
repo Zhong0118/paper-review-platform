@@ -33,8 +33,24 @@ async function startDemo(role: RoleCode) {
   await router.push(defaultRouteByRole[role])
 }
 
-function submitFormalLogin() {
-  notice.value = '正式账号登录将在认证接口接入后开放；甲方演示请使用下方角色入口。'
+const submitting = ref(false)
+
+async function submitFormalLogin() {
+  notice.value = ''
+  if (!form.account.trim() || !form.password) {
+    notice.value = '请输入账号和密码。'
+    return
+  }
+  submitting.value = true
+  try {
+    await authStore.loginWithPassword(form.account.trim(), form.password)
+    const role = authStore.user?.role
+    await router.push(role ? defaultRouteByRole[role] : '/login')
+  } catch (error) {
+    notice.value = error instanceof Error ? error.message : '登录失败，请检查账号密码。'
+  } finally {
+    submitting.value = false
+  }
 }
 </script>
 
@@ -68,7 +84,9 @@ function submitFormalLogin() {
             placeholder="请输入密码"
           />
         </label>
-        <button class="login-form__submit" type="submit">登录</button>
+        <button class="login-form__submit" type="submit" :disabled="submitting">
+          {{ submitting ? '登录中…' : '登录' }}
+        </button>
         <p v-if="notice" class="login-form__notice" role="status">{{ notice }}</p>
       </form>
 

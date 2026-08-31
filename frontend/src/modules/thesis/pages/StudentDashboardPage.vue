@@ -5,6 +5,8 @@ import { useRouter } from 'vue-router'
 import BlindRail from '@/components/app/BlindRail.vue'
 import PageHeader from '@/components/app/PageHeader.vue'
 import { useStudentPortalService } from '@/demo/serviceProvider'
+import { createThesis as createThesisApi, deleteThesis, getThesis, listTheses, withdrawThesis } from '@/api/theses'
+import { fallbackEligibility, toStudentThesisDetail } from '@/api/adapters'
 import type {
   DemoAction,
   StudentAction,
@@ -29,7 +31,7 @@ type ConfirmationAction = 'DELETE_DRAFT' | 'WITHDRAW_BEFORE_DISPATCH' | 'REQUEST
 const authStore = useAuthStore()
 const demoEnabled = import.meta.env.VITE_DEMO_MODE === 'true'
 const router = useRouter()
-const service = useStudentPortalService()
+const service = demoEnabled ? useStudentPortalService() : null
 const theses = ref<StudentThesisDetail[]>([])
 const eligibility = ref<StudentEligibility | null>(null)
 const selectedThesisId = ref<string | null>(null)
@@ -123,8 +125,12 @@ async function loadWorkspaceData(preserveSelection = true) {
   listError.value = ''
   try {
     const [loadedEligibility, loaded] = await Promise.all([
-      service.getStudentEligibility(),
-      service.listStudentTheses(),
+      demoEnabled && service
+        ? service.getStudentEligibility()
+        : Promise.resolve(fallbackEligibility()),
+      demoEnabled && service
+        ? service.listStudentTheses()
+        : listTheses().then((items) => items.map(toStudentThesisDetail)),
     ])
     eligibility.value = loadedEligibility
     eligibilityReason.value = loadedEligibility.eligible ? '' : loadedEligibility.reason
@@ -147,7 +153,11 @@ function replaceThesis(detail: StudentThesisDetail) {
 
 async function refreshSelectedThesis() {
   if (!selectedThesisId.value) return
-  replaceThesis(await service.getStudentThesis(selectedThesisId.value))
+  if (demoEnabled && service) {
+    replaceThesis(await service.getStudentThesis(selectedThesisId.value))
+    return
+  }
+  replaceThesis(toStudentThesisDetail(await getThesis(selectedThesisId.value)))
 }
 
 async function refreshDemoProjection() {
@@ -168,7 +178,18 @@ async function createThesis() {
   creating.value = true
   feedback.value = ''
   try {
-    const created = await service.createStudentDraft()
+    const created =
+      demoEnabled && service
+        ? await service.createStudentDraft()
+        : toStudentThesisDetail(
+            await createThesisApi({
+              title: '未命名论文',
+              abstract: '待补充摘要',
+              discipline_code: '0812',
+              discipline_name: '计算机科学与技术',
+              keywords: ['盲审'],
+            }),
+          )
     await router.push({ path: '/student/thesis/edit', query: { thesisId: created.id } })
   } catch (error) {
     if (errorCode(error) === 'NOT_ELIGIBLE') eligibilityReason.value = errorMessage(error)
@@ -259,7 +280,8 @@ async function confirmAction() {
   feedback.value = ''
   try {
     if (action === 'DELETE_DRAFT') {
-      await service.deleteStudentDraft(thesisId)
+      if (demoEnabled && service) await service.deleteStudentDraft(thesisId)
+      else await deleteThesis(thesisId)
       confirmationAction.value = null
       await loadWorkspaceData(false)
       keepSelectionVisible(matchingTheses())
@@ -269,12 +291,20 @@ async function confirmAction() {
 
     const reason = withdrawalReason.value.trim()
     if (action === 'WITHDRAW_BEFORE_DISPATCH') {
-      replaceThesis(await service.withdrawStudentThesis(thesisId, reason))
+      if (demoEnabled && service) {
+        replaceThesis(await service.withdrawStudentThesis(thesisId, reason))
+      } else {
+        const selected = theses.value.find((item) => item.id === thesisId)
+        const version = Number((selected as { version?: number } | undefined)?.version ?? 1)
+        replaceThesis(toStudentThesisDetail(await withdrawThesis(thesisId, version, reason)))
+      }
       feedback.value = '论文已撤回，可继续修改材料。'
-    } else {
+    } else if (demoEnabled && service) {
       await service.requestStudentWithdrawal(thesisId, reason)
       await refreshSelectedThesis()
       feedback.value = '撤回申请已提交学校处理。'
+    } else {
+      feedback.value = '派单后撤回申请尚未接入真实接口。'
     }
     confirmationAction.value = null
     withdrawalReason.value = ''

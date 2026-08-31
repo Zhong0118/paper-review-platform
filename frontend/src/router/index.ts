@@ -27,9 +27,10 @@ const router = createRouter({
 })
 
 router.beforeEach((to) => {
+  const authStore = useAuthStore()
+  if (!authStore.user) authStore.hydrateFromStorage()
   if (to.path === '/login') return true
 
-  const authStore = useAuthStore()
   const role = authStore.user?.role
   if (!role) return { path: '/login', query: { redirect: to.fullPath } }
   if (!to.meta.roleCodes.includes(role)) return authStore.defaultRoute

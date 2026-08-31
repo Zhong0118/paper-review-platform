@@ -398,7 +398,7 @@ git commit -m "feat: submit thesis through anonymization gate to ready-for-dispa
 - Produces: when `import.meta.env.VITE_DEMO_MODE !== 'true'`, student/school pages call HTTP APIs; demo controllers remain hidden (already gated).
 - `LoginPage` `submitFormalLogin` calls real login and `router.push(defaultRouteByRole[role])`. School SSO tab stays “not connected” copy.
 
-- [ ] **Step 1: Failing tests**
+- [x] **Step 1: Failing tests**
 
 ```ts
 it('logs in with password API and stores session', async () => {
@@ -410,13 +410,13 @@ it('logs in with password API and stores session', async () => {
 
 Keep existing LoginPage demo tests passing.
 
-- [ ] **Step 2: Run**
+- [x] **Step 2: Run**
 
 Run: `cd frontend && pnpm test:unit:run -- src/modules/auth/__tests__/realLogin.spec.ts`
 
 Expected: FAIL.
 
-- [ ] **Step 3: Implement clients and wire pages**
+- [x] **Step 3: Implement clients and wire pages**
 
 Auth store: `hydrateFromStorage()`, `loginWithPassword`, `logout` calls API then `clearSession`.
 
@@ -426,19 +426,19 @@ Edit page: load thesis by query `thesisId`; save PATCH; upload via prepare → P
 
 School preparation: `listSchoolTheses` (filter PREPARING), detail with findings, confirm PASS/REJECT. Hide or disable 代传/批量 buttons when not demo mode (those APIs do not exist). Do not call `service.loginAs('school_reviewer')` in non-demo — that currently impersonates inside the demo service.
 
-- [ ] **Step 4: Run frontend unit tests**
+- [x] **Step 4: Run frontend unit tests**
 
 Run: `cd frontend && pnpm test:unit:run`
 
 Expected: existing demo tests still PASS; new wiring tests PASS.
 
-- [ ] **Step 5: Typecheck**
+- [x] **Step 5: Typecheck**
 
 Run: `cd frontend && pnpm type-check`
 
 Expected: PASS.
 
-- [ ] **Step 6: Manual golden path (required evidence)**
+- [x] **Step 6: Manual golden path (required evidence)**
 
 ```bash
 docker compose up -d postgres
@@ -450,7 +450,7 @@ cd frontend && VITE_DEMO_MODE=false pnpm dev
 
 Log in `student.lin` / seed password → create draft → upload two files (anonymous without identifiers) → submit → log in `school.wang` → pass → stage ready. Then repeat with anonymous filename containing `20260042` and confirm auto return to draft.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add frontend docs/README.md

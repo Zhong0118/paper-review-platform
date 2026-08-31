@@ -11,7 +11,10 @@ const props = defineProps<{
   modelValue: StudentDraftInput
   identityTokens: string[]
 }>()
-const emit = defineEmits<{ 'update:modelValue': [value: StudentDraftInput] }>()
+const emit = defineEmits<{
+  'update:modelValue': [value: StudentDraftInput]
+  'native-file': [value: { purpose: ThesisFileMeta['purpose']; file: File }]
+}>()
 const root = ref<HTMLElement>()
 
 const originalFile = computed(
@@ -98,6 +101,7 @@ defineExpose({ focusField })
             purpose="SCHOOL_ARCHIVE"
             :model-value="originalFile"
             @update:model-value="updateFile('SCHOOL_ARCHIVE', $event)"
+            @native-file="emit('native-file', $event)"
           />
         </div>
         <div data-file-purpose="EXPERT_REVIEW">
@@ -107,6 +111,7 @@ defineExpose({ focusField })
             :model-value="anonymousFile"
             :identity-tokens="identityTokens"
             @update:model-value="updateFile('EXPERT_REVIEW', $event)"
+            @native-file="emit('native-file', $event)"
           />
         </div>
       </div>

@@ -3,6 +3,7 @@ import StatusTag from '@/components/app/StatusTag.vue'
 import type { DemoThesisSummary, SubmissionSource } from '@/demo/types'
 
 defineProps<{ rows: DemoThesisSummary[] }>()
+const emit = defineEmits<{ select: [id: string] }>()
 
 const sourceLabels: Record<SubmissionSource, string> = {
   STUDENT: '学生自提',
@@ -26,7 +27,7 @@ function responsibilityLabel(row: DemoThesisSummary) {
         </tr>
       </thead>
       <tbody>
-        <tr v-for="row in rows" :key="row.id">
+        <tr v-for="row in rows" :key="row.id" @click="emit('select', row.id)">
           <td><strong>{{ row.studentName }}</strong><small>{{ row.studentId }}</small></td>
           <td><strong>{{ row.title }}</strong><small>{{ row.anonymousId }}</small></td>
           <td><code>{{ row.discipline.code }}</code><span>{{ row.discipline.name }}</span></td>

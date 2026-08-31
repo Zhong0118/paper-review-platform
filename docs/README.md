@@ -13,6 +13,19 @@ related_documents:
   - 10_审查与决策/问题与决策记录.md
 ---
 
+## 0. 现行施工规格（先看这里）
+
+实现以垂直切片为准，不再以旧演示计划或空后端骨架为准。
+
+- 现行规格：[superpowers/specs/2026-08-31-slice-0-1-auth-submit-ready-design.md](superpowers/specs/2026-08-31-slice-0-1-auth-submit-ready-design.md)
+- 现行计划：[superpowers/plans/2026-08-31-slice-0-1-auth-submit-ready.md](superpowers/plans/2026-08-31-slice-0-1-auth-submit-ready.md)
+- `docs/superpowers/plans/2026-08-10-*.md`、`2026-08-11-*`、`2026-08-12-*` 为前端演示历史，不是后端实现依据。
+- `99_原始材料/` 只读，不删除。
+
+本地 Postgres 使用 Docker `127.0.0.1:5433`，见仓库根 README。
+
+---
+
 # 百杰校审平台文档导航
 
 ## 1. 当前阶段与使用说明
