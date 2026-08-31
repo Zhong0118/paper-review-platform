@@ -5,6 +5,9 @@ import { useRoute, useRouter } from 'vue-router'
 import BlindRail from '@/components/app/BlindRail.vue'
 import PageHeader from '@/components/app/PageHeader.vue'
 import { useStudentPortalService } from '@/demo/serviceProvider'
+import { getPublishedResult } from '@/api/results'
+import { listTheses } from '@/api/theses'
+import { toStudentThesisDetail } from '@/api/adapters'
 import type { StudentObjectionInput, StudentResult, StudentThesisDetail } from '@/demo/types'
 import PortalLayout from '@/layouts/PortalLayout.vue'
 import { menusByRole } from '@/router/menus'
@@ -18,11 +21,11 @@ import StudentObjectionTimeline from '../components/StudentObjectionTimeline.vue
 import StudentResultSelector from '../components/StudentResultSelector.vue'
 import StudentScoreDimensions from '../components/StudentScoreDimensions.vue'
 
-const service = useStudentPortalService()
+const demoEnabled = import.meta.env.VITE_DEMO_MODE === 'true'
+const service = demoEnabled ? useStudentPortalService() : null
 const authStore = useAuthStore()
 const route = useRoute()
 const router = useRouter()
-const demoEnabled = import.meta.env.VITE_DEMO_MODE === 'true'
 
 const theses = ref<StudentThesisDetail[]>([])
 const selectedThesis = ref<StudentThesisDetail | null>(null)
@@ -60,8 +63,25 @@ async function loadSelected(id: string) {
   feedback.value = ''
   try {
     const [thesis, publishedResult] = await Promise.all([
-      service.getStudentThesis(id),
-      service.getStudentResult(id),
+      demoEnabled && service ? service.getStudentThesis(id) : listTheses().then((items) => toStudentThesisDetail(items.find((item) => item.id === id) ?? items[0])),
+      demoEnabled && service
+        ? service.getStudentResult(id)
+        : getPublishedResult(id)
+            .then((data) => ({
+              thesisId: data.thesis_id,
+              totalScore: data.total,
+              conclusion: data.items[0]?.recommendation ?? '',
+              publishedAt: '',
+              dimensions: [],
+              results: data.items.map((item) => ({
+                expertAlias: item.alias,
+                score: item.total,
+                recommendation: item.recommendation,
+                comment: item.overall_comment,
+                submittedAt: '',
+              })),
+            }))
+            .catch(() => null),
     ])
     selectedThesis.value = thesis
     result.value = publishedResult
@@ -74,7 +94,10 @@ async function loadPage() {
   loading.value = true
   error.value = ''
   try {
-    theses.value = await service.listStudentTheses()
+    theses.value =
+      demoEnabled && service
+        ? await service.listStudentTheses()
+        : (await listTheses()).map(toStudentThesisDetail)
     const queryId = typeof route.query.thesisId === 'string' ? route.query.thesisId : ''
     const selected = theses.value.find((thesis) => thesis.id === queryId) ?? theses.value[0]
     if (!selected) {
@@ -139,9 +162,13 @@ async function confirmObjection() {
   feedback.value = ''
   const thesisId = selectedThesis.value.id
   try {
-    await service.submitStudentObjection(thesisId, confirmationInput.value)
-    await loadSelected(thesisId)
-    feedback.value = '异议已提交，学校受理后会更新处理状态。'
+    if (demoEnabled && service) {
+      await service.submitStudentObjection(thesisId, confirmationInput.value)
+      await loadSelected(thesisId)
+      feedback.value = '异议已提交，学校受理后会更新处理状态。'
+    } else {
+      feedback.value = '异议登记尚未接入真实接口。'
+    }
   } catch (submitError) {
     feedback.value = errorMessage(submitError)
   } finally {
@@ -230,7 +257,7 @@ onMounted(() => void loadPage())
           <AnonymousResultTable :rows="result.results" />
           <StudentObjectionTimeline v-if="result.objection" :objection="result.objection" />
           <StudentObjectionForm
-            v-if="canCreateObjection"
+            v-if="demoEnabled && canCreateObjection"
             :pending="submitting"
             @request-submit="requestObjectionConfirmation"
           />

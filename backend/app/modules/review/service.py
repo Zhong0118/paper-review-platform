@@ -95,5 +95,8 @@ async def submit_final(session: AsyncSession, user: CurrentUser, task_id: UUID, 
         )
     )
     task.status = ExpertTaskStatus.SUBMITTED
+    from app.modules.result.service import maybe_close_round
+
+    await maybe_close_round(session, task, user)
     await session.flush()
     return {"id": str(task.id), "status": task.status, "total": total_score(payload)}

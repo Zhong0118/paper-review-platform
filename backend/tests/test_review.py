@@ -28,7 +28,7 @@ async def test_save_and_reload_draft(client: AsyncClient, seed):
 
 
 @pytest.mark.asyncio
-async def test_submit_final_locks_and_keeps_thesis_under_review(client: AsyncClient, seed):
+async def test_submit_final_locks_and_moves_to_result_processing(client: AsyncClient, seed):
     expert, student, task_id = await accepted_task(client, seed)
     res = await client.post(
         f"/api/v1/expert/tasks/{task_id}:submit-final",
@@ -40,7 +40,7 @@ async def test_submit_final_locks_and_keeps_thesis_under_review(client: AsyncCli
     again = await client.put(f"/api/v1/expert/tasks/{task_id}/draft", headers=auth(expert), json=VALID_DRAFT)
     assert again.status_code == 409
     theses = await client.get("/api/v1/theses", headers=auth(student))
-    assert theses.json()["data"][0]["stage"] == "UNDER_REVIEW"
+    assert theses.json()["data"][0]["stage"] == "RESULT_PROCESSING"
 
 
 @pytest.mark.asyncio

@@ -21,3 +21,4 @@ from app.modules.workflow.models import TerminationRecord, WorkflowEvent  # noqa
 from app.modules.expert.models import Expert, ExpertConflict  # noqa: F401
 from app.modules.dispatch.models import ExpertTask, ReviewRound  # noqa: F401
 from app.modules.review.models import ReviewDraft, ReviewResultVersion  # noqa: F401
+from app.modules.result.models import ResultPublication, ResultSummary  # noqa: F401

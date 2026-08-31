@@ -216,3 +216,58 @@ async def school_progress(
     thesis = await thesis_service.get_school_thesis(session, current, thesis_id)
     data = await dispatch_service.school_progress(session, thesis)
     return ok(data, request_id=getattr(request.state, "request_id", None))
+
+
+class PublishInput(BaseModel):
+    version: int
+
+
+@school_router.get("/theses/{thesis_id}/results")
+async def school_results(
+    thesis_id: UUID,
+    request: Request,
+    current: CurrentUser = Depends(require_roles(RoleCode.SCHOOL_REVIEWER)),
+    session: AsyncSession = Depends(get_session),
+):
+    from app.modules.result import service as result_service
+
+    data = await result_service.school_results(session, current, thesis_id)
+    return ok(data, request_id=getattr(request.state, "request_id", None))
+
+
+@school_router.post("/theses/{thesis_id}:publish")
+async def school_publish(
+    thesis_id: UUID,
+    body: PublishInput,
+    request: Request,
+    current: CurrentUser = Depends(require_roles(RoleCode.SCHOOL_REVIEWER)),
+    session: AsyncSession = Depends(get_session),
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+):
+    from app.modules.result import service as result_service
+
+    cached = await thesis_service.remember_idempotent(
+        session, current, idempotency_key, "publish", {"id": str(thesis_id), "version": body.version}
+    )
+    if cached:
+        return ok(cached, request_id=getattr(request.state, "request_id", None))
+    thesis = await result_service.publish(session, current, thesis_id, body.version)
+    data = await thesis_service.serialize_thesis(session, current, thesis)
+    await thesis_service.store_idempotent(
+        session, current, idempotency_key, "publish", {"id": str(thesis_id), "version": body.version}, data
+    )
+    await session.commit()
+    return ok(data, request_id=getattr(request.state, "request_id", None))
+
+
+@student_router.get("/my/theses/{thesis_id}/published-result")
+async def my_published_result(
+    thesis_id: UUID,
+    request: Request,
+    current: CurrentUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    from app.modules.result import service as result_service
+
+    data = await result_service.published_result(session, current, thesis_id)
+    return ok(data, request_id=getattr(request.state, "request_id", None))
