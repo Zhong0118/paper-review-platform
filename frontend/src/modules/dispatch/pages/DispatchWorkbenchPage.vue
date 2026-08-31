@@ -253,10 +253,10 @@ async function selectThesis(thesisId: string, silent = false) {
       conflictHit: row.avoided,
       conflictReason: row.avoided ? '回避' : row.direction_mismatch ? '方向不符' : '',
       activeTasks: 0,
-      acceptanceRate: 0,
-      onTimeRate: 0,
+      acceptanceRate: '—',
+      onTimeRate: '—',
       avgCompletionDays: 0,
-      feeStandard: '未启用',
+      feeStandard: 0,
       matchReason: row.direction_mismatch ? '方向不符' : '可派',
     })) as unknown as ExpertMatchCandidate[]
     refreshRows()

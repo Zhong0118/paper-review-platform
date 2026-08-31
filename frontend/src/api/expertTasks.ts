@@ -3,6 +3,11 @@ import { httpApi } from './request'
 export interface ExpertTaskRow {
   id: string
   status: string
+  anonymous_id?: string
+  anonymous_title?: string
+  discipline_code?: string
+  discipline_name?: string
+  allowed_actions?: string[]
 }
 
 export interface ExpertInvitation {

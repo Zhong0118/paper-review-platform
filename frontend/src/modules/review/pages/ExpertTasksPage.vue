@@ -78,7 +78,17 @@ async function loadTasks() {
   try {
     tasks.value = demoEnabled && service
       ? await service.listExpertTasks({ own: true })
-      : ((await listExpertTasks()) as unknown as ExpertTaskSummary[])
+      : (await listExpertTasks()).map((row) => ({
+          id: row.id,
+          status: row.status,
+          anonymousId: row.anonymous_id ?? row.id.slice(0, 8),
+          anonymousTitle: row.anonymous_title ?? '匿名论文',
+          discipline: { code: row.discipline_code ?? '', name: row.discipline_name ?? '' },
+          fee: 0,
+          dueAt: '',
+          overdue: false,
+          allowedActions: row.allowed_actions ?? (row.status === 'INVITED' ? ['ACCEPT_TASK'] : []),
+        })) as ExpertTaskSummary[]
     // 默认停留在第一个非空分组，避免空 Tab 白屏
     activeTab.value =
       tabs.find((tab) => tasks.value.some(tab.matcher))?.value ?? tabs[0].value

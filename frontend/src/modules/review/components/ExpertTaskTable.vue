@@ -66,10 +66,10 @@ const rows = computed(() => props.rows)
       </span>
       <code>{{ task.anonymousId }}</code>
       <strong>{{ task.anonymousTitle }}</strong>
-      <span>{{ task.discipline.name }}</span>
+      <span>{{ task.discipline?.name ?? '—' }}</span>
       <time>{{ task.status === 'INVITED' && task.acceptBy ? task.acceptBy : '—' }}</time>
-      <time>{{ task.status === 'INVITED' ? '—' : task.dueAt }}</time>
-      <b>¥ {{ task.fee.toFixed(2) }}</b>
+      <time>{{ task.status === 'INVITED' ? '—' : (task.dueAt || '—') }}</time>
+      <b>¥ {{ Number(task.fee ?? 0).toFixed(2) }}</b>
       <span class="task-table__action">
         <button
           v-if="actionFor(task)?.kind === 'accept'"

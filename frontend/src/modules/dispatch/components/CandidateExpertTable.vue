@@ -96,7 +96,7 @@ function toggle(id: string, checked: boolean) {
           <td>{{ row.acceptanceRate }}</td>
           <td>{{ row.onTimeRate }}</td>
           <td>{{ row.avgCompletionDays }} 天</td>
-          <td>¥ {{ row.feeStandard.toFixed(2) }}</td>
+          <td>¥ {{ Number(row.feeStandard).toFixed(2) }}</td>
           <td><ConflictReason :hit="row.conflictHit" :reason="row.conflictReason" /></td>
         </tr>
       </tbody>

@@ -211,9 +211,25 @@ async def reject_task(session: AsyncSession, user: CurrentUser, task_id: UUID, r
     return task
 
 
-async def list_expert_tasks(session: AsyncSession, user: CurrentUser) -> list[ExpertTask]:
+async def list_expert_tasks(session: AsyncSession, user: CurrentUser) -> list[dict]:
     expert = await expert_for_user(session, user.id)
-    return list((await session.execute(select(ExpertTask).where(ExpertTask.expert_id == expert.id))).scalars())
+    tasks = list((await session.execute(select(ExpertTask).where(ExpertTask.expert_id == expert.id))).scalars())
+    items = []
+    for task in tasks:
+        round_ = await session.get(ReviewRound, task.round_id)
+        version = await session.get(ThesisVersion, round_.thesis_version_id) if round_ else None
+        items.append(
+            {
+                "id": str(task.id),
+                "status": task.status,
+                "anonymous_id": str(task.id)[:8],
+                "anonymous_title": "匿名论文",
+                "discipline_code": round_.discipline_code if round_ else "",
+                "discipline_name": round_.discipline_name if round_ else "",
+                "allowed_actions": ["ACCEPT_TASK"] if task.status == ExpertTaskStatus.INVITED else [],
+            }
+        )
+    return items
 
 
 async def invitation(session: AsyncSession, user: CurrentUser, task_id: UUID) -> dict:

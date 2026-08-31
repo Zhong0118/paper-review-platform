@@ -77,8 +77,7 @@ async def expert_tasks(
     current: CurrentUser = Depends(require_roles(RoleCode.EXPERT)),
     session: AsyncSession = Depends(get_session),
 ):
-    tasks = await dispatch_service.list_expert_tasks(session, current)
-    data = [{"id": str(t.id), "status": t.status} for t in tasks]
+    data = await dispatch_service.list_expert_tasks(session, current)
     return ok(data, request_id=getattr(request.state, "request_id", None))
 
 
