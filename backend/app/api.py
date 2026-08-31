@@ -4,10 +4,15 @@ from sqlalchemy import text
 from app.core.response import ok
 from app.db.session import engine
 from app.modules.auth.router import me_router, router as auth_router
+from app.modules.files.router import router as files_router
+from app.modules.thesis.router import school_router, student_router
 
 router = APIRouter()
 router.include_router(auth_router)
 router.include_router(me_router)
+router.include_router(files_router)
+router.include_router(student_router)
+router.include_router(school_router)
 
 
 @router.get("/healthz")

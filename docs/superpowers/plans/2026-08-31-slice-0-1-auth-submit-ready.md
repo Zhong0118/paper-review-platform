@@ -287,7 +287,7 @@ Withdraw before dispatch: stage in `SUBMITTED|PREPARING|READY_FOR_DISPATCH` → 
 
 Delete: only if no `workflow_events` action `submit` exists.
 
-- [ ] **Step 1: Write failing tests (copy into the three test modules)**
+- [x] **Step 1: Write failing tests (copy into the three test modules)**
 
 ```python
 @pytest.mark.asyncio
@@ -355,13 +355,13 @@ async def test_cannot_delete_after_submit(client):
 
 Helper `login`/`create_draft`/`attach_files` live in `backend/tests/conftest.py`. For PDFs, detector must also treat raw bytes as text if pdf parse fails — so the FAIL test can use a `.txt` anonymous file **or** PDF with plaintext stream. Allow MIME `application/pdf` and `text/plain` in tests; production upload still accepts pdf/docx. Spec: reject encrypted PDFs — if pypdf says encrypted, `FILE_NOT_READY`/`VALIDATION_FAILED` on complete.
 
-- [ ] **Step 2: Run tests, expect 404**
+- [x] **Step 2: Run tests, expect 404**
 
 Run: `cd backend && python -m pytest tests/test_thesis_submit.py tests/test_anonymization.py tests/test_isolation.py -v`
 
 Expected: FAIL.
 
-- [ ] **Step 3: Implement storage, detector, workflow, thesis/school routers**
+- [x] **Step 3: Implement storage, detector, workflow, thesis/school routers**
 
 Detector hits if any of student name, student no, supervisor name appear in filename, metadata dict values, or extracted text (case-sensitive for Chinese, case-insensitive for ASCII). Findings: `{ "field": "student_no", "matched_text": "20260042", "location": "filename"|"metadata"|"body" }`.
 
@@ -369,13 +369,13 @@ Detector hits if any of student name, student no, supervisor name appear in file
 
 Platform reviewer hitting `/school-review/*` or student write APIs: 403 `ACCESS_DENIED`. System admin same for thesis content.
 
-- [ ] **Step 4: Pass all backend tests**
+- [x] **Step 4: Pass all backend tests**
 
 Run: `cd backend && python -m pytest -v`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend
