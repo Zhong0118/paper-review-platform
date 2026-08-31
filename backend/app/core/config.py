@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     database_url: str = (
         "postgresql+asyncpg://paper_review:paper_review_dev@127.0.0.1:5433/paper_review"
     )
-    jwt_secret: str = "dev-only-change-me"
+    jwt_secret: str = "dev-only-change-me-please-use-32bytes+"
     jwt_access_ttl_seconds: int = 1800
     jwt_refresh_ttl_seconds: int = 1_209_600
     storage_root: Path = REPO_ROOT / "storage"

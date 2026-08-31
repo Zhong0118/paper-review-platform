@@ -174,7 +174,7 @@ docker compose ps
 
 Expected: `paper-review-postgres` healthy, port 5433. Root README: compose up, backend uvicorn on 8000, frontend pnpm dev, demo vs real login. Do not claim SSO or dispatch exist.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add docker-compose.yml .env.example README.md backend/pyproject.toml backend/.env.example backend/alembic.ini backend/alembic/env.py backend/app backend/tests
@@ -199,7 +199,7 @@ git commit -m "feat: boot FastAPI health checks and isolated Postgres on 5433"
 
 Table columns follow `docs/04_数据库设计/增量1_字段级数据库设计.md` for identity; thesis tables follow spec §7. `auth_sessions`: `id`, `user_id`, `refresh_token_hash`, `expires_at`, `revoked_at`, timestamps. `idempotency_keys`: `key`, `user_id`, `route`, `request_hash`, `response_code`, `response_body`, `created_at`. Partial unique index on theses: unique `(tenant_id, student_membership_id, review_batch_id)` WHERE `stage <> 'TERMINATED'`.
 
-- [ ] **Step 1: Write failing login tests**
+- [x] **Step 1: Write failing login tests**
 
 ```python
 @pytest.mark.asyncio
@@ -228,25 +228,25 @@ async def test_logout_revokes_refresh(client, seed):
 
 `conftest.py`: session-scoped engine against `paper_review_test` on 5433 (create DB if missing), run alembic upgrade, seed, function-scoped ASGI client, rollback or truncate between tests.
 
-- [ ] **Step 2: Run tests, expect 404 / missing tables**
+- [x] **Step 2: Run tests, expect 404 / missing tables**
 
 Run: `cd backend && python -m pytest tests/test_auth.py -v`
 
 Expected: FAIL.
 
-- [ ] **Step 3: Implement models, migration, security, auth service, seed**
+- [x] **Step 3: Implement models, migration, security, auth service, seed**
 
 - Argon2 hashes via passlib. JWT `sub=user_id`, claims `role`, `tenant_id` (omit or null for `system_admin`/`expert` if no tenant — **expert has no tenant**; `platform_reviewer` is platform-scoped: `tenant_id` null, `is_platform` true).
 - Seed `demo-univ` and `other-univ` as spec §9. Student eligibility on demo: name `林知远`, student no `20260042`, supervisor `赵文博` (fictional, matches current demo copy so detector tests can reuse).
 - `GET /readyz` now pings DB and checks alembic version.
 
-- [ ] **Step 4: Pass auth tests**
+- [x] **Step 4: Pass auth tests**
 
 Run: `cd backend && python -m pytest tests/test_auth.py tests/test_health.py -v`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend
