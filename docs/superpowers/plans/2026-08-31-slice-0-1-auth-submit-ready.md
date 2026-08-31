@@ -90,7 +90,7 @@ Reuse existing empty stubs by **overwriting** them; do not leave `# 接口层` c
 - Produces: `Settings` from env; `create_app()`; `GET /healthz` and `GET /readyz`; envelope helper `ok(data, request_id)`; `AppError(code, http_status, message, details=None)`.
 - Produces compose service `postgres` published at `127.0.0.1:5433`.
 
-- [ ] **Step 1: Write failing health test**
+- [x] **Step 1: Write failing health test**
 
 ```python
 # backend/tests/test_health.py
@@ -110,13 +110,13 @@ async def test_healthz_ok():
     assert "request_id" in body
 ```
 
-- [ ] **Step 2: Run test, expect import/app missing**
+- [x] **Step 2: Run test, expect import/app missing**
 
 Run: `cd backend && python -m pytest tests/test_health.py -v`
 
 Expected: FAIL (`No module named 'app'` or `create_app` missing). Use a venv after Step 3 if pytest is not installed yet.
 
-- [ ] **Step 3: Add project files and minimal app**
+- [x] **Step 3: Add project files and minimal app**
 
 `docker-compose.yml`:
 
@@ -155,7 +155,7 @@ Envelope on success:
 { "request_id": "<uuid>", "code": "OK", "message": "成功", "data": {} }
 ```
 
-- [ ] **Step 4: Install, run health test**
+- [x] **Step 4: Install, run health test**
 
 ```bash
 cd backend && python3 -m venv .venv && source .venv/bin/activate
@@ -165,7 +165,7 @@ python -m pytest tests/test_health.py -v
 
 Expected: PASS.
 
-- [ ] **Step 5: Start Postgres and document run commands in root README.md**
+- [x] **Step 5: Start Postgres and document run commands in root README.md**
 
 ```bash
 docker compose up -d postgres
