@@ -108,3 +108,23 @@ async def accepted_task(client: AsyncClient, seed: SimpleNamespace) -> tuple[dic
     )
     assert accepted.status_code == 200, accepted.text
     return expert_user, student, task_id
+
+
+async def published_thesis(client: AsyncClient, seed: SimpleNamespace) -> tuple[dict, dict, str]:
+    from tests.test_review import VALID_DRAFT
+
+    expert, student, task_id = await accepted_task(client, seed)
+    school = await login(client, "school.wang", seed.password)
+    await client.post(
+        f"/api/v1/expert/tasks/{task_id}:submit-final",
+        headers=auth(expert, idempotency=f"sf-{task_id[:8]}"),
+        json=VALID_DRAFT,
+    )
+    theses = await client.get("/api/v1/theses", headers=auth(student))
+    thesis = theses.json()["data"][0]
+    await client.post(
+        f"/api/v1/school-review/theses/{thesis['id']}:publish",
+        headers=auth(school, idempotency=f"pub-{thesis['id'][:8]}"),
+        json={"version": thesis["version"]},
+    )
+    return student, school, thesis["id"]

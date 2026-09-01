@@ -271,3 +271,72 @@ async def my_published_result(
 
     data = await result_service.published_result(session, current, thesis_id)
     return ok(data, request_id=getattr(request.state, "request_id", None))
+
+
+@student_router.post("/my/theses/{thesis_id}/objections")
+async def create_objection(
+    thesis_id: UUID,
+    request: Request,
+    current: CurrentUser = Depends(require_roles(RoleCode.STUDENT)),
+    session: AsyncSession = Depends(get_session),
+):
+    from app.modules.result.objection_service import CreateObjection, create_objection as create_obj, serialize
+
+    body = CreateObjection.model_validate(await request.json())
+    obj = await create_obj(session, current, thesis_id, body)
+    await session.commit()
+    return ok(serialize(obj), request_id=getattr(request.state, "request_id", None))
+
+
+@student_router.get("/my/theses/{thesis_id}/objections")
+async def list_my_objections(
+    thesis_id: UUID,
+    request: Request,
+    current: CurrentUser = Depends(require_roles(RoleCode.STUDENT)),
+    session: AsyncSession = Depends(get_session),
+):
+    from app.modules.result.objection_service import list_mine
+
+    data = await list_mine(session, current, thesis_id)
+    return ok(data, request_id=getattr(request.state, "request_id", None))
+
+
+@school_router.get("/objections")
+async def school_objections(
+    request: Request,
+    current: CurrentUser = Depends(require_roles(RoleCode.SCHOOL_REVIEWER)),
+    session: AsyncSession = Depends(get_session),
+):
+    from app.modules.result.objection_service import list_school
+
+    data = await list_school(session, current)
+    return ok(data, request_id=getattr(request.state, "request_id", None))
+
+
+@school_router.post("/objections/{objection_id}:start")
+async def school_start_objection(
+    objection_id: UUID,
+    request: Request,
+    current: CurrentUser = Depends(require_roles(RoleCode.SCHOOL_REVIEWER)),
+    session: AsyncSession = Depends(get_session),
+):
+    from app.modules.result.objection_service import serialize, start
+
+    obj = await start(session, current, objection_id)
+    await session.commit()
+    return ok(serialize(obj), request_id=getattr(request.state, "request_id", None))
+
+
+@school_router.post("/objections/{objection_id}:record-resolution")
+async def school_resolve_objection(
+    objection_id: UUID,
+    request: Request,
+    current: CurrentUser = Depends(require_roles(RoleCode.SCHOOL_REVIEWER)),
+    session: AsyncSession = Depends(get_session),
+):
+    from app.modules.result.objection_service import ResolveObjection, resolve, serialize
+
+    body = ResolveObjection.model_validate(await request.json())
+    obj = await resolve(session, current, objection_id, body)
+    await session.commit()
+    return ok(serialize(obj), request_id=getattr(request.state, "request_id", None))

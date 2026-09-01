@@ -6,6 +6,7 @@ import BlindRail from '@/components/app/BlindRail.vue'
 import PageHeader from '@/components/app/PageHeader.vue'
 import { useStudentPortalService } from '@/demo/serviceProvider'
 import { getPublishedResult } from '@/api/results'
+import { createObjection, listMyObjections } from '@/api/objections'
 import { listTheses } from '@/api/theses'
 import { toStudentThesisDetail } from '@/api/adapters'
 import type { StudentObjectionInput, StudentResult, StudentThesisDetail } from '@/demo/types'
@@ -67,7 +68,10 @@ async function loadSelected(id: string) {
       demoEnabled && service
         ? service.getStudentResult(id)
         : getPublishedResult(id)
-            .then((data) => ({
+            .then(async (data) => {
+              const objections = await listMyObjections(id).catch(() => [])
+              const latest = objections[0]
+              return {
               thesisId: data.thesis_id,
               totalScore: data.total,
               conclusion: data.items[0]?.recommendation ?? '',
@@ -80,7 +84,20 @@ async function loadSelected(id: string) {
                 comment: item.overall_comment,
                 submittedAt: '',
               })),
-            }))
+              objection: latest
+                ? {
+                    id: latest.id,
+                    thesisId: id,
+                    reason: latest.reason,
+                    request: latest.request,
+                    attachments: [],
+                    status: latest.status as 'SUBMITTED' | 'PROCESSING' | 'RESOLVED',
+                    submittedAt: '',
+                    publicResolution: latest.conclusion ?? undefined,
+                  }
+                : undefined,
+            }
+            })
             .catch(() => null),
     ])
     selectedThesis.value = thesis
@@ -167,7 +184,12 @@ async function confirmObjection() {
       await loadSelected(thesisId)
       feedback.value = '异议已提交，学校受理后会更新处理状态。'
     } else {
-      feedback.value = '异议登记尚未接入真实接口。'
+      await createObjection(thesisId, {
+        reason: confirmationInput.value.reason,
+        request: confirmationInput.value.request,
+      }, { idempotencyKey: crypto.randomUUID() })
+      await loadSelected(thesisId)
+      feedback.value = '异议已提交，学校受理后会更新处理状态。'
     }
   } catch (submitError) {
     feedback.value = errorMessage(submitError)
@@ -257,7 +279,7 @@ onMounted(() => void loadPage())
           <AnonymousResultTable :rows="result.results" />
           <StudentObjectionTimeline v-if="result.objection" :objection="result.objection" />
           <StudentObjectionForm
-            v-if="demoEnabled && canCreateObjection"
+            v-if="canCreateObjection || (!demoEnabled && result && selectedThesis?.stage === 'COMPLETED' && !unresolvedObjection)"
             :pending="submitting"
             @request-submit="requestObjectionConfirmation"
           />
