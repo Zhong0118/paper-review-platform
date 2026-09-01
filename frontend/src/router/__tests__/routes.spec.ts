@@ -61,6 +61,7 @@ describe('application routes', () => {
     const { portalMenus } = await import('../menus')
     expect(portalMenus('school_reviewer', false).map((item) => item.path)).toEqual([
       '/school/preparation',
+      '/school/progress',
       '/school/results',
       '/school/objections',
     ])

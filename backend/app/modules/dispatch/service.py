@@ -272,17 +272,73 @@ async def materials(session: AsyncSession, user: CurrentUser, task_id: UUID) -> 
 
 async def school_progress(session: AsyncSession, thesis: Thesis) -> dict:
     round_ = await _round_for(session, thesis.id)
-    counts = {"invited_count": 0, "in_review_count": 0, "rejected_count": 0}
+    counts = {
+        "invited_count": 0,
+        "in_review_count": 0,
+        "submitted_count": 0,
+        "rejected_count": 0,
+    }
+    aliases: list[dict] = []
     if round_:
-        tasks = (await session.execute(select(ExpertTask).where(ExpertTask.round_id == round_.id))).scalars()
-        for task in tasks:
+        tasks = list(
+            (
+                await session.execute(
+                    select(ExpertTask).where(ExpertTask.round_id == round_.id).order_by(ExpertTask.invited_at.asc())
+                )
+            ).scalars()
+        )
+        for index, task in enumerate(tasks, start=1):
             if task.status == ExpertTaskStatus.INVITED:
                 counts["invited_count"] += 1
             elif task.status == ExpertTaskStatus.IN_REVIEW:
                 counts["in_review_count"] += 1
+            elif task.status == ExpertTaskStatus.SUBMITTED:
+                counts["submitted_count"] += 1
             elif task.status == ExpertTaskStatus.REJECTED:
                 counts["rejected_count"] += 1
-    return {"thesis_id": str(thesis.id), "stage": thesis.stage, **counts}
+            aliases.append({"alias": f"T-{index:03d}", "status": task.status})
+    return {
+        "thesis_id": str(thesis.id),
+        "stage": thesis.stage,
+        "round_status": round_.status if round_ else None,
+        "tasks": aliases,
+        **counts,
+    }
+
+
+async def school_progress_list(session: AsyncSession, user: CurrentUser) -> dict:
+    if user.role != RoleCode.SCHOOL_REVIEWER or user.tenant_id is None:
+        raise AppError("ACCESS_DENIED", 403, "无权执行该操作")
+    rounds = list(
+        (
+            await session.execute(
+                select(ReviewRound).where(ReviewRound.tenant_id == user.tenant_id).order_by(ReviewRound.created_at.desc())
+            )
+        ).scalars()
+    )
+    items = []
+    totals = {"waiting": 0, "reviewing": 0, "completed": 0, "rejected": 0, "overdue": 0}
+    for round_ in rounds:
+        thesis = await session.get(Thesis, round_.thesis_id)
+        if thesis is None or thesis.tenant_id != user.tenant_id:
+            continue
+        row = await school_progress(session, thesis)
+        version = await session.get(ThesisVersion, thesis.current_version_id)
+        elig = (
+            await session.execute(
+                select(StudentEligibility).where(StudentEligibility.student_membership_id == thesis.student_membership_id)
+            )
+        ).scalar_one_or_none()
+        row["title"] = version.title if version else ""
+        row["student_name"] = elig.student_name if elig else ""
+        open_tasks = row["invited_count"] + row["in_review_count"] + row["submitted_count"] + row["rejected_count"]
+        if open_tasks == 0:
+            totals["waiting"] += 1
+        totals["reviewing"] += row["invited_count"] + row["in_review_count"]
+        totals["completed"] += row["submitted_count"]
+        totals["rejected"] += row["rejected_count"]
+        items.append(row)
+    return {"items": items, "totals": totals}
 
 
 async def dispatch_queue(session: AsyncSession, user: CurrentUser) -> list[dict]:

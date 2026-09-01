@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 
 import BlindRail from '@/components/app/BlindRail.vue'
 import PageHeader from '@/components/app/PageHeader.vue'
 import StatusTag from '@/components/app/StatusTag.vue'
 import ScenarioStageRibbon from '@/components/app/ScenarioStageRibbon.vue'
 import { useScenarioService } from '@/demo/serviceProvider'
+import { schoolProgressList, type SchoolProgressList, type SchoolProgressRow } from '@/api/dispatch'
 import type { DemoScenarioSnapshot } from '@/demo/types'
 import PortalLayout from '@/layouts/PortalLayout.vue'
 import { portalMenus } from '@/router/menus'
@@ -16,22 +17,39 @@ import TaskProgressSummary from '../components/TaskProgressSummary.vue'
 type GateStatus = 'PASS' | 'REVIEW_REQUIRED' | 'FAIL'
 interface GateRow { id: string; title: string; anonymousId: string; status: GateStatus; finding: string }
 
-const service = useScenarioService()
+const demoEnabled = import.meta.env.VITE_DEMO_MODE === 'true'
+const service = demoEnabled ? useScenarioService() : null
 const authStore = useAuthStore()
 const sendingId = ref('')
 const notice = ref('')
 const snapshot = ref<DemoScenarioSnapshot | null>(null)
+const live = ref<SchoolProgressList | null>(null)
 const gateRows: GateRow[] = [
   { id: 'thesis-0042', title: '面向复杂场景的多模态知识推理研究', anonymousId: 'HY-2026-0042', status: 'PASS', finding: '未检测到姓名、导师、致谢等身份信息' },
   { id: 'thesis-0048', title: '复杂系统中的知识发现与风险识别', anonymousId: 'HY-2026-0048', status: 'REVIEW_REQUIRED', finding: '页眉疑似包含学院简称，需人工确认' },
   { id: 'thesis-0053', title: '区域数字治理能力评价研究', anonymousId: 'HY-2026-0053', status: 'FAIL', finding: '致谢页包含导师姓名，必须替换匿名版' },
 ]
 const gateLabels: Record<GateStatus, string> = { PASS: '检测通过', REVIEW_REQUIRED: '待人工复核', FAIL: '检测失败' }
+const totals = computed(() => live.value?.totals ?? { waiting: 0, reviewing: 0, completed: 0, overdue: 0 })
 
-onMounted(async()=>{snapshot.value=await service.loginAs('school_reviewer')})
+function taskLabel(status: string) {
+  if (status === 'IN_REVIEW') return '评阅中'
+  if (status === 'SUBMITTED') return '已提交'
+  if (status === 'REJECTED') return '已拒绝'
+  if (status === 'INVITED') return '待接受'
+  return status
+}
+
+onMounted(async () => {
+  if (demoEnabled && service) {
+    snapshot.value = await service.loginAs('school_reviewer')
+    return
+  }
+  live.value = await schoolProgressList()
+})
 
 async function dispatch(row: GateRow) {
-  if (row.status !== 'PASS') return
+  if (!demoEnabled || !service || row.status !== 'PASS') return
   sendingId.value = row.id
   try {
     await service.confirmAnonymization()
@@ -39,17 +57,26 @@ async function dispatch(row: GateRow) {
     notice.value = `${row.anonymousId} 已确认送出，等待平台派单。`
   } finally { sendingId.value = '' }
 }
+
+function rowTitle(row: SchoolProgressRow) {
+  return row.title || row.thesis_id.slice(0, 8)
+}
 </script>
 
 <template>
-  <PortalLayout :menu-items="portalMenus('school_reviewer', true)" active-path="/school/progress" context-label="学校端 · 海岳大学" :user-name="authStore.user?.displayName ?? '王老师'">
+  <PortalLayout :menu-items="portalMenus('school_reviewer', demoEnabled)" active-path="/school/progress" context-label="学校端 · 海岳大学" :user-name="authStore.user?.displayName ?? '王老师'">
     <div class="progress-page">
-      <PageHeader eyebrow="PAGE-005 · REVIEW PROGRESS" title="评审进度" description="先完成匿名化门禁并确认送出，再查看任务状态、截止时间与异常处理；学校侧仅展示任务化名。" />
+      <PageHeader eyebrow="PAGE-005 · REVIEW PROGRESS" title="评审进度" description="查看已送出论文的任务化名与状态计数；学校侧不展示专家身份。" />
       <BlindRail audience="本校论文、任务化名与进度数量" hidden-from="不展示专家姓名、手机号、邮箱和专家库详情" stage="学校确认送出" />
-      <ScenarioStageRibbon v-if="snapshot" :stage="snapshot.thesis.stage" :task-status="snapshot.thesis.taskStatus" :bill-status="snapshot.thesis.billStatus" />
-      <TaskProgressSummary :waiting="6" :reviewing="12" :completed="28" :overdue="2" />
+      <ScenarioStageRibbon v-if="demoEnabled && snapshot" :stage="snapshot.thesis.stage" :task-status="snapshot.thesis.taskStatus" :bill-status="snapshot.thesis.billStatus" />
+      <TaskProgressSummary
+        :waiting="demoEnabled ? 6 : totals.waiting"
+        :reviewing="demoEnabled ? 12 : totals.reviewing"
+        :completed="demoEnabled ? 28 : totals.completed"
+        :overdue="demoEnabled ? 2 : totals.overdue"
+      />
       <p v-if="notice" class="dispatch-notice" role="status">{{ notice }}</p>
-      <section class="gate-list" aria-labelledby="gate-title">
+      <section v-if="demoEnabled" class="gate-list" aria-labelledby="gate-title">
         <header><div><span>ANONYMIZATION GATE</span><h2 id="gate-title">匿名化门禁</h2></div><small>通过也需学校最终确认后送出</small></header>
         <article v-for="row in gateRows" :key="row.id" :data-anonymization="row.status">
           <div class="gate-list__paper"><strong>{{ row.title }}</strong><code>{{ row.anonymousId }}</code></div>
@@ -63,8 +90,23 @@ async function dispatch(row: GateRow) {
       </section>
       <section class="task-aliases" aria-labelledby="task-title">
         <header><span>TASK VIEW</span><h2 id="task-title">已送出任务</h2></header>
-        <div><code>任务 A-042-01</code><span>评阅中 · 剩余 8 天</span><button type="button">发送催审提醒</button></div>
-        <div><code>任务 A-031-02</code><span>已完成 · 等待结果汇总</span><button type="button">查看进度</button></div>
+        <template v-if="demoEnabled">
+          <div><code>任务 A-042-01</code><span>评阅中 · 剩余 8 天</span><button type="button">发送催审提醒</button></div>
+          <div><code>任务 A-031-02</code><span>已完成 · 等待结果汇总</span><button type="button">查看进度</button></div>
+        </template>
+        <template v-else>
+          <p v-if="!live?.items.length" class="empty">暂无已送出论文。</p>
+          <article v-for="row in live?.items ?? []" :key="row.thesis_id" data-progress-row>
+            <div class="gate-list__paper">
+              <strong>{{ rowTitle(row) }}</strong>
+              <code>{{ row.student_name }} · {{ row.stage }}</code>
+            </div>
+            <div v-if="row.tasks.length" class="task-list">
+              <span v-for="task in row.tasks" :key="task.alias">{{ task.alias }} · {{ taskLabel(task.status) }}</span>
+            </div>
+            <span v-else>待平台派单</span>
+          </article>
+        </template>
       </section>
     </div>
   </PortalLayout>
@@ -88,10 +130,12 @@ async function dispatch(row: GateRow) {
 .primary { border: 1px solid #1b4f8a; background: #1b4f8a; color: white; }
 .primary:disabled { border-color: #c7d0d8; background: #e0e5e9; color: #7c8892; cursor: not-allowed; }
 .quiet { border: 1px solid #c49b74; background: #fff5eb; color: #8b4815; }
-.task-aliases > div { display: grid; grid-template-columns: 12rem 1fr auto; gap: 1rem; align-items: center; padding: 0.75rem 1rem; border-bottom: 1px solid #e7ebee; }
-.task-aliases > div:last-child { border-bottom: 0; }
+.task-aliases > div, .task-aliases article { display: grid; grid-template-columns: minmax(14rem, 1.2fr) 1fr auto; gap: 1rem; align-items: center; padding: 0.75rem 1rem; border-bottom: 1px solid #e7ebee; }
+.task-aliases > div:last-child, .task-aliases article:last-child { border-bottom: 0; }
 .task-aliases code { color: #1b4f8a; font-family: var(--font-data); font-size: 0.72rem; }
 .task-aliases span { color: #65737f; font-size: 0.72rem; }
 .task-aliases button { border: 1px solid #b9c5ce; background: white; color: #3f505d; }
-@media (max-width: 900px) { .gate-list article { grid-template-columns: 1fr; } .task-aliases > div { grid-template-columns: 1fr; } }
+.task-list { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.empty { margin: 0; padding: 1.5rem 1rem; color: #687682; text-align: center; }
+@media (max-width: 900px) { .gate-list article, .task-aliases > div, .task-aliases article { grid-template-columns: 1fr; } }
 </style>

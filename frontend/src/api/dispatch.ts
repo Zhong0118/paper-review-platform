@@ -18,14 +18,39 @@ export interface DispatchCandidate {
   service_status: string
 }
 
+export interface SchoolProgressTask {
+  alias: string
+  status: string
+}
+
+export interface SchoolProgressRow {
+  thesis_id: string
+  stage: string
+  round_status: string | null
+  invited_count: number
+  in_review_count: number
+  submitted_count: number
+  rejected_count: number
+  tasks: SchoolProgressTask[]
+  title?: string
+  student_name?: string
+}
+
+export interface SchoolProgressList {
+  items: SchoolProgressRow[]
+  totals: { waiting: number; reviewing: number; completed: number; rejected: number; overdue: number }
+}
+
 export function confirmDispatch(thesisId: string, version: number, options?: RequestOptions) {
   return httpApi.post(`/school-review/theses/${thesisId}:confirm-dispatch`, { version }, options)
 }
 
 export function schoolProgress(thesisId: string) {
-  return httpApi.get<{ invited_count: number; in_review_count: number; rejected_count: number; stage: string }>(
-    `/school-review/theses/${thesisId}/progress`,
-  )
+  return httpApi.get<SchoolProgressRow>(`/school-review/theses/${thesisId}/progress`)
+}
+
+export function schoolProgressList() {
+  return httpApi.get<SchoolProgressList>('/school-review/progress')
 }
 
 export function dispatchQueue() {

@@ -135,6 +135,29 @@ async def test_school_progress_hides_expert_identity(client: AsyncClient, seed):
     assert "expert.zhou" not in blob
     assert "expert_id" not in blob
     assert progress.json()["data"]["invited_count"] == 1
+    assert progress.json()["data"]["submitted_count"] == 0
+    assert progress.json()["data"]["tasks"][0]["alias"] == "T-001"
+    listed = await client.get("/api/v1/school-review/progress", headers=auth(school))
+    assert listed.status_code == 200, listed.text
+    assert listed.json()["data"]["totals"]["reviewing"] == 1
+    assert listed.json()["data"]["items"][0]["tasks"][0]["alias"] == "T-001"
+    assert "周明远" not in listed.text
+    platform_denied = await client.get("/api/v1/school-review/progress", headers=auth(platform))
+    assert platform_denied.status_code in (403, 404)
+
+
+@pytest.mark.asyncio
+async def test_school_progress_waiting_before_assign(client: AsyncClient, seed):
+    _student, school, thesis = await ready_thesis(client, seed)
+    await client.post(
+        f"/api/v1/school-review/theses/{thesis['id']}:confirm-dispatch",
+        headers=auth(school, idempotency="cd-wait"),
+        json={"version": thesis["version"]},
+    )
+    listed = await client.get("/api/v1/school-review/progress", headers=auth(school))
+    assert listed.json()["data"]["totals"]["waiting"] == 1
+    assert listed.json()["data"]["items"][0]["tasks"] == []
+    assert listed.json()["data"]["totals"]["overdue"] == 0
 
 
 @pytest.mark.asyncio

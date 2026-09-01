@@ -10,7 +10,7 @@ export const defaultRouteByRole: Record<RoleCode, string> = {
 }
 
 const LIVE_PATHS: Partial<Record<RoleCode, string[]>> = {
-  school_reviewer: ['/school/preparation', '/school/results', '/school/objections'],
+  school_reviewer: ['/school/preparation', '/school/progress', '/school/results', '/school/objections'],
   platform_reviewer: ['/platform/dispatch'],
   student: ['/student/dashboard', '/student/results'],
   supervisor: ['/supervisor/results'],

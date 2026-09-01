@@ -2,7 +2,7 @@
 
 第三方多校论文送审与双向盲审平台。
 
-**当前已交付（真实 API，分支施工规格为准）：** 登录 → 学生提交与匿名门禁 → 学校确认送出 → 百杰派单 → 专家接拒与在线评阅 → 汇总发布 → 异议登记。  
+**当前已交付（真实 API，分支施工规格为准）：** 登录 → 学生提交与匿名门禁 → 学校确认送出 → 百杰派单 → 专家接拒与在线评阅 → 学校进度 → 汇总发布 → 异议登记。  
 **尚未实现：** 学校 SSO、代传/批量导入、超时催审、多专家冲突、费用冻结与提现、PostgreSQL RLS。
 
 ## 现行规格（按切片阅读）
@@ -14,6 +14,7 @@
 | 3 | [online-review](docs/superpowers/specs/2026-09-01-slice-3-online-review-design.md) | 评阅草稿与最终提交 |
 | 4 | [summary-publish](docs/superpowers/specs/2026-09-01-slice-4-summary-publish-design.md) | 汇总与学校发布 |
 | 5 | [objection](docs/superpowers/specs/2026-09-01-slice-5-objection-design.md) | 发布后异议 |
+| 6 | [school-progress](docs/superpowers/specs/2026-09-01-slice-6-school-progress-design.md) | 学校评审进度 |
 
 文档导航见 [docs/README.md](docs/README.md)。`docs/superpowers/plans/2026-08-10-*.md` 等为前端演示历史，不是实现依据。`docs/99_原始材料/` 只读。
 

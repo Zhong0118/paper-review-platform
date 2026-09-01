@@ -204,6 +204,18 @@ async def school_confirm_dispatch(
     return ok(data, request_id=getattr(request.state, "request_id", None))
 
 
+@school_router.get("/progress")
+async def school_progress_list(
+    request: Request,
+    current: CurrentUser = Depends(require_roles(RoleCode.SCHOOL_REVIEWER)),
+    session: AsyncSession = Depends(get_session),
+):
+    from app.modules.dispatch import service as dispatch_service
+
+    data = await dispatch_service.school_progress_list(session, current)
+    return ok(data, request_id=getattr(request.state, "request_id", None))
+
+
 @school_router.get("/theses/{thesis_id}/progress")
 async def school_progress(
     thesis_id: UUID,

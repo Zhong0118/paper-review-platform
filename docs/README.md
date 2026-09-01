@@ -24,6 +24,7 @@ related_documents:
 | 3 | [online-review](superpowers/specs/2026-09-01-slice-3-online-review-design.md) | [plan](superpowers/plans/2026-09-01-slice-3-online-review.md) | 评阅草稿与最终提交 |
 | 4 | [summary-publish](superpowers/specs/2026-09-01-slice-4-summary-publish-design.md) | [plan](superpowers/plans/2026-09-01-slice-4-summary-publish.md) | 汇总与学校发布 |
 | 5 | [objection](superpowers/specs/2026-09-01-slice-5-objection-design.md) | [plan](superpowers/plans/2026-09-01-slice-5-objection.md) | 发布后异议 |
+| 6 | [school-progress](superpowers/specs/2026-09-01-slice-6-school-progress-design.md) | [plan](superpowers/plans/2026-09-01-slice-6-school-progress.md) | 学校评审进度 |
 
 - `docs/superpowers/plans/2026-08-10-*.md`、`2026-08-11-*`、`2026-08-12-*` 为前端演示历史，不是后端实现依据。
 - `99_原始材料/` 只读，不删除。
@@ -37,7 +38,7 @@ related_documents:
 
 ## 1. 当前阶段与使用说明
 
-编码已按第 0 节切片进行（0–5 已交付真实 API）。`00`–`10` 长文档仍是 2026-08 草稿，**不是**现行实现依据。
+编码已按第 0 节切片进行（0–6 已交付真实 API）。`00`–`10` 长文档仍是 2026-08 草稿，**不是**现行实现依据。
 
 1. 项目资料盘点、文档审查、Q-001—Q-016 决策：已完成首轮；
 2. 正式长文档 `00`–`09`、ADR、追踪矩阵：首版草稿保留，待切片全部稳定后再回写；
@@ -80,7 +81,7 @@ related_documents:
 
 ### 3.3 代码与切片规格
 
-仓库已有可运行的 FastAPI + Vue 实现（切片 0–5）。空模块目录里未实现的文件不是进度。与 `00`–`10` 长文档冲突时，以第 0 节切片规格为准。
+仓库已有可运行的 FastAPI + Vue 实现（切片 0–6）。空模块目录里未实现的文件不是进度。与 `00`–`10` 长文档冲突时，以第 0 节切片规格为准。
 
 ## 4. 推荐阅读顺序
 
@@ -164,6 +165,6 @@ related_documents:
 
 ## 9. 当前门禁
 
-- 切片 0–5 已编码；下一刀新功能仍先写规格再写代码。
+- 切片 0–6 已编码；下一刀新功能仍先写规格再写代码。
 - 长文档 `00`–`10` 未回写，不得单独当作实现依据。
 - 上生产前必须补 PostgreSQL RLS、学校 SSO 决策与费用规格。
