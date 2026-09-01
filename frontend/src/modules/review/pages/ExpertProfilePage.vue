@@ -5,7 +5,7 @@ import PageHeader from '@/components/app/PageHeader.vue'
 import { useScenarioService } from '@/demo/serviceProvider'
 import type { ExpertSelfProfile } from '@/demo/types'
 import PortalLayout from '@/layouts/PortalLayout.vue'
-import { menusByRole } from '@/router/menus'
+import { portalMenus } from '@/router/menus'
 import { useAuthStore } from '@/stores/auth'
 import ExpertProfileForm from '../components/ExpertProfileForm.vue'
 import ExpertDemoScenarioController from '@/modules/expert-management/components/ExpertDemoScenarioController.vue'
@@ -147,7 +147,7 @@ async function confirmSave() {
 
 <template>
   <PortalLayout
-    :menu-items="menusByRole.expert ?? []"
+    :menu-items="portalMenus('expert', demoEnabled)"
     active-path="/expert/profile"
     context-label="专家端 · 双盲评阅"
     :user-name="useAuthStore().user?.displayName ?? '周明远教授'"

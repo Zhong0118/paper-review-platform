@@ -1,8 +1,8 @@
 ---
 title: 百杰校审平台文档导航
 status: REVIEWING
-version: 0.3.0
-last_updated: 2026-08-04
+version: 0.4.0
+last_updated: 2026-09-01
 sources:
   - ../AGENTS.md
   - 99_原始材料/
@@ -15,12 +15,19 @@ related_documents:
 
 ## 0. 现行施工规格（先看这里）
 
-实现以垂直切片为准，不再以旧演示计划或空后端骨架为准。
+实现以垂直切片为准，不再以旧演示计划或空后端骨架为准。与 `00`–`10` 长文档冲突时，以本表为准。
 
-- 现行规格：[superpowers/specs/2026-08-31-slice-0-1-auth-submit-ready-design.md](superpowers/specs/2026-08-31-slice-0-1-auth-submit-ready-design.md)
-- 现行计划：[superpowers/plans/2026-08-31-slice-0-1-auth-submit-ready.md](superpowers/plans/2026-08-31-slice-0-1-auth-submit-ready.md)
+| 切片 | 规格 | 计划 | 内容 |
+|---|---|---|---|
+| 0+1 | [auth-submit-ready](superpowers/specs/2026-08-31-slice-0-1-auth-submit-ready-design.md) | [plan](superpowers/plans/2026-08-31-slice-0-1-auth-submit-ready.md) | 登录、提交、匿名门禁到待送审 |
+| 2 | [dispatch-accept](superpowers/specs/2026-08-31-slice-2-dispatch-accept-design.md) | [plan](superpowers/plans/2026-08-31-slice-2-dispatch-accept.md) | 确认送出、派单、接拒 |
+| 3 | [online-review](superpowers/specs/2026-09-01-slice-3-online-review-design.md) | [plan](superpowers/plans/2026-09-01-slice-3-online-review.md) | 评阅草稿与最终提交 |
+| 4 | [summary-publish](superpowers/specs/2026-09-01-slice-4-summary-publish-design.md) | [plan](superpowers/plans/2026-09-01-slice-4-summary-publish.md) | 汇总与学校发布 |
+| 5 | [objection](superpowers/specs/2026-09-01-slice-5-objection-design.md) | [plan](superpowers/plans/2026-09-01-slice-5-objection.md) | 发布后异议 |
+
 - `docs/superpowers/plans/2026-08-10-*.md`、`2026-08-11-*`、`2026-08-12-*` 为前端演示历史，不是后端实现依据。
 - `99_原始材料/` 只读，不删除。
+- 尚未实现：学校 SSO、代传/批量导入、超时催审、多专家冲突、费用冻结与提现、PostgreSQL RLS。
 
 本地 Postgres 使用 Docker `127.0.0.1:5433`，见仓库根 README。
 
@@ -30,16 +37,11 @@ related_documents:
 
 ## 1. 当前阶段与使用说明
 
-项目当前处于：
+编码已按第 0 节切片进行（0–5 已交付真实 API）。`00`–`10` 长文档仍是 2026-08 草稿，**不是**现行实现依据。
 
-1. 项目资料盘点：已完成首轮；
-2. 文档审查：已完成首轮；
-3. 问题讨论与决策：Q-001—Q-016 已形成决定；
-4. 文档补齐：00—09、ADR 和 P0 追踪矩阵已形成首版草稿；
-5. 文档一致性检查：第三轮复查已完成（2026-08-04，Q-013—016 已同步，流程结构化与模块调用关系已补齐）；
-6. 编码准入审查与实施计划：尚未执行。
-
-当前仍不具备编码准入或代码开发条件。正式文档均为 `DRAFT`/`REVIEWING`，需完成编码准入审查和实施计划编制；之后仍需用户明确回复"批准进入编码阶段"。任何业务实现不得把原始材料、草稿或现有代码骨架直接视为已经批准的设计。
+1. 项目资料盘点、文档审查、Q-001—Q-016 决策：已完成首轮；
+2. 正式长文档 `00`–`09`、ADR、追踪矩阵：首版草稿保留，待切片全部稳定后再回写；
+3. 现行实现：见第 0 节切片规格与仓库根 README。
 
 ## 2. 文档体系
 
@@ -76,9 +78,9 @@ related_documents:
 - 不得删除、覆盖、重命名或直接改写；
 - 不能直接作为编码依据，必须先转化为经过审查的正式文档。
 
-### 3.3 现有代码骨架
+### 3.3 代码与切片规格
 
-仓库已有前端模板和大规模后端空文件骨架。它们仅能证明曾经预设过目录和技术方向，不能证明业务规则、数据模型或接口已经完成。正式文档批准前，不得继续扩展业务实现。
+仓库已有可运行的 FastAPI + Vue 实现（切片 0–5）。空模块目录里未实现的文件不是进度。与 `00`–`10` 长文档冲突时，以第 0 节切片规格为准。
 
 ## 4. 推荐阅读顺序
 
@@ -162,8 +164,6 @@ related_documents:
 
 ## 9. 当前门禁
 
-- 文档补齐门禁：已满足，首版草稿已形成；
-- 一致性检查门禁：第三轮复查已通过（Q-013—Q-016 已同步，流程结构化与模块调用关系已补齐）；
-- 用户评审门禁：用户已评审并确认 Q-001—Q-016 相关调整；
-- 编码准入门禁：需求、权限、流程、数据、API、安全、测试和部署形成可追踪基线，等待编码准入审查与实施计划；
-- 编码门禁：用户明确回复”批准进入编码阶段”。
+- 切片 0–5 已编码；下一刀新功能仍先写规格再写代码。
+- 长文档 `00`–`10` 未回写，不得单独当作实现依据。
+- 上生产前必须补 PostgreSQL RLS、学校 SSO 决策与费用规格。

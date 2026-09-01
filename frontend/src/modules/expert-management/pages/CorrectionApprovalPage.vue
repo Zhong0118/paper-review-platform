@@ -6,7 +6,7 @@ import PageHeader from '@/components/app/PageHeader.vue'
 import { useScenarioService } from '@/demo/serviceProvider'
 import type { CorrectionRequest, ReviewVersion } from '@/demo/types'
 import PortalLayout from '@/layouts/PortalLayout.vue'
-import { menusByRole } from '@/router/menus'
+import { portalMenus } from '@/router/menus'
 import { useAuthStore } from '@/stores/auth'
 
 import CorrectionDetailPanel from '../components/CorrectionDetailPanel.vue'
@@ -173,7 +173,7 @@ onMounted(() => {
 
 <template>
   <PortalLayout
-    :menu-items="menusByRole.platform_reviewer ?? []"
+    :menu-items="portalMenus('platform_reviewer', demoEnabled)"
     active-path="/platform/corrections"
     context-label="百杰运营端 · 评阅更正审批"
     :user-name="authStore.user?.displayName ?? '陈岚'"

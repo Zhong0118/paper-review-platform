@@ -3,7 +3,10 @@ import { computed, nextTick, onBeforeUnmount, ref, useId } from 'vue'
 
 import type { StudentObjectionInput, ThesisFileMeta } from '@/demo/types'
 
-const props = withDefaults(defineProps<{ pending?: boolean }>(), { pending: false })
+const props = withDefaults(defineProps<{ pending?: boolean; allowAttachments?: boolean }>(), {
+  pending: false,
+  allowAttachments: true,
+})
 const emit = defineEmits<{ 'request-submit': [input: StudentObjectionInput] }>()
 
 const reason = ref('')
@@ -151,7 +154,7 @@ onBeforeUnmount(cancelValidation)
       </label>
     </div>
 
-    <div class="objection-form__attachment">
+    <div v-if="allowAttachments" class="objection-form__attachment">
       <div>
         <strong>异议附件（选填）</strong>
         <small>仅保存 PDF 的文件名、大小、MIME 类型和模拟校验状态。</small>
@@ -162,11 +165,11 @@ onBeforeUnmount(cancelValidation)
       </label>
     </div>
 
-    <p v-if="progress > 0 && progress < 100" data-objection-upload-progress>
+    <p v-if="allowAttachments && progress > 0 && progress < 100" data-objection-upload-progress>
       正在校验 {{ progress }}%
     </p>
     <p
-      v-if="attachment"
+      v-if="allowAttachments && attachment"
       class="objection-form__file"
       :data-file-status="attachment.validationStatus"
     >

@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from sqlalchemy import ForeignKey, Integer, String, Text
+from sqlalchemy import ForeignKey, Index, Integer, String, Text, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.mixins import BaseModel
@@ -8,6 +8,14 @@ from app.db.mixins import BaseModel
 
 class Objection(BaseModel):
     __tablename__ = "objections"
+    __table_args__ = (
+        Index(
+            "uq_objections_open_per_thesis",
+            "thesis_id",
+            unique=True,
+            postgresql_where=text("status IN ('SUBMITTED', 'PROCESSING')"),
+        ),
+    )
 
     tenant_id: Mapped[UUID] = mapped_column(ForeignKey("tenants.id"), nullable=False)
     thesis_id: Mapped[UUID] = mapped_column(ForeignKey("theses.id"), nullable=False)

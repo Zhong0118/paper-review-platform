@@ -122,7 +122,14 @@ async def _events(session: AsyncSession, thesis_id: UUID) -> list[WorkflowEvent]
     )
 
 
-def allowed_actions(role: str, thesis: Thesis, check: AnonymizationCheck | None, submitted_before: bool) -> list[str]:
+def allowed_actions(
+    role: str,
+    thesis: Thesis,
+    check: AnonymizationCheck | None,
+    submitted_before: bool,
+    *,
+    has_open_objection: bool = False,
+) -> list[str]:
     actions: list[str] = []
     if role == RoleCode.STUDENT:
         if thesis.stage == ThesisStage.DRAFT:
@@ -131,12 +138,16 @@ def allowed_actions(role: str, thesis: Thesis, check: AnonymizationCheck | None,
                 actions.append("DELETE_DRAFT")
         if thesis.stage in {ThesisStage.SUBMITTED, ThesisStage.PREPARING, ThesisStage.READY_FOR_DISPATCH}:
             actions.append("WITHDRAW_BEFORE_DISPATCH")
+        if thesis.stage == ThesisStage.COMPLETED and not has_open_objection:
+            actions.append("SUBMIT_OBJECTION")
     if role == RoleCode.SCHOOL_REVIEWER and thesis.stage == ThesisStage.PREPARING:
         if check is None or check.auto_conclusion != AnonymizationConclusion.FAIL:
             actions.append("CONFIRM_ANONYMIZATION")
         actions.extend(["REJECT_ANONYMIZATION", "TERMINATE"])
     if role == RoleCode.SCHOOL_REVIEWER and thesis.stage == ThesisStage.READY_FOR_DISPATCH:
         actions.append("CONFIRM_DISPATCH")
+    if role == RoleCode.SCHOOL_REVIEWER and thesis.stage == ThesisStage.RESULT_PROCESSING:
+        actions.append("PUBLISH_RESULT")
     return actions
 
 
@@ -158,6 +169,16 @@ async def serialize_thesis(session: AsyncSession, user: CurrentUser, thesis: The
     check = await _latest_check(session, thesis)
     events = await _events(session, thesis.id)
     submitted_before = any(e.action == "submit" for e in events)
+    has_open_objection = False
+    if thesis.stage == ThesisStage.COMPLETED:
+        from app.modules.result.objection_models import Objection
+        from app.modules.result.objection_service import OPEN_STATUSES
+
+        has_open_objection = (
+            await session.execute(
+                select(Objection).where(Objection.thesis_id == thesis.id, Objection.status.in_(list(OPEN_STATUSES)))
+            )
+        ).scalar_one_or_none() is not None
     membership = await session.get(TenantUserMembership, thesis.student_membership_id)
     elig = (
         await session.execute(
@@ -184,7 +205,9 @@ async def serialize_thesis(session: AsyncSession, user: CurrentUser, thesis: The
         "stage": thesis.stage,
         "version": thesis.version,
         "return_reason": thesis.return_reason,
-        "allowed_actions": allowed_actions(user.role, thesis, check, submitted_before),
+        "allowed_actions": allowed_actions(
+            user.role, thesis, check, submitted_before, has_open_objection=has_open_objection
+        ),
         "student": student_block,
         "batch_name": batch.name if batch else "",
         "anonymization": {

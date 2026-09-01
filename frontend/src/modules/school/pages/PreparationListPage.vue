@@ -9,7 +9,7 @@ import { confirmDispatch } from '@/api/dispatch'
 import { toSchoolRow } from '@/api/adapters'
 import type { BatchImportRow, DemoThesisSummary, SchoolSubmissionInput } from '@/demo/types'
 import PortalLayout from '@/layouts/PortalLayout.vue'
-import { menusByRole } from '@/router/menus'
+import { portalMenus } from '@/router/menus'
 import { useAuthStore } from '@/stores/auth'
 
 import AnonymizationCheckPanel from '../components/AnonymizationCheckPanel.vue'
@@ -103,7 +103,7 @@ async function showBatchPreview() {
 </script>
 
 <template>
-  <PortalLayout :menu-items="menusByRole.school_reviewer ?? []" active-path="/school/preparation" context-label="学校端 · 海岳大学" :user-name="authStore.user?.displayName ?? '王老师'">
+  <PortalLayout :menu-items="portalMenus('school_reviewer', demoEnabled)" active-path="/school/preparation" context-label="学校端 · 海岳大学" :user-name="authStore.user?.displayName ?? '王老师'">
     <div class="preparation-page">
       <PageHeader eyebrow="PAGE-004 · REVIEW PREPARATION" title="送审准备" description="统一管理学生自提、学校单篇代传与批量导入论文，并在送出前完成材料与匿名化核验。">
         <template #actions>

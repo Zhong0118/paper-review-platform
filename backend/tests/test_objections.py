@@ -7,6 +7,8 @@ from tests.helpers import auth, login, published_thesis
 @pytest.mark.asyncio
 async def test_student_files_objection_after_publish(client: AsyncClient, seed):
     student, school, thesis_id = await published_thesis(client, seed)
+    ready = await client.get("/api/v1/theses", headers=auth(student))
+    assert "SUBMIT_OBJECTION" in ready.json()["data"][0]["allowed_actions"]
     created = await client.post(
         f"/api/v1/my/theses/{thesis_id}/objections",
         headers=auth(student, idempotency="obj-1"),
@@ -15,6 +17,7 @@ async def test_student_files_objection_after_publish(client: AsyncClient, seed):
     assert created.status_code == 200, created.text
     theses = await client.get("/api/v1/theses", headers=auth(student))
     assert theses.json()["data"][0]["stage"] == "COMPLETED"
+    assert "SUBMIT_OBJECTION" not in theses.json()["data"][0]["allowed_actions"]
     dup = await client.post(
         f"/api/v1/my/theses/{thesis_id}/objections",
         headers=auth(student, idempotency="obj-2"),
@@ -38,3 +41,39 @@ async def test_student_files_objection_after_publish(client: AsyncClient, seed):
     other = await login(client, "other.student", seed.password)
     hidden = await client.get(f"/api/v1/my/theses/{thesis_id}/objections", headers=auth(other))
     assert hidden.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_open_objection_unique_per_thesis(client: AsyncClient, db_session, seed):
+    from uuid import UUID
+
+    from sqlalchemy.exc import IntegrityError
+
+    from app.modules.result.objection_models import Objection
+    from app.modules.thesis.models import Thesis
+
+    student, _school, thesis_id = await published_thesis(client, seed)
+    del student
+    thesis = await db_session.get(Thesis, UUID(thesis_id))
+    assert thesis is not None
+    db_session.add(
+        Objection(
+            tenant_id=thesis.tenant_id,
+            thesis_id=thesis.id,
+            student_membership_id=thesis.student_membership_id,
+            reason="第一条未办结",
+            status="SUBMITTED",
+        )
+    )
+    await db_session.flush()
+    db_session.add(
+        Objection(
+            tenant_id=thesis.tenant_id,
+            thesis_id=thesis.id,
+            student_membership_id=thesis.student_membership_id,
+            reason="第二条并发",
+            status="PROCESSING",
+        )
+    )
+    with pytest.raises(IntegrityError):
+        await db_session.flush()

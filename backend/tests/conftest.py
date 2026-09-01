@@ -42,6 +42,15 @@ async def test_engine() -> AsyncIterator[AsyncEngine]:
     engine = create_async_engine(_test_url(), pool_pre_ping=True)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await conn.execute(
+            text(
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS uq_objections_open_per_thesis
+                ON objections (thesis_id)
+                WHERE status IN ('SUBMITTED', 'PROCESSING')
+                """
+            )
+        )
     Session = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
     async with Session() as session:
         await seed_database(session)

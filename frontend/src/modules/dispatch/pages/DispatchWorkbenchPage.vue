@@ -8,7 +8,7 @@ import { assignExpert, dispatchCandidates, dispatchQueue } from '@/api/dispatch'
 import type { DispatchThesisSeed, ExpertTaskSummary, OperationsQueue } from '@/demo/types'
 import { isDueSoon } from '@/modules/expert-management/services/platformOperationService'
 import PortalLayout from '@/layouts/PortalLayout.vue'
-import { menusByRole } from '@/router/menus'
+import { portalMenus } from '@/router/menus'
 import { useAuthStore } from '@/stores/auth'
 
 import CandidateExpertTable, { type ExpertCandidate } from '../components/CandidateExpertTable.vue'
@@ -414,7 +414,7 @@ onUnmounted(() => window.removeEventListener('resize', updateMobileFlag))
 
 <template>
   <PortalLayout
-    :menu-items="menusByRole.platform_reviewer ?? []"
+    :menu-items="portalMenus('platform_reviewer', demoEnabled)"
     active-path="/platform/dispatch"
     context-label="平台端 · 派审运营"
     :user-name="authStore.user?.displayName ?? '陈岚'"

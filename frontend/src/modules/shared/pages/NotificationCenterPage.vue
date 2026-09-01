@@ -4,7 +4,7 @@ import { computed } from 'vue'
 import BlindRail from '@/components/app/BlindRail.vue'
 import PageHeader from '@/components/app/PageHeader.vue'
 import PortalLayout from '@/layouts/PortalLayout.vue'
-import { menusByRole } from '@/router/menus'
+import { portalMenus } from '@/router/menus'
 import { useAuthStore } from '@/stores/auth'
 import type { RoleCode } from '@/types/roles'
 import type { RoleNotification } from '@/demo/types'
@@ -12,6 +12,7 @@ import type { RoleNotification } from '@/demo/types'
 import StudentNotificationList from '../components/StudentNotificationList.vue'
 
 const auth = useAuthStore()
+const demoEnabled = import.meta.env.VITE_DEMO_MODE === 'true'
 const role = computed(() => (auth.user as ({ role?: RoleCode } & object) | null)?.role ?? 'student')
 
 /** Task 9：运营端与专家端走同一角色通知列表，按当前角色投影（设计 §5.10）。 */
@@ -23,7 +24,7 @@ const recipientRole = computed<RoleNotification['recipientRole'] | undefined>(()
 
 <template>
   <PortalLayout
-    :menu-items="menusByRole[role] ?? []"
+    :menu-items="portalMenus(role, demoEnabled)"
     active-path="/notifications"
     context-label="消息中心"
     :user-name="auth.user?.displayName ?? '演示用户'"

@@ -38,8 +38,8 @@ sources:
 
 ## 前端
 
-PAGE-011 非演示：列表/详情走 school results，按钮仅 `RESULT_PROCESSING` 且服务端允许。  
-PAGE-012 / PAGE-013：已发布才展示分数与评语；未发布空态。不改 scenarioService。异议表单非演示隐藏或提示未接入。
+PAGE-011 非演示：列表/详情走 school results，按钮仅 `allowed_actions` 含 `PUBLISH_RESULT`。  
+PAGE-012 / PAGE-013：已发布才展示分数与评语；未发布空态。不改 scenarioService。异议表单见切片 5。
 
 ## 测试
 

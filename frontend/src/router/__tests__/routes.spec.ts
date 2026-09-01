@@ -57,6 +57,24 @@ describe('application routes', () => {
     ])
   })
 
+  it('hides unwired workbenches from the live navigation', async () => {
+    const { portalMenus } = await import('../menus')
+    expect(portalMenus('school_reviewer', false).map((item) => item.path)).toEqual([
+      '/school/preparation',
+      '/school/results',
+      '/school/objections',
+    ])
+    expect(portalMenus('platform_reviewer', false).map((item) => item.path)).toEqual([
+      '/platform/dispatch',
+    ])
+    expect(portalMenus('expert', false).map((item) => item.path)).toEqual(['/expert/tasks'])
+    expect(portalMenus('student', false).map((item) => item.path)).toEqual([
+      '/student/dashboard',
+      '/student/results',
+    ])
+    expect(portalMenus('platform_reviewer', false)[0].badge).toBeUndefined()
+  })
+
   it('does not leave management routes on the generic pending page', () => {
     const managementPages = ['PAGE-015', 'PAGE-016', 'PAGE-017', 'PAGE-018']
 

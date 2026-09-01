@@ -11,7 +11,7 @@ import { fetchEligibility } from '@/api/auth'
 import { toStudentThesisDetail } from '@/api/adapters'
 import type { StudentDraftInput, ThesisFileMeta } from '@/demo/types'
 import PortalLayout from '@/layouts/PortalLayout.vue'
-import { menusByRole } from '@/router/menus'
+import { portalMenus } from '@/router/menus'
 import { useAuthStore } from '@/stores/auth'
 
 import StudentIdentityPanel, {
@@ -317,7 +317,7 @@ void loadDraft()
 
 <template>
   <PortalLayout
-    :menu-items="menusByRole.student ?? []"
+    :menu-items="portalMenus('student', demoEnabled)"
     active-path="/student/dashboard"
     context-label="学生端 · 海岳大学"
     :user-name="authStore.user?.displayName ?? '林知远'"

@@ -6,7 +6,7 @@ import PageHeader from '@/components/app/PageHeader.vue'
 import { useScenarioService } from '@/demo/serviceProvider'
 import type { PaymentResult, WithdrawalRequest } from '@/demo/types'
 import PortalLayout from '@/layouts/PortalLayout.vue'
-import { menusByRole } from '@/router/menus'
+import { portalMenus } from '@/router/menus'
 import { useAuthStore } from '@/stores/auth'
 
 import WithdrawalDetailPanel from '../components/WithdrawalDetailPanel.vue'
@@ -214,7 +214,7 @@ onMounted(() => {
 
 <template>
   <PortalLayout
-    :menu-items="menusByRole.platform_reviewer ?? []"
+    :menu-items="portalMenus('platform_reviewer', demoEnabled)"
     active-path="/platform/settlements"
     context-label="百杰运营端 · 结算处理"
     :user-name="authStore.user?.displayName ?? '陈岚'"

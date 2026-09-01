@@ -7,7 +7,7 @@ import { useScenarioService } from '@/demo/serviceProvider'
 import { acceptTask, listExpertTasks } from '@/api/expertTasks'
 import type { ExpertTaskSummary } from '@/demo/types'
 import PortalLayout from '@/layouts/PortalLayout.vue'
-import { menusByRole } from '@/router/menus'
+import { portalMenus } from '@/router/menus'
 import { useAuthStore } from '@/stores/auth'
 import ExpertTaskTable from '../components/ExpertTaskTable.vue'
 import ExpertDemoScenarioController from '@/modules/expert-management/components/ExpertDemoScenarioController.vue'
@@ -173,7 +173,7 @@ async function confirmAccept() {
 
 <template>
   <PortalLayout
-    :menu-items="menusByRole.expert ?? []"
+    :menu-items="portalMenus('expert', demoEnabled)"
     active-path="/expert/tasks"
     context-label="专家端 · 双盲评阅"
     :user-name="useAuthStore().user?.displayName ?? '周明远教授'"

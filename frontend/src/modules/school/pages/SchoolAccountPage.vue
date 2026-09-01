@@ -6,7 +6,7 @@ import PageHeader from '@/components/app/PageHeader.vue'
 import { useScenarioService } from '@/demo/serviceProvider'
 import type { SchoolAccountSummary as Account, SchoolBill } from '@/demo/types'
 import PortalLayout from '@/layouts/PortalLayout.vue'
-import { menusByRole } from '@/router/menus'
+import { portalMenus } from '@/router/menus'
 
 import SchoolAccountSummary from '../components/SchoolAccountSummary.vue'
 import SchoolBillTable from '../components/SchoolBillTable.vue'
@@ -18,7 +18,7 @@ onMounted(async()=>{await service.loginAs('school_reviewer');account.value=await
 </script>
 
 <template>
-  <PortalLayout :menu-items="menusByRole.school_reviewer??[]" active-path="/school/account" context-label="学校端 · 海岳大学" user-name="王老师">
+  <PortalLayout :menu-items="portalMenus('school_reviewer', true)" active-path="/school/account" context-label="学校端 · 海岳大学" user-name="王老师">
     <div class="school-account-page">
       <PageHeader eyebrow="PAGE-024 · SCHOOL ACCOUNT" title="学校账户与账单" description="查看本校可用与冻结额度，并按盲审编号追溯每一笔送审费用。额度由百杰根据线下充值或合同录入，学校端只读。" />
       <BlindRail audience="本校账户额度、学生与送审账单" hidden-from="专家身份、专家提现余额和其他学校账务" stage="学校付费 · 学生无支付入口" />

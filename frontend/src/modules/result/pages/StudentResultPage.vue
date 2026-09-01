@@ -11,7 +11,7 @@ import { listTheses } from '@/api/theses'
 import { toStudentThesisDetail } from '@/api/adapters'
 import type { StudentObjectionInput, StudentResult, StudentThesisDetail } from '@/demo/types'
 import PortalLayout from '@/layouts/PortalLayout.vue'
-import { menusByRole } from '@/router/menus'
+import { portalMenus } from '@/router/menus'
 import { useAuthStore } from '@/stores/auth'
 import StudentProgressTimeline from '@/modules/thesis/components/StudentProgressTimeline.vue'
 import StudentDemoScenarioController from '@/modules/thesis/components/StudentDemoScenarioController.vue'
@@ -211,7 +211,7 @@ onMounted(() => void loadPage())
 
 <template>
   <PortalLayout
-    :menu-items="menusByRole.student ?? []"
+    :menu-items="portalMenus('student', demoEnabled)"
     active-path="/student/results"
     context-label="学生端 · 海岳大学"
     :user-name="authStore.user?.displayName ?? '林知远'"
@@ -279,8 +279,9 @@ onMounted(() => void loadPage())
           <AnonymousResultTable :rows="result.results" />
           <StudentObjectionTimeline v-if="result.objection" :objection="result.objection" />
           <StudentObjectionForm
-            v-if="canCreateObjection || (!demoEnabled && result && selectedThesis?.stage === 'COMPLETED' && !unresolvedObjection)"
+            v-if="canCreateObjection"
             :pending="submitting"
+            :allow-attachments="demoEnabled"
             @request-submit="requestObjectionConfirmation"
           />
         </template>

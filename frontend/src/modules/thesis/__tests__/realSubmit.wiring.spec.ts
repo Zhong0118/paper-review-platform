@@ -1,7 +1,7 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { describe, expect, it, vi } from 'vitest'
 
-import { toStudentThesisDetail } from '@/api/adapters'
+import { toSchoolRow, toStudentThesisDetail } from '@/api/adapters'
 import type { ThesisDetail } from '@/api/theses'
 
 vi.mock('@/api/theses', () => ({
@@ -67,5 +67,50 @@ describe('real submit wiring adapters', () => {
     })
     expect(mapped.studentName).toBe('林知远')
     expect(mapped.student.tenantName).toBe('演示大学')
+  })
+
+  it('keeps publish and objection actions from the API', () => {
+    expect(
+      toStudentThesisDetail({
+        id: 't1',
+        stage: 'COMPLETED',
+        version: 8,
+        return_reason: null,
+        allowed_actions: ['SUBMIT_OBJECTION'],
+        anonymization: { auto_conclusion: 'PASS', manual_conclusion: 'PASS', findings: [] },
+        current_version: {
+          id: 'v1',
+          title: '题',
+          abstract: '',
+          discipline_code: '0812',
+          discipline_name: '计算机科学与技术',
+          keywords: ['盲审'],
+          is_editable: false,
+          files: [],
+        },
+        recent_events: [],
+      }).allowedActions,
+    ).toEqual(['SUBMIT_OBJECTION'])
+    expect(
+      toSchoolRow({
+        id: 't2',
+        stage: 'RESULT_PROCESSING',
+        version: 7,
+        return_reason: null,
+        allowed_actions: ['PUBLISH_RESULT'],
+        anonymization: { auto_conclusion: 'PASS', manual_conclusion: 'PASS', findings: [] },
+        current_version: {
+          id: 'v2',
+          title: '待发布',
+          abstract: '',
+          discipline_code: '0812',
+          discipline_name: '计算机科学与技术',
+          keywords: ['盲审'],
+          is_editable: false,
+          files: [],
+        },
+        recent_events: [],
+      }).allowedActions,
+    ).toEqual(['PUBLISH_RESULT'])
   })
 })

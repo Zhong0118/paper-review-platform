@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import PageHeader from '@/components/app/PageHeader.vue'
 import PortalLayout from '@/layouts/PortalLayout.vue'
-import { menusByRole } from '@/router/menus'
+import { portalMenus } from '@/router/menus'
 </script>
 
 <template>
-  <PortalLayout :menu-items="menusByRole.school_reviewer ?? []" active-path="/exports" context-label="数据服务" user-name="王老师">
+  <PortalLayout :menu-items="portalMenus('school_reviewer', true)" active-path="/exports" context-label="数据服务" user-name="王老师">
     <section class="export-page">
       <PageHeader eyebrow="PAGE-016 · EXPORT CENTER" title="导出中心" description="按学校数据权限生成论文、进度、结果和账单文件。演示阶段展示任务状态，不实际下载敏感数据。" />
       <section class="export-builder"><header><span>NEW EXPORT</span><h2>新建导出任务</h2></header><div class="export-fields"><label>数据类型<select><option>评审进度明细</option><option>评审结果汇总</option><option>学校账单流水</option></select></label><label>批次<select><option>2026 届夏季批次</option></select></label><label>文件格式<select><option>XLSX</option><option>CSV</option></select></label><button type="button">生成文件</button></div><p>结果导出默认仅包含获准公开字段，不包含专家实名、联系方式和回避信息。</p></section>

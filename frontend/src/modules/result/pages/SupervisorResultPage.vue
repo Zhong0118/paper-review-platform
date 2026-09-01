@@ -7,7 +7,7 @@ import { getPublishedResult } from '@/api/results'
 import { listTheses } from '@/api/theses'
 import type { DemoPublishedResult } from '@/demo/types'
 import PortalLayout from '@/layouts/PortalLayout.vue'
-import { menusByRole } from '@/router/menus'
+import { portalMenus } from '@/router/menus'
 import { useAuthStore } from '@/stores/auth'
 import AnonymousResultTable from '../components/AnonymousResultTable.vue'
 import ResultSummaryPanel from '../components/ResultSummaryPanel.vue'
@@ -41,7 +41,7 @@ onMounted(async () => {
 })
 </script>
 <template>
-  <PortalLayout :menu-items="menusByRole.supervisor ?? []" active-path="/supervisor/results" context-label="导师端 · 海岳大学" :user-name="useAuthStore().user?.displayName ?? '赵文博教授'">
+  <PortalLayout :menu-items="portalMenus('supervisor', demoEnabled)" active-path="/supervisor/results" context-label="导师端 · 海岳大学" :user-name="useAuthStore().user?.displayName ?? '赵文博教授'">
     <div class="result-page">
       <PageHeader eyebrow="PAGE-013 · SUPERVISOR RESULT" title="学生评审结果" description="查看学校已发布的匿名评阅结论，用于指导学生后续修改。" />
       <BlindRail audience="所指导学生的已发布匿名评阅结果" hidden-from="专家姓名、联系方式和其他学生信息" stage="结果查看" />

@@ -3,7 +3,7 @@ import { onMounted, ref } from 'vue'
 import BlindRail from '@/components/app/BlindRail.vue'
 import PageHeader from '@/components/app/PageHeader.vue'
 import PortalLayout from '@/layouts/PortalLayout.vue'
-import { menusByRole } from '@/router/menus'
+import { portalMenus } from '@/router/menus'
 import { listSchoolObjections, resolveObjection, startObjection, type ObjectionRow } from '@/api/objections'
 
 const demoEnabled = import.meta.env.VITE_DEMO_MODE === 'true'
@@ -48,7 +48,7 @@ function label(status: string) {
 </script>
 
 <template>
-  <PortalLayout :menu-items="menusByRole.school_reviewer??[]" active-path="/school/objections" context-label="学校端 · 海岳大学" user-name="王老师">
+  <PortalLayout :menu-items="portalMenus('school_reviewer', demoEnabled)" active-path="/school/objections" context-label="学校端 · 海岳大学" user-name="王老师">
     <div class="objection-page">
       <PageHeader eyebrow="PAGE-019 · OBJECTIONS" title="异议处理" description="受理学生对已发布结果提出的异议，记录处理过程和结论；异议不直接修改专家原始分数或评语。" />
       <BlindRail audience="本校学生身份、异议材料与处理记录" hidden-from="专家真实身份与其他学校异议" stage="独立流程 · 不回退论文状态" />

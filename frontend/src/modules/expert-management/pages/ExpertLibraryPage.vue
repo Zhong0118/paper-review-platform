@@ -8,7 +8,7 @@ import { useScenarioService } from '@/demo/serviceProvider'
 import type { ExpertProfile } from '@/demo/types'
 import { searchDisciplines } from '@/modules/thesis/data/disciplineCatalog'
 import PortalLayout from '@/layouts/PortalLayout.vue'
-import { menusByRole } from '@/router/menus'
+import { portalMenus } from '@/router/menus'
 import { useAuthStore } from '@/stores/auth'
 
 import ExpertLibraryTable from '../components/ExpertLibraryTable.vue'
@@ -440,7 +440,7 @@ onUnmounted(() => window.removeEventListener('resize', updateMobileFlag))
 
 <template>
   <PortalLayout
-    :menu-items="menusByRole.platform_reviewer ?? []"
+    :menu-items="portalMenus('platform_reviewer', demoEnabled)"
     active-path="/platform/experts"
     context-label="百杰运营端 · 专家库"
     :user-name="authStore.user?.displayName ?? '陈岚'"

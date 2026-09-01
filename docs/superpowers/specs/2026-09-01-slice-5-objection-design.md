@@ -28,12 +28,14 @@ sources:
 
 ## 表
 
-`objections`：tenant_id, thesis_id, student_membership_id, reason, request, status, channel, conclusion, timestamps, version
+`objections`：tenant_id, thesis_id, student_membership_id, reason, request, status, channel, conclusion, timestamps, version。部分唯一索引：同一 `thesis_id` 同时最多一条 `SUBMITTED|PROCESSING`。
+
+学生论文投影在 `COMPLETED` 且无未办结异议时带 `SUBMIT_OBJECTION`。学校结果处理投影在 `RESULT_PROCESSING` 时带 `PUBLISH_RESULT`。
 
 ## 前端
 
-PAGE-012 非演示显示异议表单（仅 COMPLETED 且无未办结）。PAGE-019 走真实列表与回填，去掉写死三行演示。不改 scenarioService。
+PAGE-012 非演示：仅 `allowed_actions` 含 `SUBMIT_OBJECTION` 时显示表单；本切片不收集附件。PAGE-019 走真实列表与回填。不改 scenarioService。
 
 ## 测试
 
-发布后学生可提交；论文 stage 仍 COMPLETED；重复未办结 409；学校办结后学生看见结论；发布前 409；other.student 404。
+发布后学生可提交且 `allowed_actions` 含 `SUBMIT_OBJECTION`；论文 stage 仍 COMPLETED；重复未办结 409（应用层 + 部分唯一索引）；学校办结后学生看见结论；发布前 409；other.student 404。

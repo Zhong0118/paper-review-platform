@@ -8,7 +8,7 @@ import ScenarioStageRibbon from '@/components/app/ScenarioStageRibbon.vue'
 import { useScenarioService } from '@/demo/serviceProvider'
 import type { DemoScenarioSnapshot } from '@/demo/types'
 import PortalLayout from '@/layouts/PortalLayout.vue'
-import { menusByRole } from '@/router/menus'
+import { portalMenus } from '@/router/menus'
 import { useAuthStore } from '@/stores/auth'
 
 import TaskProgressSummary from '../components/TaskProgressSummary.vue'
@@ -42,7 +42,7 @@ async function dispatch(row: GateRow) {
 </script>
 
 <template>
-  <PortalLayout :menu-items="menusByRole.school_reviewer ?? []" active-path="/school/progress" context-label="学校端 · 海岳大学" :user-name="authStore.user?.displayName ?? '王老师'">
+  <PortalLayout :menu-items="portalMenus('school_reviewer', true)" active-path="/school/progress" context-label="学校端 · 海岳大学" :user-name="authStore.user?.displayName ?? '王老师'">
     <div class="progress-page">
       <PageHeader eyebrow="PAGE-005 · REVIEW PROGRESS" title="评审进度" description="先完成匿名化门禁并确认送出，再查看任务状态、截止时间与异常处理；学校侧仅展示任务化名。" />
       <BlindRail audience="本校论文、任务化名与进度数量" hidden-from="不展示专家姓名、手机号、邮箱和专家库详情" stage="学校确认送出" />

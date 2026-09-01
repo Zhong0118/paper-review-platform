@@ -9,7 +9,7 @@ import { getReviewDraft, saveReviewDraft, submitFinalReview } from '@/api/review
 import { listExpertTasks } from '@/api/expertTasks'
 import type { ExpertTaskSummary, ReviewScoreInput } from '@/demo/types'
 import PortalLayout from '@/layouts/PortalLayout.vue'
-import { menusByRole } from '@/router/menus'
+import { portalMenus } from '@/router/menus'
 import { useAuthStore } from '@/stores/auth'
 import AnonymousDocumentPane from '../components/AnonymousDocumentPane.vue'
 import ReviewFormPane from '../components/ReviewFormPane.vue'
@@ -275,7 +275,7 @@ async function confirmCorrection() {
 
 <template>
   <PortalLayout
-    :menu-items="menusByRole.expert ?? []"
+    :menu-items="portalMenus('expert', demoEnabled)"
     active-path="/expert/review"
     context-label="专家端 · 双盲评阅"
     :user-name="useAuthStore().user?.displayName ?? '周明远教授'"

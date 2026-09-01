@@ -2,13 +2,13 @@
 import BlindRail from '@/components/app/BlindRail.vue'
 import PageHeader from '@/components/app/PageHeader.vue'
 import PortalLayout from '@/layouts/PortalLayout.vue'
-import { menusByRole } from '@/router/menus'
+import { portalMenus } from '@/router/menus'
 
 const scoreRules=[['选题价值',15],['文献与理论基础',15],['研究方法',20],['创新性',25],['研究成果与工作量',15],['写作与学术规范',10]] as const
 </script>
 
 <template>
-  <PortalLayout :menu-items="menusByRole.school_reviewer??[]" active-path="/school/batch-rules" context-label="学校端 · 海岳大学" user-name="王老师">
+  <PortalLayout :menu-items="portalMenus('school_reviewer', true)" active-path="/school/batch-rules" context-label="学校端 · 海岳大学" user-name="王老师">
     <div class="rules-page">
       <PageHeader eyebrow="PAGE-023 · BATCH RULES" title="批次与评审规则" description="查看本校送审批次和已启用规则版本。规则启用后形成快照，既有送审任务不随新版本变化。" />
       <BlindRail audience="本校批次与评审规则" hidden-from="专家身份、其他学校规则与内部运营排序" stage="学校配置 · 百杰按快照执行" />

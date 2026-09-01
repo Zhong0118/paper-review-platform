@@ -28,6 +28,8 @@ async def test_submit_moves_to_result_processing_and_publish(client: AsyncClient
     assert results.json()["data"]["items"][0]["alias"] == "E-001"
     before = await client.get(f"/api/v1/my/theses/{thesis_id}/published-result", headers=auth(student))
     assert before.status_code == 404
+    school_thesis = await client.get(f"/api/v1/school-review/theses/{thesis_id}", headers=auth(school))
+    assert "PUBLISH_RESULT" in school_thesis.json()["data"]["allowed_actions"]
     published = await client.post(
         f"/api/v1/school-review/theses/{thesis_id}:publish",
         headers=auth(school, idempotency="pub-1"),
@@ -35,6 +37,7 @@ async def test_submit_moves_to_result_processing_and_publish(client: AsyncClient
     )
     assert published.status_code == 200, published.text
     assert published.json()["data"]["stage"] == "COMPLETED"
+    assert "PUBLISH_RESULT" not in published.json()["data"]["allowed_actions"]
     mine = await client.get(f"/api/v1/my/theses/{thesis_id}/published-result", headers=auth(student))
     assert mine.status_code == 200
     assert "周明远" not in mine.text

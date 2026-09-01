@@ -81,6 +81,10 @@ export function fallbackEligibility(): StudentEligibility {
   }
 }
 
+export function selectSchoolResultQueue(items: ThesisDetail[]): ThesisDetail[] {
+  return items.filter((item) => item.stage === 'RESULT_PROCESSING' || item.stage === 'COMPLETED')
+}
+
 export function toSchoolRow(detail: ThesisDetail): DemoThesisSummary {
   const version = detail.current_version
   return {

@@ -6,7 +6,7 @@ import { EXPERT_PERSONA_ID } from '@/demo/scenarioService'
 import { useScenarioService } from '@/demo/serviceProvider'
 import type { ExpertAccountSummary, ExpertLedgerEntry, WithdrawalRequest } from '@/demo/types'
 import PortalLayout from '@/layouts/PortalLayout.vue'
-import { menusByRole } from '@/router/menus'
+import { portalMenus } from '@/router/menus'
 import { useAuthStore } from '@/stores/auth'
 import ExpertDemoScenarioController from '@/modules/expert-management/components/ExpertDemoScenarioController.vue'
 
@@ -162,7 +162,7 @@ async function confirmWithdrawal() {
 
 <template>
   <PortalLayout
-    :menu-items="menusByRole.expert ?? []"
+    :menu-items="portalMenus('expert', demoEnabled)"
     active-path="/expert/finance"
     context-label="专家端 · 双盲评阅"
     :user-name="useAuthStore().user?.displayName ?? '周明远教授'"

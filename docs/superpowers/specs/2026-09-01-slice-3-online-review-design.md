@@ -12,7 +12,7 @@ related_documents:
 
 # 切片 3：在线评阅
 
-专家 `IN_REVIEW` 后可暂存与最终提交。任务进入 `SUBMITTED` 并锁定。论文宏观阶段仍为 `UNDER_REVIEW`。不做汇总、发布、更正、催审。
+专家 `IN_REVIEW` 后可暂存与最终提交。任务进入 `SUBMITTED` 并锁定。本切片单独看时论文宏观阶段仍为 `UNDER_REVIEW`。**切片 4 叠加后**：种子批次目标有效专家数为 1，因此 `submit-final` 达标即触发 `results_ready`，论文进入 `RESULT_PROCESSING`。不做发布、更正、催审。
 
 ## 模板（种子，本切片唯一）
 
@@ -38,4 +38,4 @@ PAGE-010 非演示：读 materials/draft，autosave PUT draft，提交 POST subm
 
 ## 测试
 
-接单后存草稿再读回；提交锁定且再改 409；缺评语 422；另一专家 404；提交后 thesis.stage 仍 UNDER_REVIEW。
+接单后存草稿再读回；提交锁定且再改 409；缺评语 422；另一专家 404。单独验收本切片时 thesis.stage 仍为 `UNDER_REVIEW`；与切片 4 联测时一份有效结果即进入 `RESULT_PROCESSING`。
