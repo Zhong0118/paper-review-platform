@@ -101,3 +101,4 @@ tmp/
 temp/
 storage/original/
 storage/anonymous/
+.playwright-mcp/

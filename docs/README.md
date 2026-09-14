@@ -1,170 +1,37 @@
 ---
 title: 百杰校审平台文档导航
-status: REVIEWING
-version: 0.4.0
+status: CURRENT
+version: 0.6.0
 last_updated: 2026-09-01
-sources:
-  - ../AGENTS.md
-  - 99_原始材料/
-related_documents:
-  - 10_审查与决策/资料清单与来源索引.md
-  - 10_审查与决策/文档覆盖矩阵.md
-  - 10_审查与决策/文档一致性审查报告.md
-  - 10_审查与决策/问题与决策记录.md
 ---
 
-## 0. 现行施工规格（先看这里）
+# 文档导航
 
-实现以垂直切片为准，不再以旧演示计划或空后端骨架为准。与 `00`–`10` 长文档冲突时，以本表为准。
+**先读：[现行状态](CURRENT.md)** 和仓库根 [README.md](../README.md)。
 
-| 切片 | 规格 | 计划 | 内容 |
-|---|---|---|---|
-| 0+1 | [auth-submit-ready](superpowers/specs/2026-08-31-slice-0-1-auth-submit-ready-design.md) | [plan](superpowers/plans/2026-08-31-slice-0-1-auth-submit-ready.md) | 登录、提交、匿名门禁到待送审 |
-| 2 | [dispatch-accept](superpowers/specs/2026-08-31-slice-2-dispatch-accept-design.md) | [plan](superpowers/plans/2026-08-31-slice-2-dispatch-accept.md) | 确认送出、派单、接拒 |
-| 3 | [online-review](superpowers/specs/2026-09-01-slice-3-online-review-design.md) | [plan](superpowers/plans/2026-09-01-slice-3-online-review.md) | 评阅草稿与最终提交 |
-| 4 | [summary-publish](superpowers/specs/2026-09-01-slice-4-summary-publish-design.md) | [plan](superpowers/plans/2026-09-01-slice-4-summary-publish.md) | 汇总与学校发布 |
-| 5 | [objection](superpowers/specs/2026-09-01-slice-5-objection-design.md) | [plan](superpowers/plans/2026-09-01-slice-5-objection.md) | 发布后异议 |
-| 6 | [school-progress](superpowers/specs/2026-09-01-slice-6-school-progress-design.md) | [plan](superpowers/plans/2026-09-01-slice-6-school-progress.md) | 学校评审进度 |
+实现以垂直切片为准。与 `00`–`10` 长文档冲突时，以切片规格为准。
 
-- `docs/superpowers/plans/2026-08-10-*.md`、`2026-08-11-*`、`2026-08-12-*` 为前端演示历史，不是后端实现依据。
-- `99_原始材料/` 只读，不删除。
-- 尚未实现：学校 SSO、代传/批量导入、超时催审、多专家冲突、费用冻结与提现、PostgreSQL RLS。
+## 现行施工规格
 
-本地 Postgres 使用 Docker `127.0.0.1:5433`，见仓库根 README。
-
----
-
-# 百杰校审平台文档导航
-
-## 1. 当前阶段与使用说明
-
-编码已按第 0 节切片进行（0–6 已交付真实 API）。`00`–`10` 长文档仍是 2026-08 草稿，**不是**现行实现依据。
-
-1. 项目资料盘点、文档审查、Q-001—Q-016 决策：已完成首轮；
-2. 正式长文档 `00`–`09`、ADR、追踪矩阵：首版草稿保留，待切片全部稳定后再回写；
-3. 现行实现：见第 0 节切片规格与仓库根 README。
-
-## 2. 文档体系
-
-| 目录 | 职责 | 当前情况 |
+| 切片 | 规格 | 计划 |
 |---|---|---|
-| `00_项目总览/` | 项目背景、目标、范围、术语、干系人 | 首版草稿已建立 |
-| `01_需求分析/` | 业务需求、功能需求、角色权限、优先级、非功能需求 | 首版草稿已建立 |
-| `02_产品设计/` | 业务流程、状态机、页面与交互 | 首版草稿已建立 |
-| `03_架构设计/` | 总体架构、模块边界、安全与集成设计 | 首版草稿已建立 |
-| `04_数据库设计/` | 概念模型、逻辑模型、表结构、字典与迁移原则 | 首版逻辑设计已建立 |
-| `05_API设计/` | API 规范、接口清单、模型、权限、错误码 | 首版资源/动作设计已建立 |
-| `06_开发规范/` | 编码、分支、提交、日志、异常与测试规范 | 首版草稿已建立 |
-| `07_测试验收/` | 测试策略、测试用例、验收标准、追踪关系 | 首版草稿已建立 |
-| `08_部署运维/` | 环境、部署、监控、备份、恢复与回滚 | 首版草稿已建立 |
-| `09_项目管理/` | 里程碑、计划、风险、变更与发布管理 | 首版阶段计划已建立 |
-| `10_审查与决策/` | 审查结果、问题、决策、ADR、追踪和编码准入 | 12 项决定、6 份 ADR、追踪矩阵和准入表已建立 |
-| `99_原始材料/` | 原始需求、参考系统、截图、指南和初始方案 | 已盘点；只读依据 |
+| 0+1 | [auth-submit-ready](superpowers/specs/2026-08-31-slice-0-1-auth-submit-ready-design.md) | [plan](superpowers/plans/2026-08-31-slice-0-1-auth-submit-ready.md) |
+| 2 | [dispatch-accept](superpowers/specs/2026-08-31-slice-2-dispatch-accept-design.md) | [plan](superpowers/plans/2026-08-31-slice-2-dispatch-accept.md) |
+| 3 | [online-review](superpowers/specs/2026-09-01-slice-3-online-review-design.md) | [plan](superpowers/plans/2026-09-01-slice-3-online-review.md) |
+| 4 | [summary-publish](superpowers/specs/2026-09-01-slice-4-summary-publish-design.md) | [plan](superpowers/plans/2026-09-01-slice-4-summary-publish.md) |
+| 5 | [objection](superpowers/specs/2026-09-01-slice-5-objection-design.md) | [plan](superpowers/plans/2026-09-01-slice-5-objection.md) |
+| 6 | [school-progress](superpowers/specs/2026-09-01-slice-6-school-progress-design.md) | [plan](superpowers/plans/2026-09-01-slice-6-school-progress.md) |
 
-## 3. 正式文档与原始材料的区别
+术语：[CONTEXT.md](../CONTEXT.md)。编码约定：[AGENTS.md](../AGENTS.md)。
 
-### 3.1 正式文档
+## 历史（不要当实现依据）
 
-- 位于 `00_项目总览/` 至 `09_项目管理/`；
-- 是后续数据库、API、代码、测试和部署的直接依据；
-- 必须标明来源、状态、版本和更新时间；
-- 只有经用户明确确认的内容才可标为 `APPROVED`；
-- 发生变更时必须同步受影响文档和需求追踪矩阵。
-
-### 3.2 原始材料
-
-- 位于 `99_原始材料/`；
-- 用于证明需求来源、参考既有平台和识别候选方案；
-- 可能包含过时、特定学校、互相冲突或未经确认的规则；
-- 不得删除、覆盖、重命名或直接改写；
-- 不能直接作为编码依据，必须先转化为经过审查的正式文档。
-
-### 3.3 代码与切片规格
-
-仓库已有可运行的 FastAPI + Vue 实现（切片 0–6）。空模块目录里未实现的文件不是进度。与 `00`–`10` 长文档冲突时，以第 0 节切片规格为准。
-
-## 4. 推荐阅读顺序
-
-1. `AGENTS.md`
-2. 本文档
-3. 按 `00` → `09` 顺序阅读正式文档
-4. `10_审查与决策/问题与决策记录.md`
-5. `10_审查与决策/ADR/`
-6. `10_审查与决策/需求追踪矩阵.md`
-7. `10_审查与决策/文档一致性审查报告.md`
-8. `10_审查与决策/文档覆盖矩阵.md`
-9. `10_审查与决策/编码准入检查表.md`
-10. 需要核对来源时再阅读 `资料清单与来源索引.md` 和 `99_原始材料/`
-
-## 5. 文档状态
-
-| 状态 | 含义 | 使用规则 |
-|---|---|---|
-| `DRAFT` | 草稿 | 可继续编辑，不可作为最终实现依据 |
-| `REVIEWING` | 正在审查 | 已进入评审，但仍可能发生实质变化 |
-| `APPROVED` | 已确认 | 仅可由用户明确确认后设置 |
-| `DEPRECATED` | 已废弃 | 保留历史，不再作为现行依据 |
-
-正式文档建议使用以下元数据：
-
-```yaml
----
-title: 文档名称
-status: DRAFT
-version: 0.1.0
-last_updated: YYYY-MM-DD
-sources:
-  - 原始材料路径
-related_documents:
-  - 相关文档路径
----
-```
-
-## 6. 需求编号规则
-
-| 前缀 | 对象 |
+| 位置 | 说明 |
 |---|---|
-| `BR-` | 业务需求 |
-| `FR-` | 功能需求 |
-| `NFR-` | 非功能需求 |
-| `ROLE-` | 角色 |
-| `FLOW-` | 流程 |
-| `PAGE-` | 页面 |
-| `API-` | 接口 |
-| `TABLE-` | 数据表 |
-| `TC-` | 测试用例 |
-| `AC-` | 验收标准 |
-| `RISK-` | 风险 |
-| `Q-` | 待决策问题 |
-| `ADR-` | 架构决策记录 |
+| `00_项目总览/` … `10_审查与决策/` | 2026-08 首版草稿与 ADR；决策编号仍可引用，规则以切片为准 |
+| `engineering-specification.md`、`ui-design-system.md` | 同期工程/视觉草案 |
+| `superpowers/archive/` | 8 月前端演示计划 |
+| `99_原始材料/` | 只读原始需求，不删除、不改写 |
+| `init.txt` | 早期备忘，无规范效力 |
 
-编号一经分配不得复用。删除或废弃的编号应保留记录并标记状态，不得重新指向其他需求。
-
-## 7. 审批和变更规则
-
-1. 原始材料只读，不通过修改原文消除矛盾。
-2. 冲突先登记到 `问题与决策记录.md`。
-3. 重要技术选择以 ADR 记录候选方案、决定和影响。
-4. 用户明确确认后，才将决定写入正式文档并调整状态。
-5. 正式需求变更时，同步检查流程、页面、API、数据库、测试和验收。
-6. 每次批准前执行跨文档一致性检查。
-7. 只有编码准入检查通过且用户明确回复“批准进入编码阶段”后，才允许编写业务代码。
-
-## 8. 当前文档完成情况
-
-| 文档类别 | 数量/状态 | 结论 |
-|---|---|---|
-| 原始 Markdown | 3 份，已审阅 | 内容丰富但混合需求、架构和实施建议，存在重复及冲突 |
-| 原始 Word | 3 份，已提取并审阅 | 包含目标、角色、功能和规则候选项 |
-| 原始 PDF | 2 份、20 页，已逐页审阅 | 2020 年第三方平台操作参考，存在时效和学校特定性 |
-| 原始截图 | 3 张，已审阅 | 展示三种送审入口/模式，仅能作为参考 |
-| 正式文档 `00`—`09` | 10 份 `DRAFT` | 每个目录已有首版骨干文档，已完成第三轮一致性复查 |
-| 审查与准入文档 | 7 份 | 已覆盖盘点、决策、追踪和准入基线 |
-| ADR | 6 份 `DRAFT` | 覆盖架构、租户、工作流、双盲、异步恢复和支付 |
-| 需求追踪矩阵 | 1 份 `DRAFT` | 已覆盖 FR-001—FR-034 的主要 P0 链路，已同步 Q-013—016 |
-
-## 9. 当前门禁
-
-- 切片 0–6 已编码；下一刀新功能仍先写规格再写代码。
-- 长文档 `00`–`10` 未回写，不得单独当作实现依据。
-- 上生产前必须补 PostgreSQL RLS、学校 SSO 决策与费用规格。
+本地 Postgres：`127.0.0.1:5433`，见根 README。尚未实现：SSO、代传、催审、多专家、费用、RLS。

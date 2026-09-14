@@ -16,7 +16,7 @@
 | 5 | [objection](docs/superpowers/specs/2026-09-01-slice-5-objection-design.md) | 发布后异议 |
 | 6 | [school-progress](docs/superpowers/specs/2026-09-01-slice-6-school-progress-design.md) | 学校评审进度 |
 
-文档导航见 [docs/README.md](docs/README.md)。`docs/superpowers/plans/2026-08-10-*.md` 等为前端演示历史，不是实现依据。`docs/99_原始材料/` 只读。
+**先读现状：** [docs/CURRENT.md](docs/CURRENT.md)。文档导航：[docs/README.md](docs/README.md)。8 月演示计划已归档到 `docs/superpowers/archive/`。`docs/99_原始材料/` 只读。
 
 ## 本地运行
 
