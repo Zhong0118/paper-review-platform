@@ -387,7 +387,7 @@ async def submit(session: AsyncSession, user: CurrentUser, thesis_id: UUID, expe
     thesis = await get_student_thesis(session, user, thesis_id)
     elig = await _eligibility_for_student(session, user)
     locked = (
-        await session.execute(select(Thesis).where(Thesis.id == thesis.id).with_for_update())
+        await session.execute(select(Thesis).where(Thesis.id == thesis.id).with_for_update().execution_options(populate_existing=True))
     ).scalar_one()
     if locked.stage != ThesisStage.DRAFT:
         raise AppError("STATE_TRANSITION_DENIED", 409, "当前状态不允许提交")
@@ -453,7 +453,7 @@ async def submit(session: AsyncSession, user: CurrentUser, thesis_id: UUID, expe
 
 async def withdraw(session: AsyncSession, user: CurrentUser, thesis_id: UUID, expected_version: int, reason: str) -> Thesis:
     thesis = await get_student_thesis(session, user, thesis_id)
-    locked = (await session.execute(select(Thesis).where(Thesis.id == thesis.id).with_for_update())).scalar_one()
+    locked = (await session.execute(select(Thesis).where(Thesis.id == thesis.id).with_for_update().execution_options(populate_existing=True))).scalar_one()
     await workflow_service.transition(
         session,
         thesis=locked,
@@ -501,7 +501,7 @@ async def confirm_anonymization(
     session: AsyncSession, user: CurrentUser, thesis_id: UUID, body: ConfirmInput, request_id: str | None
 ) -> Thesis:
     thesis = await get_school_thesis(session, user, thesis_id)
-    locked = (await session.execute(select(Thesis).where(Thesis.id == thesis.id).with_for_update())).scalar_one()
+    locked = (await session.execute(select(Thesis).where(Thesis.id == thesis.id).with_for_update().execution_options(populate_existing=True))).scalar_one()
     check = await _latest_check(session, locked)
     if body.decision == "PASS":
         if locked.stage != ThesisStage.PREPARING:

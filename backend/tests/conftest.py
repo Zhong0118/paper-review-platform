@@ -1,15 +1,20 @@
 from collections.abc import AsyncIterator
+from contextlib import contextmanager
 from types import SimpleNamespace
+from pathlib import Path
+from uuid import uuid4
+import os
+import subprocess
+import sys
 from urllib.parse import urlparse, urlunparse
 
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import text
+from sqlalchemy import text, create_engine
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.config import get_settings
-from app.db.base import Base
 from app.db.session import get_session
 from app.db import models as _models  # noqa: F401
 from app.main import create_app
@@ -28,29 +33,44 @@ def _test_url() -> str:
     return urlunparse(parsed._replace(path=f"/{TEST_DB_NAME}"))
 
 
-@pytest_asyncio.fixture
-async def test_engine() -> AsyncIterator[AsyncEngine]:
-    admin = create_async_engine(_admin_url(), isolation_level="AUTOCOMMIT")
-    async with admin.connect() as conn:
-        exists = (
-            await conn.execute(text("SELECT 1 FROM pg_database WHERE datname = :n"), {"n": TEST_DB_NAME})
-        ).scalar()
+@contextmanager
+def migrated_test_schema(revision="head"):
+    # Every run gets its own migrated schema in the dedicated test database.
+    # Existing local test data is neither stamped nor dropped.
+    admin = create_engine(_admin_url().replace("+asyncpg", "+psycopg"), isolation_level="AUTOCOMMIT")
+    with admin.connect() as conn:
+        exists = conn.execute(text("SELECT 1 FROM pg_database WHERE datname = :n"), {"n": TEST_DB_NAME}).scalar()
         if not exists:
-            await conn.execute(text(f"CREATE DATABASE {TEST_DB_NAME}"))
-    await admin.dispose()
-
-    engine = create_async_engine(_test_url(), pool_pre_ping=True)
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-        await conn.execute(
-            text(
-                """
-                CREATE UNIQUE INDEX IF NOT EXISTS uq_objections_open_per_thesis
-                ON objections (thesis_id)
-                WHERE status IN ('SUBMITTED', 'PROCESSING')
-                """
-            )
+            conn.execute(text(f"CREATE DATABASE {TEST_DB_NAME}"))
+    admin.dispose()
+    schema = "test_" + uuid4().hex
+    engine = create_engine(_test_url().replace("+asyncpg", "+psycopg"))
+    with engine.begin() as conn:
+        conn.execute(text(f'CREATE SCHEMA "{schema}"'))
+    try:
+        subprocess.run(
+            [sys.executable, "-m", "alembic", "upgrade", revision],
+            cwd=Path(__file__).resolve().parents[1],
+            env={**os.environ, "DATABASE_URL": _test_url(), "PGOPTIONS": f"-c search_path={schema}"},
+            check=True, capture_output=True, text=True,
         )
+        yield schema
+    finally:
+        with engine.begin() as conn:
+            conn.execute(text(f'DROP SCHEMA "{schema}" CASCADE'))
+        engine.dispose()
+
+
+@pytest.fixture(scope="session")
+def test_schema():
+    with migrated_test_schema() as schema:
+        yield schema
+
+
+@pytest_asyncio.fixture
+async def test_engine(test_schema) -> AsyncIterator[AsyncEngine]:
+    engine = create_async_engine(_test_url(), pool_pre_ping=True,
+                                 connect_args={"server_settings": {"search_path": test_schema}})
     Session = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
     async with Session() as session:
         await seed_database(session)

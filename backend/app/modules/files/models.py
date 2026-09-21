@@ -11,6 +11,9 @@ class FileObject(BaseModel):
     __tablename__ = "file_objects"
 
     tenant_id: Mapped[UUID] = mapped_column(ForeignKey("tenants.id"), nullable=False)
+    upload_version_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("thesis_versions.id"), nullable=True
+    )
     purpose: Mapped[str] = mapped_column(String(32), nullable=False)
     storage_key: Mapped[str] = mapped_column(String(512), nullable=False, unique=True)
     original_filename: Mapped[str] = mapped_column(String(255), nullable=False)

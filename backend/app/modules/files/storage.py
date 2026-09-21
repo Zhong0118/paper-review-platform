@@ -1,4 +1,6 @@
 from hashlib import sha256
+import os
+from tempfile import NamedTemporaryFile
 from pathlib import Path
 from uuid import UUID
 
@@ -22,7 +24,18 @@ def storage_path(tenant_id: UUID, thesis_id: UUID, file_id: UUID, purpose: str) 
 
 
 def write_bytes(path: Path, data: bytes) -> str:
-    path.write_bytes(data)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = None
+    try:
+        with NamedTemporaryFile(dir=path.parent, delete=False) as stream:
+            temporary = Path(stream.name)
+            stream.write(data)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
     return sha256(data).hexdigest()
 
 

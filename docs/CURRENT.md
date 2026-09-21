@@ -1,20 +1,31 @@
 ---
 title: 现行状态（给仓库阅读者）
 status: CURRENT
-version: 0.6.0
-last_updated: 2026-09-01
+version: 0.6.2
+last_updated: 2026-09-21
 ---
 
 # 百杰校审：现在是什么
 
 第三方多校论文盲审平台。分支 `codex/frontend-client-demo`。
 
-**现在有的：** 一篇论文、一个专家、平台账密，本机能把主链点完。  
+**现在有的：** 一篇论文、一个专家、平台账密的真实 API 主链；完整角色与真实材料验收尚未通过。
+
 **现在没有的：** 学校 SSO、代传/批量导入、超时催审、多专家、费用、通知渠道、PostgreSQL RLS、可上线的视觉。
 
 实现依据是切片规格，不是 `docs/00`–`10` 长文档，也不是 8 月前端演示计划。
 
-## 主链（已接线）
+## 2026-09-21 核对与后续规划
+
+[现状评估](reviews/2026-09-21-project-assessment-and-roadmap.md)记录了已复现问题与代码证据：[后续开发规划](superpowers/plans/2026-09-21-development-roadmap.md)规定近期顺序与验收出口。
+
+7A-1 已修复上传所有权与文件锁定，新增 prepare 时的版本绑定；已完成文件只能新建上传替换，旧请求不会重新绑定文件。尚存缺口包括真实 PDF 检测、专家阅读区仍含演示内容、导师列表入口和待送审撤回。下述主链表示已实现的接口路径，不代表所有角色已通过浏览器完整验收。
+
+**下一工作包：7A-2 真实 PDF 校验与匿名检测。** 7A-1 已通过后端 49 项测试（含独立会话并发、真实迁移、历史文件保留与存储故障）。这些证据不代表 PDF 检测或浏览器闭环已经完成。
+
+运行新代码前需在目标环境执行 `alembic upgrade head`（新增 `0007_file_upload_version`）。迁移不推测旧文件最初绑定的版本：保留旧文件和已有引用，旧未完成上传必须重新 prepare，已完成文件的 complete 重试不重新绑定。本次只迁移了测试库隔离 schema，未迁移开发业务库。
+
+## 主链（接口路径）
 
 ```
 学生登录 → 草稿 + 双 PDF → 提交
@@ -41,6 +52,7 @@ last_updated: 2026-09-01
 | 4 | [summary-publish](superpowers/specs/2026-09-01-slice-4-summary-publish-design.md) | 汇总与学校发布 |
 | 5 | [objection](superpowers/specs/2026-09-01-slice-5-objection-design.md) | 发布后异议 |
 | 6 | [school-progress](superpowers/specs/2026-09-01-slice-6-school-progress-design.md) | 学校评审进度 |
+| 7A-1 | [file-integrity](superpowers/specs/2026-09-21-slice-7a1-file-integrity-design.md) | 文件归属、不可变性、版本绑定与并发保护 |
 
 计划文件在 `docs/superpowers/plans/` 同名日期下。
 
