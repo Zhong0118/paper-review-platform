@@ -1,0 +1,25 @@
+..DELETE DRAFT ERROR (sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) <class 'asyncpg.exceptions.ForeignKeyViolationError'>: update or delete on table "theses" violates foreign key constraint "thesis_versions_thesis_id_fkey" on table "thesis_versions"
+DETAIL:  Key (id)=(986abb89-707b-459c-a276-5df2aa57df13) is still referenced from table "thesis_versions".
+[SQL: DELETE FROM theses WHERE theses.id = $1::UUID]
+[parameters: (UUID('986abb89-707b-459c-a276-5df2aa57df13'),)]
+(Background on this error at: https://sqlalche.me/e/20/gkpj)
+.FROZEN METADATA PREPARING False 林知远 20260001 0835
+.LATE FINAL ACCEPTED {'id': '2d1c3ded-aac0-4b0f-88d8-ffe857217fb2', 'status': <ExpertTaskStatus.SUBMITTED: 'SUBMITTED'>, 'total': 69}
+RESULTS [(1, 80, False), (2, 69, True)] SUMMARY 80
+.IDEMPOTENCY 200 200 {'request_id': 'fbad2617-f34d-4795-b61b-3c092fcc4c4d', 'code': 'OK', 'message': '成功', 'data': {'id': '1107004a-dafa-4401-a47f-12761fcd706b', 'total': 80, 'status': 'SUBMITTED'}}
+.SECOND EXPERT ASSIGN 200
+LATE SECOND EXPERT FINAL 200
+PUBLIC BEFORE AFTER 200 {"request_id":"50f4dc82-1ca8-4a3b-8aa6-a89edfff5ab4","code":"OK","message":"成功","data":{"thesis_id":"d60da445-65c2-4156-a1b7-71a10d059b94","total":80,"items":[{"alias":"E-001","total":80,"scores":{"innovation":20,"topicValue":12,"methodology":16,"resultsWorkload":12,"literatureTheory":12,"writingStandards":8},"recommendation":"建议通过","overall_comment":"达到硕士答辩要求。","issues":"实验偏少"}]}} {"request_id":"19ad09ba-c65d-4a77-be9e-456674f6b029","code":"OK","message":"成功","data":{"thesis_id":"d60da445-65c2-4156-a1b7-71a10d059b94","total":80,"items":[{"alias":"E-001","total":80,"scores":{"innovation":20,"topicValue":12,"methodology":16,"resultsWorkload":12,"literatureTheory":12,"writingStandards":8},"recommendation":"建议通过","overall_comment":"达到硕士答辩要求。","issues":"实验偏少"},{"alias":"E-002","total":69,"scores":{"innovation":20,"topicValue":1,"methodology":16,"resultsWorkload":12,"literatureTheory":12,"writingStandards":8},"recommendation":"建议通过","overall_comment":"达到硕士答辩要求。","issues":"实验偏少"}]}}
+.OBJECTION ORDER [('First appeal', 'RESOLVED'), ('Second appeal', 'SUBMITTED')]
+.
+=============================== warnings summary ===============================
+.venv/lib/python3.12/site-packages/passlib/utils/__init__.py:854
+  /Users/zhongxu/Desktop/0-Inbox/paper-review-platform/backend/.venv/lib/python3.12/site-packages/passlib/utils/__init__.py:854: DeprecationWarning: 'crypt' is deprecated and slated for removal in Python 3.13
+    from crypt import crypt as _crypt
+
+::test_observed_download_token_is_general_login_token
+  /Users/zhongxu/Desktop/0-Inbox/paper-review-platform/backend/.venv/lib/python3.12/site-packages/passlib/handlers/argon2.py:716: DeprecationWarning: Accessing argon2.__version__ is deprecated and will be removed in a future release. Use importlib.metadata directly to query for argon2-cffi's packaging metadata.
+    _argon2_cffi.__version__, max_version)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+8 passed, 2 warnings in 8.65s
