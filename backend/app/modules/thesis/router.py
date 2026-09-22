@@ -272,6 +272,18 @@ async def school_publish(
     return ok(data, request_id=getattr(request.state, "request_id", None))
 
 
+@student_router.get("/supervisor/theses/published")
+async def supervisor_published_theses(
+    request: Request,
+    current: CurrentUser = Depends(require_roles(RoleCode.SUPERVISOR)),
+    session: AsyncSession = Depends(get_session),
+):
+    from app.modules.result import service as result_service
+
+    data = await result_service.list_supervised_published_theses(session, current)
+    return ok(data, request_id=getattr(request.state, "request_id", None))
+
+
 @student_router.get("/my/theses/{thesis_id}/published-result")
 async def my_published_result(
     thesis_id: UUID,
@@ -352,3 +364,27 @@ async def school_resolve_objection(
     obj = await resolve(session, current, objection_id, body)
     await session.commit()
     return ok(serialize(obj), request_id=getattr(request.state, "request_id", None))
+
+
+class TerminateBody(BaseModel):
+    version: int
+    reason: str
+
+
+@school_router.post("/theses/{thesis_id}:terminate")
+async def terminate_thesis(
+    thesis_id: UUID, body: TerminateBody, request: Request,
+    current: CurrentUser = Depends(require_roles(RoleCode.SCHOOL_REVIEWER)),
+    session: AsyncSession = Depends(get_session),
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+):
+    payload = {"id": str(thesis_id), **body.model_dump()}
+    await thesis_service.get_school_thesis(session, current, thesis_id, for_update=True)
+    cached = await thesis_service.remember_idempotent(session, current, idempotency_key, "terminate", payload)
+    if cached:
+        return ok(cached, request_id=getattr(request.state, "request_id", None))
+    thesis = await thesis_service.terminate(session, current, thesis_id, body.version, body.reason, getattr(request.state, "request_id", None))
+    data = await thesis_service.serialize_thesis(session, current, thesis)
+    await thesis_service.store_idempotent(session, current, idempotency_key, "terminate", payload, data)
+    await session.commit()
+    return ok(data, request_id=getattr(request.state, "request_id", None))

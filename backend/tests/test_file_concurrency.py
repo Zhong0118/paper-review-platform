@@ -1,3 +1,4 @@
+from tests.pdf_samples import pdf_bytes
 import asyncio
 from uuid import UUID
 
@@ -120,7 +121,7 @@ async def test_rolled_back_put_cannot_complete_until_reuploaded(independent_sess
         row = await session.get(Thesis, UUID(thesis['id']))
         student_id = (await session.execute(select(User.id).where(User.username == 'student.lin'))).scalar_one()
         user = CurrentUser(id=student_id, tenant_id=row.tenant_id, role='student', data_scope={})
-        await files.put_content(session, user, file_id, b'%PDF uncommitted')
+        await files.put_content(session, user, file_id, pdf_bytes('uncommitted'))
         await session.rollback()
     async with sessions() as session:
         with pytest.raises(AppError) as error:
@@ -128,7 +129,7 @@ async def test_rolled_back_put_cannot_complete_until_reuploaded(independent_sess
         assert error.value.code == 'FILE_NOT_READY'
         await session.rollback()
     async with sessions() as session:
-        await files.put_content(session, user, file_id, b'%PDF recovered')
+        await files.put_content(session, user, file_id, pdf_bytes('recovered'))
         await session.commit()
     async with sessions() as session:
         obj = await files.complete_upload(session, user, file_id)

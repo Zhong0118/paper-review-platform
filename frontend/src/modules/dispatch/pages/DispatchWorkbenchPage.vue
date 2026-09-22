@@ -4,7 +4,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import BlindRail from '@/components/app/BlindRail.vue'
 import PageHeader from '@/components/app/PageHeader.vue'
 import { useScenarioService } from '@/demo/serviceProvider'
-import { assignExpert, dispatchCandidates, dispatchQueue } from '@/api/dispatch'
+import { assignExpert, dispatchCandidates, dispatchQueue, reassignExpert } from '@/api/dispatch'
 import type { DispatchThesisSeed, ExpertTaskSummary, OperationsQueue } from '@/demo/types'
 import { isDueSoon } from '@/modules/expert-management/services/platformOperationService'
 import PortalLayout from '@/layouts/PortalLayout.vue'
@@ -30,6 +30,9 @@ const activeQueue = ref<OperationsQueue>('PENDING_ASSIGNMENT')
 const dispatchTheses = ref<DispatchThesisSeed[]>([])
 const selectedThesisId = ref('')
 const matches = ref<ExpertMatchCandidate[]>([])
+const reassignableTasks = ref<Record<string, { id: string; expert_id: string }>>({})
+const selectedReplacement = computed(() => reassignableTasks.value[selectedThesisId.value])
+const canReassign = computed(() => !demoEnabled && Boolean(selectedReplacement.value) && !loading.value && !candidatesLoading.value && !actionPending.value && selectedExpertIds.value.length === 1 && matches.value.some(row => row.id === selectedExpertIds.value[0] && !row.conflictHit))
 const selectedExpertIds = ref<string[]>([])
 const assigned = ref(false)
 const actionPending = ref(false)
@@ -37,6 +40,8 @@ const feedback = ref('')
 const listError = ref('')
 const actionError = ref('')
 const loading = ref(true)
+let candidateRequest = 0
+const candidatesLoading = ref(false)
 /** 移动端断点（≤900px）：候选专家列表切换为卡片视图，与专家库/任务列表一致。 */
 const isMobile = ref(false)
 
@@ -111,7 +116,8 @@ const canAssign = computed(() => {
     thesis.status === 'PENDING_DISPATCH' &&
     selectedExpertIds.value.length > 0 &&
     !assigned.value &&
-    !actionPending.value
+    !actionPending.value &&
+    (demoEnabled || (!loading.value && !candidatesLoading.value && selectedExpertIds.value.every(id => matches.value.some(row => row.id === id && !row.conflictHit))))
   )
 })
 
@@ -188,22 +194,28 @@ async function loadWorkbench() {
   actionError.value = ''
   try {
     if (!demoEnabled) {
+      ++candidateRequest
+      selectedExpertIds.value = []
+      matches.value = []
+      assigned.value = false
+      reassignableTasks.value = {}
       const queue = await dispatchQueue()
+      reassignableTasks.value = Object.fromEntries(queue.filter(item => item.allowed_actions.includes('REASSIGN_EXPERT') && item.reassignable_task).map(item => [item.thesis_id, item.reassignable_task!]))
       dispatchTheses.value = queue.map((item) => ({
         id: item.thesis_id,
         title: item.title,
         studentName: item.student_name,
-        status: item.stage === 'READY_FOR_DISPATCH' ? 'PENDING_DISPATCH' : 'IN_REVIEW',
+        status: item.allowed_actions.includes('ASSIGN_EXPERT') ? 'PENDING_DISPATCH' : 'IN_REVIEW',
         discipline: { code: item.discipline_code, name: item.discipline_code },
       })) as unknown as DispatchThesisSeed[]
       queues.value = [
         {
           key: 'PENDING_ASSIGNMENT',
           label: '待匹配',
-          count: queue.filter((item) => item.stage === 'READY_FOR_DISPATCH').length,
+          count: queue.filter((item) => item.allowed_actions.includes('ASSIGN_EXPERT')).length,
         },
       ]
-      selectedThesisId.value = dispatchTheses.value[0]?.id ?? ''
+      selectedThesisId.value = dispatchTheses.value.find(item => item.status === 'PENDING_DISPATCH')?.id ?? Object.keys(reassignableTasks.value)[0] ?? ''
       if (selectedThesisId.value) await selectThesis(selectedThesisId.value, true)
       return
     }
@@ -241,25 +253,35 @@ async function selectThesis(thesisId: string, silent = false) {
   matches.value = []
   if (!thesisId) return
   if (!demoEnabled) {
-    const rows = await dispatchCandidates(thesisId)
-    matches.value = rows.map((row) => ({
-      id: row.expert_id,
-      name: row.display_name || row.username || '',
-      unit: '',
-      title: '',
-      discipline: { code: row.discipline_codes[0] ?? '', name: row.discipline_codes.join(',') },
-      fields: row.discipline_codes,
-      keywordHits: [],
-      conflictHit: row.avoided,
-      conflictReason: row.avoided ? '回避' : row.direction_mismatch ? '方向不符' : '',
-      activeTasks: 0,
-      acceptanceRate: '—',
-      onTimeRate: '—',
-      avgCompletionDays: 0,
-      feeStandard: 0,
-      matchReason: row.direction_mismatch ? '方向不符' : '可派',
-    })) as unknown as ExpertMatchCandidate[]
-    refreshRows()
+    const request = ++candidateRequest
+    candidatesLoading.value = true
+    actionError.value = ''
+    try {
+      const rows = await dispatchCandidates(thesisId)
+      if (request !== candidateRequest) return
+      matches.value = rows.map((row) => ({
+        id: row.expert_id,
+        name: row.display_name || row.username || '',
+        unit: '',
+        title: '',
+        discipline: { code: row.discipline_codes[0] ?? '', name: row.discipline_codes.join(',') },
+        fields: row.discipline_codes,
+        keywordHits: [],
+        conflictHit: row.avoided || row.direction_mismatch || row.service_status !== 'AVAILABLE' || row.expert_id === reassignableTasks.value[thesisId]?.expert_id,
+        conflictReason: row.expert_id === reassignableTasks.value[thesisId]?.expert_id ? '当前任务专家' : row.avoided ? '回避' : row.direction_mismatch ? '方向不符' : row.service_status !== 'AVAILABLE' ? '暂停服务' : '',
+        activeTasks: 0,
+        acceptanceRate: '—',
+        onTimeRate: '—',
+        avgCompletionDays: 0,
+        feeStandard: 0,
+        matchReason: row.direction_mismatch ? '方向不符' : '可派',
+      })) as unknown as ExpertMatchCandidate[]
+      refreshRows()
+    } catch (error) {
+      if (request === candidateRequest) actionError.value = error instanceof Error ? error.message : '候选专家加载失败'
+    } finally {
+      if (request === candidateRequest) candidatesLoading.value = false
+    }
     return
   }
   if (!service) return
@@ -298,7 +320,7 @@ async function restoreOverlayOpener() {
 async function openConfirmation(kind: ConfirmationKind, taskId: string | null) {
   if (actionPending.value) return
   rememberOverlayOpener()
-  reassignExpertId.value = ''
+  reassignExpertId.value = !demoEnabled && kind === 'REASSIGN' ? selectedExpertIds.value[0] ?? '' : ''
   reason.value = kind === 'REASSIGN' ? '' : ''
   extendDays.value = 7
   confirmation.value = { kind, taskId }
@@ -343,7 +365,7 @@ function handleConfirmationKeydown(event: KeyboardEvent) {
 async function confirmAction() {
   const current = confirmation.value
   if (!current || actionPending.value) return
-  if (current.kind === 'REASSIGN' && (!reassignExpertId.value || !reason.value.trim())) return
+  if (current.kind === 'REASSIGN' && (!reassignExpertId.value || (demoEnabled && !reason.value.trim()))) return
   actionPending.value = true
   feedback.value = ''
   try {
@@ -359,6 +381,9 @@ async function confirmAction() {
       }
       assigned.value = true
       message = '已生成 1 个评审任务，论文进入「专家待接受」队列。'
+    } else if (current.kind === 'REASSIGN' && current.taskId && !demoEnabled) {
+      await reassignExpert(current.taskId, reassignExpertId.value, { idempotencyKey: crypto.randomUUID() })
+      message = '已取消旧任务并邀请替代专家，历史记录保留。'
     } else if (current.kind === 'REASSIGN' && current.taskId && service) {
       await service.reassignExpertTask(
         current.taskId,
@@ -409,7 +434,10 @@ function updateMobileFlag() {
   isMobile.value = (typeof window !== 'undefined' ? window.innerWidth : 0) <= 900
 }
 
-onUnmounted(() => window.removeEventListener('resize', updateMobileFlag))
+onUnmounted(() => {
+  ++candidateRequest
+  window.removeEventListener('resize', updateMobileFlag)
+})
 </script>
 
 <template>
@@ -468,6 +496,11 @@ onUnmounted(() => window.removeEventListener('resize', updateMobileFlag))
                 </li>
               </ul>
             </div>
+            <div v-if="!demoEnabled && Object.keys(reassignableTasks).length">
+              <h3>待接单 / 评阅中（可改派）</h3>
+              <button v-for="thesis in dispatchTheses.filter(row => reassignableTasks[row.id])" :key="thesis.id"
+                type="button" :data-thesis-id="thesis.id" @click="selectThesis(thesis.id)">{{ thesis.title }}</button>
+            </div>
             <DispatchDetailPanel :thesis="selectedThesis" />
           </div>
 
@@ -488,7 +521,7 @@ onUnmounted(() => window.removeEventListener('resize', updateMobileFlag))
               />
               <p v-else class="candidate-section__empty">请先选择一篇待派论文。</p>
             </section>
-            <FeeRuleSnapshot amount="300.00" currency="¥" version="FEE-2026-SPRING-v1" settlement="专家提交有效终审意见后进入学校人工结算清单" />
+            <FeeRuleSnapshot v-if="demoEnabled" amount="300.00" currency="¥" version="FEE-2026-SPRING-v1" settlement="专家提交有效终审意见后进入学校人工结算清单" />
           </div>
 
           <footer class="dispatch-footer">
@@ -504,6 +537,8 @@ onUnmounted(() => window.removeEventListener('resize', updateMobileFlag))
             >
               {{ actionPending ? '正在指派…' : assigned ? '已指派（只读）' : '指派选中专家' }}
             </button>
+            <button v-if="selectedReplacement && !demoEnabled" type="button" data-action="reassign-selected" :disabled="!canReassign"
+              @click="openConfirmation('REASSIGN', selectedReplacement.id)">改派给选中专家</button>
           </footer>
         </template>
 
@@ -636,13 +671,14 @@ onUnmounted(() => window.removeEventListener('resize', updateMobileFlag))
                 </div>
                 <div>
                   <dt>费用</dt>
-                  <dd>¥ 300.00（固化于本批次规则）</dd>
+                  <dd>{{ demoEnabled ? '¥ 300.00（固化于本批次规则）' : '未启用' }}</dd>
                 </div>
               </dl>
             </template>
             <template v-else-if="confirmation.kind === 'REASSIGN'">
               <p>改派将关闭原任务（CANCELLED）并在同一轮次新建任务，历史记录保留。</p>
-              <label>
+              <p v-if="!demoEnabled">替代专家：{{ selectedExpert?.name }}</p>
+              <label v-if="demoEnabled">
                 <span>替代专家（必选）</span>
                 <select v-model="reassignExpertId" name="reassignExpertId">
                   <option value="" disabled>请选择替代专家</option>
@@ -651,7 +687,7 @@ onUnmounted(() => window.removeEventListener('resize', updateMobileFlag))
                   </option>
                 </select>
               </label>
-              <label>
+              <label v-if="demoEnabled">
                 <span>改派原因（必填）</span>
                 <textarea
                   v-model="reason"
@@ -692,7 +728,7 @@ onUnmounted(() => window.removeEventListener('resize', updateMobileFlag))
                 "
                 :disabled="
                   actionPending ||
-                  (confirmation.kind === 'REASSIGN' && (!reassignExpertId || !reason.trim()))
+                  (confirmation.kind === 'REASSIGN' && (!reassignExpertId || (demoEnabled && !reason.trim())))
                 "
                 @click="confirmAction"
               >

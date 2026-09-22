@@ -1,10 +1,11 @@
+from starlette.concurrency import run_in_threadpool
+from app.modules.files.pdf import validated_bytes
 from datetime import datetime, timezone
 from hashlib import sha256
-from pathlib import Path
 from uuid import UUID
 
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AppError
@@ -143,11 +144,13 @@ def allowed_actions(
     if role == RoleCode.SCHOOL_REVIEWER and thesis.stage == ThesisStage.PREPARING:
         if check is None or check.auto_conclusion != AnonymizationConclusion.FAIL:
             actions.append("CONFIRM_ANONYMIZATION")
-        actions.extend(["REJECT_ANONYMIZATION", "TERMINATE"])
+        actions.append("REJECT_ANONYMIZATION")
     if role == RoleCode.SCHOOL_REVIEWER and thesis.stage == ThesisStage.READY_FOR_DISPATCH:
         actions.append("CONFIRM_DISPATCH")
     if role == RoleCode.SCHOOL_REVIEWER and thesis.stage == ThesisStage.RESULT_PROCESSING:
         actions.append("PUBLISH_RESULT")
+    if role == RoleCode.SCHOOL_REVIEWER and thesis.stage not in {ThesisStage.COMPLETED, ThesisStage.TERMINATED}:
+        actions.append("TERMINATE")
     return actions
 
 
@@ -281,8 +284,11 @@ async def create_draft(session: AsyncSession, user: CurrentUser, data: DraftInpu
     return thesis
 
 
-async def get_student_thesis(session: AsyncSession, user: CurrentUser, thesis_id: UUID) -> Thesis:
-    thesis = await session.get(Thesis, thesis_id)
+async def get_student_thesis(
+    session: AsyncSession, user: CurrentUser, thesis_id: UUID, *, for_update: bool = False
+) -> Thesis:
+    thesis = (await session.get(Thesis, thesis_id, with_for_update=True, populate_existing=True)
+              if for_update else await session.get(Thesis, thesis_id))
     if thesis is None or user.tenant_id != thesis.tenant_id or user.role != RoleCode.STUDENT:
         raise _hidden()
     membership = (
@@ -320,11 +326,11 @@ async def list_student_theses(session: AsyncSession, user: CurrentUser) -> list[
 
 
 async def patch_draft(session: AsyncSession, user: CurrentUser, thesis_id: UUID, data: DraftInput) -> Thesis:
-    thesis = await get_student_thesis(session, user, thesis_id)
+    thesis = await get_student_thesis(session, user, thesis_id, for_update=True)
     if thesis.stage != ThesisStage.DRAFT:
         raise AppError("STATE_TRANSITION_DENIED", 409, "当前状态不允许编辑")
     await _require_discipline(session, data.discipline_code, data.discipline_name)
-    version = await session.get(ThesisVersion, thesis.current_version_id)
+    version = await session.get(ThesisVersion, thesis.current_version_id, populate_existing=True)
     if version is None or not version.is_editable:
         raise AppError("STATE_TRANSITION_DENIED", 409, "当前版本不可编辑")
     version.title = data.title
@@ -337,7 +343,7 @@ async def patch_draft(session: AsyncSession, user: CurrentUser, thesis_id: UUID,
 
 
 async def _clone_editable_version(session: AsyncSession, thesis: Thesis) -> ThesisVersion:
-    old = await session.get(ThesisVersion, thesis.current_version_id)
+    old = await session.get(ThesisVersion, thesis.current_version_id, populate_existing=True)
     if old is None:
         raise AppError("VALIDATION_FAILED", 422, "缺少论文版本")
     old.is_editable = False
@@ -364,34 +370,12 @@ async def _clone_editable_version(session: AsyncSession, thesis: Thesis) -> Thes
     return new
 
 
-async def _anonymous_file(session: AsyncSession, version_id: UUID) -> tuple[FileObject | None, bytes | None]:
-    row = (
-        await session.execute(
-            select(ThesisVersionFile, FileObject)
-            .join(FileObject, FileObject.id == ThesisVersionFile.file_id)
-            .where(
-                ThesisVersionFile.thesis_version_id == version_id,
-                ThesisVersionFile.purpose == FilePurpose.ANONYMOUS,
-            )
-        )
-    ).first()
-    if row is None:
-        return None, None
-    _link, obj = row
-    path = Path(obj.storage_key)
-    body = path.read_bytes() if path.exists() else None
-    return obj, body
-
-
 async def submit(session: AsyncSession, user: CurrentUser, thesis_id: UUID, expected_version: int, request_id: str | None) -> Thesis:
-    thesis = await get_student_thesis(session, user, thesis_id)
+    locked = await get_student_thesis(session, user, thesis_id, for_update=True)
     elig = await _eligibility_for_student(session, user)
-    locked = (
-        await session.execute(select(Thesis).where(Thesis.id == thesis.id).with_for_update().execution_options(populate_existing=True))
-    ).scalar_one()
     if locked.stage != ThesisStage.DRAFT:
         raise AppError("STATE_TRANSITION_DENIED", 409, "当前状态不允许提交")
-    version = await session.get(ThesisVersion, locked.current_version_id)
+    version = await session.get(ThesisVersion, locked.current_version_id, populate_existing=True)
     if version is None:
         raise AppError("VALIDATION_FAILED", 422, "缺少论文版本")
     files = {
@@ -404,6 +388,12 @@ async def submit(session: AsyncSession, user: CurrentUser, thesis_id: UUID, expe
     }
     if FilePurpose.ORIGINAL not in files or FilePurpose.ANONYMOUS not in files:
         raise AppError("VALIDATION_FAILED", 422, "必须上传原始版和匿名版")
+    checked = {}
+    for purpose in (FilePurpose.ORIGINAL, FilePurpose.ANONYMOUS):
+        obj = await session.get(FileObject, files[purpose].file_id, populate_existing=True)
+        if obj is None or obj.completed_at is None:
+            raise AppError("FILE_NOT_READY", 409, "文件尚未上传完成")
+        checked[purpose] = (obj, await run_in_threadpool(validated_bytes, obj))
     await workflow_service.transition(
         session,
         thesis=locked,
@@ -423,14 +413,14 @@ async def submit(session: AsyncSession, user: CurrentUser, thesis_id: UUID, expe
         actor=user,
         request_id=request_id,
     )
-    anonymous, body = await _anonymous_file(session, version.id)
-    conclusion, findings = run_anonymization_check(version, elig, anonymous, body)
+    anonymous, body = checked[FilePurpose.ANONYMOUS]
+    conclusion, findings = await run_in_threadpool(run_anonymization_check, version, elig, anonymous, body)
     session.add(
         AnonymizationCheck(
             thesis_version_id=version.id,
             auto_conclusion=conclusion,
             findings=findings,
-            detector_version="v1",
+            detector_version="v2-pdf",
         )
     )
     if conclusion == AnonymizationConclusion.FAIL:
@@ -452,8 +442,10 @@ async def submit(session: AsyncSession, user: CurrentUser, thesis_id: UUID, expe
 
 
 async def withdraw(session: AsyncSession, user: CurrentUser, thesis_id: UUID, expected_version: int, reason: str) -> Thesis:
-    thesis = await get_student_thesis(session, user, thesis_id)
-    locked = (await session.execute(select(Thesis).where(Thesis.id == thesis.id).with_for_update().execution_options(populate_existing=True))).scalar_one()
+    from app.modules.dispatch.models import ReviewRound
+    from app.shared.enums import RoundStatus
+
+    locked = await get_student_thesis(session, user, thesis_id, for_update=True)
     await workflow_service.transition(
         session,
         thesis=locked,
@@ -463,15 +455,30 @@ async def withdraw(session: AsyncSession, user: CurrentUser, thesis_id: UUID, ex
         reason=reason or "withdraw",
         expected_version=expected_version,
     )
+    await session.execute(update(ReviewRound).where(
+        ReviewRound.thesis_id == locked.id,
+        ReviewRound.thesis_version_id == locked.current_version_id,
+        ReviewRound.status == RoundStatus.CREATED,
+    ).values(status=RoundStatus.CANCELLED))
     await _clone_editable_version(session, locked)
     return locked
 
 
 async def delete_draft(session: AsyncSession, user: CurrentUser, thesis_id: UUID) -> None:
-    thesis = await get_student_thesis(session, user, thesis_id)
+    thesis = await get_student_thesis(session, user, thesis_id, for_update=True)
     events = await _events(session, thesis.id)
     if any(e.action == "submit" for e in events) or thesis.stage != ThesisStage.DRAFT:
         raise AppError("STATE_TRANSITION_DENIED", 409, "已提交过的论文不能删除")
+    version_ids = list((await session.execute(
+        select(ThesisVersion.id).where(ThesisVersion.thesis_id == thesis.id)
+    )).scalars())
+    await session.execute(delete(ThesisVersionFile).where(ThesisVersionFile.thesis_version_id.in_(version_ids)))
+    # Keep file bytes and audit history; detached uploads can no longer write to a draft.
+    await session.execute(update(FileObject).where(FileObject.upload_version_id.in_(version_ids)).values(upload_version_id=None))
+    thesis.current_version_id = None
+    await session.flush()
+    await session.execute(delete(ThesisVersion).where(ThesisVersion.id.in_(version_ids)))
+    await audit_service.record(session, user=user, action="delete_draft", object_type="thesis", object_id=str(thesis.id))
     await session.delete(thesis)
     await session.flush()
 
@@ -488,12 +495,38 @@ async def list_school_theses(session: AsyncSession, user: CurrentUser) -> list[T
     )
 
 
-async def get_school_thesis(session: AsyncSession, user: CurrentUser, thesis_id: UUID) -> Thesis:
+async def get_school_thesis(session: AsyncSession, user: CurrentUser, thesis_id: UUID, *, for_update: bool = False) -> Thesis:
     if user.role != RoleCode.SCHOOL_REVIEWER or user.tenant_id is None:
         raise AppError("ACCESS_DENIED", 403, "无权执行该操作")
-    thesis = await session.get(Thesis, thesis_id)
+    thesis = await session.get(Thesis, thesis_id, with_for_update=for_update, populate_existing=for_update)
     if thesis is None or thesis.tenant_id != user.tenant_id:
         raise _hidden()
+    return thesis
+
+
+async def terminate(session: AsyncSession, user: CurrentUser, thesis_id: UUID, expected_version: int, reason: str, request_id: str | None) -> Thesis:
+    from app.modules.dispatch.models import ExpertTask, ReviewRound
+    from app.shared.enums import ExpertTaskStatus, RoundStatus
+
+    thesis = await get_school_thesis(session, user, thesis_id, for_update=True)
+    if not reason.strip():
+        raise AppError("VALIDATION_FAILED", 422, "终止必须填写原因")
+    await workflow_service.transition(session, thesis=thesis, to_stage=ThesisStage.TERMINATED,
+        action="terminate", actor=user, reason=reason.strip(), expected_version=expected_version, request_id=request_id)
+    rounds = list((await session.execute(select(ReviewRound).where(ReviewRound.thesis_id == thesis.id)
+        .execution_options(populate_existing=True))).scalars())
+    for round_ in rounds:
+        if round_.status in {RoundStatus.CREATED, RoundStatus.ACTIVE, RoundStatus.RESULT_READY}:
+            round_.status = RoundStatus.CANCELLED
+        tasks = (await session.execute(select(ExpertTask).where(ExpertTask.round_id == round_.id,
+            ExpertTask.status.in_([ExpertTaskStatus.INVITED, ExpertTaskStatus.IN_REVIEW]))
+            .with_for_update().execution_options(populate_existing=True))).scalars()
+        for task in tasks:
+            task.status = ExpertTaskStatus.CANCELLED
+            task.version += 1
+    await audit_service.record(session, user=user, action="terminate", object_type="thesis",
+        object_id=str(thesis.id), request_id=request_id, detail={"reason": reason.strip()})
+    await session.flush()
     return thesis
 
 

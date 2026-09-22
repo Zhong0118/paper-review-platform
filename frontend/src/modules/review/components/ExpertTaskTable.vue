@@ -89,7 +89,7 @@ const rows = computed(() => props.rows)
         </button>
         <RouterLink
           v-else-if="actionFor(task)"
-          :to="actionFor(task)!.route"
+          :to="{ path: actionFor(task)!.route, query: { task_id: task.id } }"
           :data-action="
             actionFor(task)!.kind === 'continue' ? 'continue-review' : 'view-submitted'
           "

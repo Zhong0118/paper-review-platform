@@ -4,7 +4,7 @@ import { computed, onMounted, ref } from 'vue'
 import BlindRail from '@/components/app/BlindRail.vue'
 import PageHeader from '@/components/app/PageHeader.vue'
 import { useScenarioService } from '@/demo/serviceProvider'
-import { confirmAnonymization, listSchoolTheses } from '@/api/schoolReview'
+import { confirmAnonymization, listSchoolTheses, terminateThesis } from '@/api/schoolReview'
 import { confirmDispatch } from '@/api/dispatch'
 import { toSchoolRow } from '@/api/adapters'
 import type { BatchImportRow, DemoThesisSummary, SchoolSubmissionInput } from '@/demo/types'
@@ -24,13 +24,16 @@ const decisionReason = ref('')
 const notice = ref('')
 const authStore = useAuthStore()
 const rows = ref<DemoThesisSummary[]>([])
+const loading = ref(!demoEnabled)
+const loadError = ref('')
+const automaticCounts = ref({ pass: 0, reviewRequired: 0, failed: 0 })
 const batchRows = ref<BatchImportRow[]>([])
 const drawerOpen = ref(false)
 const batchOpen = ref(false)
 const saving = ref(false)
 const query = ref('')
 const selectedRow = computed(() => rows.value.find((item) => item.id === selectedId.value) ?? null)
-const selectedActions = computed(() => selectedRow.value?.allowedActions ?? [])
+const selectedActions = computed<string[]>(() => selectedRow.value?.allowedActions ?? [])
 const filteredRows = computed(() => {
   const keyword = query.value.trim().toLowerCase()
   if (!keyword) return rows.value
@@ -43,12 +46,36 @@ onMounted(async () => {
     rows.value = await service.listSchoolTheses()
     return
   }
-  const items = await listSchoolTheses()
-  rows.value = items.map(toSchoolRow)
+  await loadRealRows()
 })
 
+async function loadRealRows() {
+  loading.value = true
+  loadError.value = ''
+  try {
+    const items = await listSchoolTheses()
+    const counts = { pass: 0, reviewRequired: 0, failed: 0 }
+    for (const item of items) {
+      const conclusion = item.anonymization?.auto_conclusion
+      if (conclusion === 'PASS') counts.pass++
+      else if (conclusion === 'REVIEW_REQUIRED') counts.reviewRequired++
+      else if (conclusion === 'FAIL') counts.failed++
+    }
+    rows.value = items.map(toSchoolRow)
+    automaticCounts.value = counts
+    if (!rows.value.some(row => row.id === selectedId.value)) selectedId.value = null
+    return true
+  } catch (error) {
+    rows.value = []
+    loadError.value = error instanceof Error ? error.message : '加载失败，请重试。'
+    return false
+  } finally {
+    loading.value = false
+  }
+}
+
 async function decide(decision: 'PASS' | 'REJECT') {
-  if (!selectedId.value) return
+  if (!selectedId.value || saving.value) return
   const row = rows.value.find((item) => item.id === selectedId.value)
   saving.value = true
   notice.value = ''
@@ -58,7 +85,7 @@ async function decide(decision: 'PASS' | 'REJECT') {
       { decision, version: Number((row as { version?: number } | undefined)?.version ?? 1), reason: decisionReason.value },
       { idempotencyKey: crypto.randomUUID() },
     )
-    rows.value = (await listSchoolTheses()).map(toSchoolRow)
+    if (!await loadRealRows()) return
     notice.value = result.stage
   } catch (error) {
     notice.value = error instanceof Error ? error.message : '审核失败'
@@ -68,7 +95,7 @@ async function decide(decision: 'PASS' | 'REJECT') {
 }
 
 async function sendOut() {
-  if (!selectedId.value) return
+  if (!selectedId.value || saving.value) return
   const row = rows.value.find((item) => item.id === selectedId.value)
   saving.value = true
   notice.value = ''
@@ -76,10 +103,29 @@ async function sendOut() {
     const result = await confirmDispatch(selectedId.value, Number((row as { version?: number } | undefined)?.version ?? 1), {
       idempotencyKey: crypto.randomUUID(),
     })
-    rows.value = (await listSchoolTheses()).map(toSchoolRow)
+    if (!await loadRealRows()) return
     notice.value = `已确认送出 · ${(result as { stage?: string }).stage ?? ''}`
   } catch (error) {
     notice.value = error instanceof Error ? error.message : '确认送出失败'
+  } finally {
+    saving.value = false
+  }
+}
+
+async function terminateSelected() {
+  const row = selectedRow.value
+  const reason = decisionReason.value.trim()
+  if (!row || saving.value || !reason || !selectedActions.value.includes('TERMINATE')) return
+  if (!window.confirm(`确认永久终止“${row.title}”？未完成专家任务将取消，历史记录保留。`)) return
+  saving.value = true
+  notice.value = ''
+  try {
+    await terminateThesis(row.id, { version: Number((row as { version?: number }).version), reason }, { idempotencyKey: crypto.randomUUID() })
+    if (!await loadRealRows()) return
+    decisionReason.value = ''
+    notice.value = '已终止送审，未完成任务已取消。'
+  } catch (error) {
+    notice.value = error instanceof Error ? error.message : '终止失败'
   } finally {
     saving.value = false
   }
@@ -114,18 +160,25 @@ async function showBatchPreview() {
       </PageHeader>
       <BlindRail audience="本校学生身份、原始论文与匿名材料" hidden-from="专家身份与专家联系方式不在学校准备页展示" stage="材料准备与匿名核验" />
       <p class="submission-policy">学校可直接提交，无需学生再次确认；学生仍可在“我的论文”查看学校代传记录。</p>
-      <AnonymizationCheckPanel :pass="18" :review-required="3" :failed="1" />
+      <p v-if="loading" role="status">正在加载本校论文与检测统计…</p>
+      <div v-else-if="loadError" role="alert">
+        <p>{{ loadError }}</p>
+        <button type="button" data-action="reload-preparation" @click="loadRealRows">重新加载</button>
+      </div>
+      <template v-else>
+      <p v-if="!demoEnabled" class="submission-policy">按本校每篇论文最近一次自动检测结论统计；记录可能来自退回前的旧版本，不代表当前版本已通过。无检测记录不计入，人工审核和列表搜索不改变分类。</p>
+      <AnonymizationCheckPanel v-bind="demoEnabled ? { pass: 18, reviewRequired: 3, failed: 1 } : automaticCounts" />
       <section class="workbench" aria-label="学校论文列表">
         <header><div><span>THESIS INTAKE</span><h2>本校论文</h2></div><label>搜索<input v-model="query" placeholder="学号、姓名、论文或专业" /></label></header>
-        <SchoolThesisTable :rows="filteredRows" @select="selectedId = $event" />
+        <SchoolThesisTable :rows="filteredRows" @select="selectedId = $event; decisionReason = ''; notice = ''" />
         <p v-if="!demoEnabled" class="submission-policy">
           当前为真实审核：按钮由服务端允许动作驱动。检测失败不能通过。
         </p>
         <div v-if="!demoEnabled && selectedId" class="review-actions">
           <textarea
-            v-if="selectedActions.includes('REJECT_ANONYMIZATION')"
+            v-if="selectedActions.includes('REJECT_ANONYMIZATION') || selectedActions.includes('TERMINATE')"
             v-model="decisionReason"
-            placeholder="退回原因（退回时必填）"
+            placeholder="退回或终止原因（执行时必填）"
           ></textarea>
           <button
             v-if="selectedActions.includes('CONFIRM_ANONYMIZATION')"
@@ -154,10 +207,13 @@ async function showBatchPreview() {
           >
             确认送出
           </button>
+          <button v-if="selectedActions.includes('TERMINATE')" type="button" class="action secondary"
+            data-action="terminate-thesis" :disabled="saving || !decisionReason.trim()" @click="terminateSelected">终止送审</button>
           <p v-if="notice" role="status">{{ notice }}</p>
         </div>
       </section>
       <BatchImportPreview v-if="batchOpen" :rows="batchRows" />
+      </template>
     </div>
     <SchoolSubmissionDrawer v-if="drawerOpen" :saving="saving" @close="drawerOpen = false" @submit="submitForStudent" />
   </PortalLayout>

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { isAxiosError } from 'axios'
 import { useRoute, useRouter } from 'vue-router'
 
 import BlindRail from '@/components/app/BlindRail.vue'
@@ -41,6 +42,7 @@ const confirmSubmission = ref<HTMLButtonElement>()
 const overlayOpener = ref<HTMLElement | null>(null)
 const pageRoot = ref<HTMLElement>()
 const demoDialogOpen = ref(false)
+let selectionRequest = 0
 
 const selectedThesisId = computed(() => selectedThesis.value?.id ?? '')
 const latestPublicEvent = computed(() => selectedThesis.value?.timeline.at(-1))
@@ -60,50 +62,65 @@ function errorMessage(value: unknown) {
 }
 
 async function loadSelected(id: string) {
+  const request = ++selectionRequest
+  selectedThesis.value = null
+  result.value = null
+  loading.value = true
   error.value = ''
   feedback.value = ''
   try {
     const [thesis, publishedResult] = await Promise.all([
-      demoEnabled && service ? service.getStudentThesis(id) : listTheses().then((items) => toStudentThesisDetail(items.find((item) => item.id === id) ?? items[0])),
+      demoEnabled && service ? service.getStudentThesis(id) : listTheses().then((items) => {
+        const item = items.find((item) => item.id === id)
+        if (!item) throw new Error('论文不存在或不可见')
+        return toStudentThesisDetail(item)
+      }),
       demoEnabled && service
         ? service.getStudentResult(id)
         : getPublishedResult(id)
+            .catch((error) => {
+              if (isAxiosError(error) && error.response?.status === 404) return null
+              throw error
+            })
             .then(async (data) => {
-              const objections = await listMyObjections(id).catch(() => [])
+              if (!data) return null
+              const objections = await listMyObjections(id)
               const latest = objections[0]
               return {
-              thesisId: data.thesis_id,
-              totalScore: data.total,
-              conclusion: data.items[0]?.recommendation ?? '',
-              publishedAt: '',
-              dimensions: [],
-              results: data.items.map((item) => ({
-                expertAlias: item.alias,
-                score: item.total,
-                recommendation: item.recommendation,
-                comment: item.overall_comment,
-                submittedAt: '',
-              })),
-              objection: latest
-                ? {
-                    id: latest.id,
-                    thesisId: id,
-                    reason: latest.reason,
-                    request: latest.request,
-                    attachments: [],
-                    status: latest.status as 'SUBMITTED' | 'PROCESSING' | 'RESOLVED',
-                    submittedAt: '',
-                    publicResolution: latest.conclusion ?? undefined,
-                  }
-                : undefined,
-            }
-            })
-            .catch(() => null),
+                thesisId: data.thesis_id,
+                totalScore: data.total,
+                conclusion: data.items[0]?.recommendation ?? '',
+                publishedAt: '',
+                dimensions: [],
+                results: data.items.map((item) => ({
+                  expertAlias: item.alias,
+                  score: item.total,
+                  recommendation: item.recommendation,
+                  comment: item.overall_comment,
+                  submittedAt: '',
+                })),
+                objection: latest
+                  ? {
+                      id: latest.id,
+                      thesisId: id,
+                      reason: latest.reason,
+                      request: latest.request,
+                      attachments: [],
+                      status: latest.status as 'SUBMITTED' | 'PROCESSING' | 'RESOLVED',
+                      submittedAt: latest.created_at,
+                      publicResolution: latest.conclusion ?? undefined,
+                    }
+                  : undefined,
+              }
+            }),
     ])
+    if (request !== selectionRequest) return
     selectedThesis.value = thesis
     result.value = publishedResult
   } catch (loadError) {
-    error.value = errorMessage(loadError)
+    if (request === selectionRequest) error.value = errorMessage(loadError)
+  } finally {
+    if (request === selectionRequest) loading.value = false
   }
 }
 
@@ -136,7 +153,6 @@ async function loadPage() {
 async function selectThesis(id: string) {
   if (!id || id === selectedThesisId.value) return
   await router.replace({ path: route.path, query: { ...route.query, thesisId: id } })
-  await loadSelected(id)
 }
 
 function requestObjectionConfirmation(input: StudentObjectionInput) {

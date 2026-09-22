@@ -158,12 +158,12 @@ async function confirmAccept() {
     if (!demoEnabled) {
       await acceptTask(target.id)
       acceptTarget.value = null
-      await router.push('/expert/review')
+      await router.push({ path: '/expert/review', query: { task_id: target.id } })
       return
     }
     if (service) await service.acceptExpertTask(target.id)
     acceptTarget.value = null
-    await router.push('/expert/review')
+    await router.push({ path: '/expert/review', query: { task_id: target.id } })
   } catch (err) {
     acceptError.value = err instanceof Error ? err.message : '接受任务失败，请稍后重试。'
     acceptPending.value = false

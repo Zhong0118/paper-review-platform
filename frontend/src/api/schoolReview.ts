@@ -16,3 +16,7 @@ export function confirmAnonymization(
 ) {
   return httpApi.post<ThesisDetail>(`/school-review/theses/${id}:confirm-anonymization`, body, options)
 }
+
+export function terminateThesis(id: string, body: { version: number; reason: string }, options?: RequestOptions) {
+  return httpApi.post<ThesisDetail>(`/school-review/theses/${id}:terminate`, body, options)
+}

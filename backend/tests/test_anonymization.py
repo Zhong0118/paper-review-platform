@@ -1,3 +1,4 @@
+from tests.pdf_samples import pdf_bytes
 import pytest
 from httpx import AsyncClient
 
@@ -12,9 +13,9 @@ async def test_failing_detection_returns_to_draft(client: AsyncClient, seed):
         client,
         student,
         thesis["id"],
-        anonymous_name="20260042.txt",
-        anonymous_bytes="作者 林知远 学号 20260042 导师 赵文博".encode("utf-8"),
-        anonymous_type="text/plain",
+        anonymous_name="20260042.pdf",
+        anonymous_bytes=pdf_bytes("作者 林知远 学号 20260042 导师 赵文博"),
+        anonymous_type="application/pdf",
     )
     res = await client.post(
         f"/api/v1/theses/{thesis['id']}:submit",
@@ -39,9 +40,9 @@ async def test_school_cannot_pass_failed_check(client: AsyncClient, seed):
         client,
         student,
         thesis["id"],
-        anonymous_name="lin.txt",
-        anonymous_bytes="林知远 20260042".encode("utf-8"),
-        anonymous_type="text/plain",
+        anonymous_name="lin.pdf",
+        anonymous_bytes=pdf_bytes("林知远 20260042"),
+        anonymous_type="application/pdf",
     )
     submitted = await client.post(
         f"/api/v1/theses/{thesis['id']}:submit",

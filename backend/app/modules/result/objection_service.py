@@ -1,7 +1,7 @@
 from uuid import UUID
 
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import case, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AppError
@@ -35,6 +35,7 @@ def serialize(obj: Objection, *, student_name: str | None = None) -> dict:
         "reason": obj.reason,
         "request": obj.request,
         "status": obj.status,
+        "created_at": obj.created_at.isoformat(),
         "channel": obj.channel,
         "conclusion": obj.conclusion,
     }
@@ -85,7 +86,10 @@ async def create_objection(session: AsyncSession, user: CurrentUser, thesis_id: 
 
 async def list_mine(session: AsyncSession, user: CurrentUser, thesis_id: UUID) -> list[dict]:
     await _student_thesis(session, user, thesis_id)
-    rows = list((await session.execute(select(Objection).where(Objection.thesis_id == thesis_id))).scalars())
+    rows = list((await session.execute(select(Objection).where(Objection.thesis_id == thesis_id).order_by(
+        case((Objection.status.in_(list(OPEN_STATUSES)), 0), else_=1),
+        Objection.created_at.desc(), Objection.id.desc(),
+    ))).scalars())
     return [serialize(row) for row in rows]
 
 

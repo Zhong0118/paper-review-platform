@@ -14,3 +14,7 @@ export function submitFinalReview(taskId: string, payload: ReviewScoreInput) {
     idempotencyKey: crypto.randomUUID(),
   })
 }
+
+export function getReviewResult(taskId: string) {
+  return httpApi.get<ReviewScoreInput>(`/expert/tasks/${taskId}/result`)
+}

@@ -1,6 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
@@ -20,6 +21,7 @@ class Settings(BaseSettings):
     jwt_secret: str = "dev-only-change-me-please-use-32bytes+"
     jwt_access_ttl_seconds: int = 1800
     jwt_refresh_ttl_seconds: int = 1_209_600
+    max_upload_bytes: int = Field(default=50 * 1024 * 1024, gt=0)
     storage_root: Path = REPO_ROOT / "storage"
     seed_password: str = "ChangeMe!dev-only"
     app_name: str = "paper-review-api"

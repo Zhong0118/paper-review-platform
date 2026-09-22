@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-import { httpApi } from './request'
+import http, { httpApi } from './request'
 
 export function prepareUpload(payload: {
   thesis_id: string
@@ -39,4 +39,11 @@ export async function uploadThesisFile(options: {
   await uploadFileContent(prepared.upload_url, options.file, options.token)
   await completeUpload(prepared.file_id)
   return prepared.file_id
+}
+
+
+// Use the authenticated, audited content endpoint; never persist file bytes or URLs.
+export async function getFileContent(fileId: string): Promise<Blob> {
+  const response = await http.get<Blob>(`/files/${fileId}/content`, { responseType: 'blob' })
+  return response.data
 }

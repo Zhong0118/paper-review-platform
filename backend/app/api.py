@@ -5,7 +5,7 @@ from app.core.response import ok
 from app.db.session import engine
 from app.modules.auth.router import me_router, router as auth_router
 from app.modules.files.router import router as files_router
-from app.modules.dispatch.router import expert_router, platform_router
+from app.modules.dispatch.router import expert_router, platform_router, task_router
 from app.modules.thesis.router import school_router, student_router
 
 router = APIRouter()
@@ -16,6 +16,7 @@ router.include_router(student_router)
 router.include_router(school_router)
 router.include_router(platform_router)
 router.include_router(expert_router)
+router.include_router(task_router)
 
 
 @router.get("/healthz")

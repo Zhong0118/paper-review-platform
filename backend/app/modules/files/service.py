@@ -1,13 +1,14 @@
-from datetime import datetime, timedelta, timezone
+from starlette.concurrency import run_in_threadpool
+from app.modules.files.pdf import check_size, validated_bytes
+from datetime import datetime, timezone
 from pathlib import Path
-from hashlib import sha256
 from uuid import UUID, uuid4
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AppError
-from app.core.security import create_access_token
+from app.core.security import create_download_token
 from app.modules.auth.deps import CurrentUser
 from app.modules.files import storage
 from app.modules.files.models import FileObject
@@ -99,6 +100,7 @@ async def _require_pending(session: AsyncSession, obj: FileObject, thesis: Thesi
 async def put_content(session: AsyncSession, user: CurrentUser, file_id: UUID, data: bytes) -> None:
     obj, thesis = await _lock_upload(session, user, file_id)
     await _require_pending(session, obj, thesis)
+    check_size(len(data))
     digest = storage.write_bytes(Path(obj.storage_key), data)
     obj.size_bytes = len(data)
     obj.sha256 = digest
@@ -113,13 +115,9 @@ async def complete_upload(session: AsyncSession, user: CurrentUser, file_id: UUI
     path = Path(obj.storage_key)
     if not path.exists() or obj.size_bytes <= 0:
         raise AppError("FILE_NOT_READY", 409, "文件尚未上传完成")
-    data = path.read_bytes()
-    if len(data) != obj.size_bytes or sha256(data).hexdigest() != obj.sha256:
-        raise AppError("FILE_NOT_READY", 409, "文件内容不一致，请重新上传")
     if obj.content_type not in ALLOWED_TYPES:
         raise AppError("VALIDATION_FAILED", 422, "不支持的文件类型")
-    if data.startswith(b"%PDF") and b"/Encrypt" in data[:8192]:
-        raise AppError("VALIDATION_FAILED", 422, "加密 PDF 不可用")
+    await run_in_threadpool(validated_bytes, obj)
     obj.scan_status = FileScanStatus.CLEAN
     obj.completed_at = datetime.now(timezone.utc)
     existing = (await session.execute(select(ThesisVersionFile).where(
@@ -136,16 +134,16 @@ async def complete_upload(session: AsyncSession, user: CurrentUser, file_id: UUI
 
 
 async def can_access_file(session: AsyncSession, user: CurrentUser, obj: FileObject) -> bool:
-    if user.role == RoleCode.SYSTEM_ADMIN:
+    if obj.completed_at is None or user.role == RoleCode.SYSTEM_ADMIN:
         return False
     if obj.purpose == FilePurpose.ORIGINAL:
-        if user.role == RoleCode.STUDENT and obj.uploaded_by == user.id:
+        if user.role == RoleCode.STUDENT and obj.uploaded_by == user.id and obj.tenant_id == user.tenant_id:
             return True
         if user.role == RoleCode.SCHOOL_REVIEWER and user.tenant_id == obj.tenant_id:
             return True
         return False
     if obj.purpose == FilePurpose.ANONYMOUS:
-        if user.role == RoleCode.STUDENT and obj.uploaded_by == user.id:
+        if user.role == RoleCode.STUDENT and obj.uploaded_by == user.id and obj.tenant_id == user.tenant_id:
             return True
         if user.role == RoleCode.SCHOOL_REVIEWER and user.tenant_id == obj.tenant_id:
             return True
@@ -154,37 +152,18 @@ async def can_access_file(session: AsyncSession, user: CurrentUser, obj: FileObj
         if user.role == RoleCode.EXPERT:
             from app.modules.dispatch.models import ExpertTask, ReviewRound
             from app.modules.expert.models import Expert
-            from app.modules.thesis.models import ThesisVersionFile
-            from app.shared.enums import ExpertTaskStatus
+            from app.shared.enums import ExpertTaskStatus, RoundStatus, ThesisStage
 
-            expert = (
-                await session.execute(select(Expert).where(Expert.user_id == user.id))
-            ).scalar_one_or_none()
-            if expert is None:
-                return False
-            link = (
-                await session.execute(
-                    select(ThesisVersionFile).where(ThesisVersionFile.file_id == obj.id)
-                )
-            ).scalar_one_or_none()
-            if link is None:
-                return False
-            round_ = (
-                await session.execute(
-                    select(ReviewRound).where(ReviewRound.thesis_version_id == link.thesis_version_id)
-                )
-            ).scalar_one_or_none()
-            if round_ is None:
-                return False
-            task = (
-                await session.execute(
-                    select(ExpertTask).where(
-                        ExpertTask.round_id == round_.id,
-                        ExpertTask.expert_id == expert.id,
-                        ExpertTask.status == ExpertTaskStatus.IN_REVIEW,
-                    )
-                )
-            ).scalar_one_or_none()
+            task = (await session.execute(select(ExpertTask.id)
+                .join(Expert, Expert.id == ExpertTask.expert_id)
+                .join(ReviewRound, ReviewRound.id == ExpertTask.round_id)
+                .join(Thesis, Thesis.id == ReviewRound.thesis_id)
+                .join(ThesisVersionFile, ThesisVersionFile.thesis_version_id == ReviewRound.thesis_version_id)
+                .where(Expert.user_id == user.id, ExpertTask.status == ExpertTaskStatus.IN_REVIEW,
+                       ReviewRound.status == RoundStatus.ACTIVE, Thesis.stage == ThesisStage.UNDER_REVIEW,
+                       Thesis.current_version_id == ReviewRound.thesis_version_id,
+                       ThesisVersionFile.file_id == obj.id, ThesisVersionFile.purpose == FilePurpose.ANONYMOUS)
+                .limit(1))).scalar_one_or_none()
             return task is not None
     return False
 
@@ -193,15 +172,15 @@ async def authorize_download(session: AsyncSession, user: CurrentUser, file_id: 
     obj = await session.get(FileObject, file_id)
     if obj is None or not await can_access_file(session, user, obj):
         raise _hidden()
-    token = create_access_token(
+    token, expires = create_download_token(
         user_id=user.id,
         role=user.role,
         tenant_id=user.tenant_id,
-        data_scope={"file_id": str(file_id), "purpose": "download"},
+        file_id=file_id,
     )
     return {
         "url": f"/api/v1/files/{file_id}/content?token={token}",
-        "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat(),
+        "expires_at": expires.isoformat(),
     }
 
 
@@ -209,4 +188,7 @@ async def load_file_bytes(session: AsyncSession, user: CurrentUser, file_id: UUI
     obj = await session.get(FileObject, file_id)
     if obj is None or not await can_access_file(session, user, obj):
         raise _hidden()
-    return obj, Path(obj.storage_key).read_bytes()
+    try:
+        return obj, Path(obj.storage_key).read_bytes()
+    except OSError as exc:
+        raise _hidden() from exc

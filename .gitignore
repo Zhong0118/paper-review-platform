@@ -102,3 +102,6 @@ temp/
 storage/original/
 storage/anonymous/
 .playwright-mcp/
+# Local code intelligence indexes
+.codegraph/
+.zvec-grep/

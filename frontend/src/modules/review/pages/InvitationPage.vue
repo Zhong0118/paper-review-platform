@@ -132,7 +132,7 @@ async function confirmAccept() {
   try {
     if (!demoEnabled) {
       await acceptTask(task.value.id)
-      await router.push('/expert/tasks')
+      await router.push({ path: '/expert/review', query: { task_id: task.value.id } })
       return
     }
     if (service) await service.acceptExpertTask(task.value.id)

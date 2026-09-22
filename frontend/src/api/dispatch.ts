@@ -2,6 +2,8 @@ import { httpApi, type RequestOptions } from './request'
 
 export interface DispatchQueueItem {
   thesis_id: string
+  reassignable_task?: { id: string; expert_id: string } | null
+  allowed_actions: string[]
   stage: string
   student_name: string
   title: string
@@ -63,4 +65,8 @@ export function dispatchCandidates(thesisId: string) {
 
 export function assignExpert(thesisId: string, expertId: string, options?: RequestOptions) {
   return httpApi.post(`/platform-review/theses/${thesisId}:assign`, { expert_id: expertId }, options)
+}
+
+export function reassignExpert(taskId: string, expertId: string, options?: RequestOptions) {
+  return httpApi.post(`/expert-tasks/${taskId}:reassign`, { expert_id: expertId }, options)
 }

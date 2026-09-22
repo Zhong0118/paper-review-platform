@@ -5,6 +5,7 @@ export interface ObjectionRow {
   thesis_id: string
   reason: string
   request: string
+  created_at: string
   status: string
   channel: string | null
   conclusion: string | null

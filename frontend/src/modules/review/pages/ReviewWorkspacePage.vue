@@ -1,28 +1,30 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import BlindRail from '@/components/app/BlindRail.vue'
 import PageHeader from '@/components/app/PageHeader.vue'
 import StatusTag from '@/components/app/StatusTag.vue'
 import { useScenarioService } from '@/demo/serviceProvider'
-import { getReviewDraft, saveReviewDraft, submitFinalReview } from '@/api/review'
+import { getReviewDraft, getReviewResult, saveReviewDraft, submitFinalReview } from '@/api/review'
 import { listExpertTasks } from '@/api/expertTasks'
 import type { ExpertTaskSummary, ReviewScoreInput } from '@/demo/types'
 import PortalLayout from '@/layouts/PortalLayout.vue'
 import { portalMenus } from '@/router/menus'
 import { useAuthStore } from '@/stores/auth'
+import RealAnonymousDocumentPane from '../components/RealAnonymousDocumentPane.vue'
 import AnonymousDocumentPane from '../components/AnonymousDocumentPane.vue'
 import ReviewFormPane from '../components/ReviewFormPane.vue'
 import WorkspaceSplitter from '../components/WorkspaceSplitter.vue'
 import ExpertDemoScenarioController from '@/modules/expert-management/components/ExpertDemoScenarioController.vue'
 
 const router = useRouter()
+const route = useRoute()
 const demoEnabled = import.meta.env.VITE_DEMO_MODE === 'true'
 const service = demoEnabled ? useScenarioService() : null
 const demoDialogOpen = ref(false)
 
 const task = ref<ExpertTaskSummary | null>(null)
-const locked = ref(false)
+const locked = ref(true)
 const saving = ref(false)
 const notice = ref('')
 const loadError = ref('')
@@ -34,9 +36,9 @@ let autosaveHideTimer: ReturnType<typeof setTimeout> | null = null
 
 const overdue = computed(() => task.value?.overdue === true)
 const submitted = computed(() => task.value?.status === 'SUBMITTED')
-const formLocked = computed(() => locked.value || submitted.value)
+const formLocked = computed(() => locked.value || submitted.value || submitPending.value)
 
-onMounted(async () => {
+async function loadDemo() {
   try {
     const tasks = demoEnabled && service
       ? await service.listExpertTasks({ own: true })
@@ -64,9 +66,59 @@ onMounted(async () => {
   } catch (err) {
     loadError.value = err instanceof Error ? err.message : '任务加载失败。'
   }
-})
+}
 
+let loadGeneration = 0
+async function loadRealTask() {
+  const generation = ++loadGeneration
+  task.value = null
+  draft.value = null
+  locked.value = true
+  loadError.value = ''
+  notice.value = ''
+  autosaveVisible.value = false
+  if (autosaveHideTimer !== null) clearTimeout(autosaveHideTimer)
+  autosaveHideTimer = null
+  saving.value = false
+  pendingInput.value = null
+  submitPending.value = false
+  correctionOpen.value = false
+  const id = route.query.task_id
+  if (typeof id !== 'string' || !id) {
+    loadError.value = '请从任务列表选择要评阅的任务。'
+    return
+  }
+  try {
+    const rows = await listExpertTasks()
+    if (generation !== loadGeneration) return
+    const current = rows.find(row => row.id === id)
+    if (!current || !['IN_REVIEW', 'SUBMITTED'].includes(current.status)) {
+      throw new Error('任务不存在或当前不可评阅，请返回任务列表。')
+    }
+    const saved = current.status === 'SUBMITTED'
+      ? await getReviewResult(id)
+      : await getReviewDraft(id)
+    if (generation !== loadGeneration) return
+    draft.value = Object.keys(saved).length ? saved as ReviewScoreInput : null
+    task.value = {
+      id: current.id, status: current.status,
+      anonymousId: current.anonymous_id ?? current.id.slice(0, 8),
+      anonymousTitle: current.anonymous_title ?? '匿名论文',
+      discipline: { code: current.discipline_code ?? '', name: current.discipline_name ?? '' },
+      fee: 0, dueAt: '', overdue: false, allowedActions: current.allowed_actions ?? [],
+    } as ExpertTaskSummary
+    locked.value = current.status !== 'IN_REVIEW'
+  } catch (err) {
+    if (generation === loadGeneration) {
+      loadError.value = err instanceof Error ? err.message : '任务加载失败。'
+    }
+  }
+}
+
+onMounted(() => { if (demoEnabled) void loadDemo() })
+// Register after dialog state is initialized (below).
 onBeforeUnmount(() => {
+  loadGeneration++
   if (autosaveHideTimer !== null) {
     clearTimeout(autosaveHideTimer)
     autosaveHideTimer = null
@@ -75,6 +127,7 @@ onBeforeUnmount(() => {
 
 /** 从服务端投影重新载入当前任务（提交后刷新状态，页面反映最新流转）。 */
 async function reloadCurrentTask() {
+  if (!demoEnabled) { await loadRealTask(); return }
     const tasks = demoEnabled && service
       ? await service.listExpertTasks({ own: true })
       : ((await listExpertTasks()) as unknown as ExpertTaskSummary[])
@@ -99,10 +152,14 @@ async function reloadWorkspaceProjection() {
 }
 
 async function save(input: ReviewScoreInput) {
+  const id = task.value?.id
+  const generation = loadGeneration
+  if (!id || formLocked.value || submitPending.value) return
   saving.value = true
   try {
     if (demoEnabled && service) await service.saveReviewDraft(input)
-    else if (task.value) await saveReviewDraft(task.value.id, input)
+    else await saveReviewDraft(id, input)
+    if (generation !== loadGeneration) return
     notice.value = '草稿已保存。'
     autosaveVisible.value = true
     if (autosaveHideTimer !== null) clearTimeout(autosaveHideTimer)
@@ -111,9 +168,9 @@ async function save(input: ReviewScoreInput) {
       autosaveHideTimer = null
     }, 2400)
   } catch (err) {
-    notice.value = err instanceof Error ? err.message : '草稿保存失败。'
+    if (generation === loadGeneration) notice.value = err instanceof Error ? err.message : '草稿保存失败。'
   } finally {
-    saving.value = false
+    if (generation === loadGeneration) saving.value = false
   }
 }
 
@@ -179,18 +236,25 @@ function handleSubmitKeydown(event: KeyboardEvent) {
 
 async function confirmSubmit() {
   const input = pendingInput.value
-  if (!input || locked.value || submitPending.value) return
+  const id = task.value?.id
+  const generation = loadGeneration
+  if (!input || !id || locked.value || submitPending.value) return
   submitPending.value = true
   submitError.value = ''
   try {
     if (demoEnabled && service) await service.submitFinalReview(input)
-    else if (task.value) await submitFinalReview(task.value.id, input)
+    else await submitFinalReview(id, input)
+    if (generation !== loadGeneration) return
+    const refreshGeneration = loadGeneration + (demoEnabled ? 0 : 1)
     await reloadCurrentTask()
+    if (loadGeneration !== refreshGeneration || task.value?.id !== id) return
     pendingInput.value = null
     notice.value = '最终意见已提交并锁定。'
   } catch (err) {
-    submitError.value = err instanceof Error ? err.message : '最终提交失败，请稍后重试。'
-    submitPending.value = false
+    if (generation === loadGeneration) {
+      submitError.value = err instanceof Error ? err.message : '最终提交失败，请稍后重试。'
+      submitPending.value = false
+    }
   }
 }
 
@@ -271,6 +335,7 @@ async function confirmCorrection() {
     correctionPending.value = false
   }
 }
+watch(() => route.query.task_id, () => { if (!demoEnabled) void loadRealTask() }, { immediate: true })
 </script>
 
 <template>
@@ -293,30 +358,34 @@ async function confirmCorrection() {
         description="左侧阅读匿名论文，右侧填写六维评分与评语；逾期任务仍可保存与提交，提交后整页只读。"
       >
         <template #actions>
-          <StatusTag :status="task?.status ?? 'IN_REVIEW'" :overdue="overdue" />
+          <StatusTag v-if="task" :status="task.status" :overdue="overdue" />
         </template>
       </PageHeader>
+      <p v-if="task" class="task-context">{{ task.anonymousId }} · {{ task.anonymousTitle }}</p>
       <BlindRail
-        audience="匿名题目、匿名摘要、匿名版论文材料与本人评阅意见"
+        :audience="submitted ? '本人正式评阅意见' : '匿名版论文材料与本人评阅意见'"
         hidden-from="作者、导师身份、其他专家意见与论文原始版"
-        :stage="submitted ? '已提交 · 只读' : '评阅中'"
+        :stage="!task ? '未选择任务' : submitted ? '已提交 · 只读' : '评阅中'"
       />
       <p v-if="overdue" class="overdue-warning" data-overdue-warning role="alert">
         本任务已逾期，逾期标记不会因保存或提交自动取消；请尽快完成评阅并提交。
       </p>
       <p v-if="notice" class="notice" role="status">{{ notice }}</p>
-      <p v-if="loadError" class="load-error" role="alert">{{ loadError }}</p>
+      <p v-if="loadError" class="load-error" role="alert">{{ loadError }} <RouterLink to="/expert/tasks">返回任务列表</RouterLink></p>
       <p v-if="autosaveVisible" class="autosave-indicator" data-autosave role="status">
-        已自动保存草稿（本地演示存储）
+        {{ demoEnabled ? '已自动保存草稿（本地演示存储）' : '草稿已保存至服务器' }}
       </p>
 
       <WorkspaceSplitter>
         <template #document>
-          <AnonymousDocumentPane :task="task" />
+          <AnonymousDocumentPane v-if="demoEnabled" :task="task" />
+          <RealAnonymousDocumentPane v-else-if="task?.status === 'IN_REVIEW'" :key="task.id" :task-id="task.id" />
+          <p v-else-if="submitted">评阅已提交，论文读取权限已结束；右侧为本人正式意见。</p>
         </template>
         <template #form>
           <ReviewFormPane
             v-if="task"
+            :key="task.id"
             :locked="formLocked"
             :saving="saving"
             :draft="draft"
@@ -330,9 +399,11 @@ async function confirmCorrection() {
 
       <section v-if="submitted && task" class="post-submit">
         <h3>提交完成</h3>
-        <p>最终意见已提交并锁定，只能查看，不能再次编辑。如发现评分或评语有误，可申请更正；提交后原版本保留，更正需平台审批。</p>
+        <p v-if="demoEnabled">最终意见已提交并锁定，只能查看，不能再次编辑。如发现评分或评语有误，可申请更正；提交后原版本保留，更正需平台审批。</p>
+        <p v-else>以下为本人正式提交的评阅意见，只能查看，不能再次编辑。</p>
         <button
           type="button"
+          v-if="demoEnabled"
           data-action="open-correction-dialog"
           :disabled="task.correctionPending"
           @click="openCorrectionDialog"

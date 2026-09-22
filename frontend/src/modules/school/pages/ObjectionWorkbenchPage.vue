@@ -12,9 +12,9 @@ const conclusion = ref('')
 const notice = ref('')
 
 const demoRows: ObjectionRow[] = [
-  { id: 'OBJ-2026-019', thesis_id: '', reason: '对评语中实验数据判断存在疑问', request: '', status: 'SUBMITTED', channel: null, conclusion: null, student_name: '苏雨桐' },
-  { id: 'OBJ-2026-014', thesis_id: '', reason: '申请核对评分项汇总过程', request: '', status: 'PROCESSING', channel: null, conclusion: null, student_name: '叶承宇' },
-  { id: 'OBJ-2026-006', thesis_id: '', reason: '补充说明已由学校回填', request: '', status: 'RESOLVED', channel: 'OFFLINE', conclusion: '已办结', student_name: '唐思远' },
+  { id: 'OBJ-2026-019', thesis_id: '', created_at: '2026-09-01T08:00:00Z', reason: '对评语中实验数据判断存在疑问', request: '', status: 'SUBMITTED', channel: null, conclusion: null, student_name: '苏雨桐' },
+  { id: 'OBJ-2026-014', thesis_id: '', created_at: '2026-09-01T08:00:00Z', reason: '申请核对评分项汇总过程', request: '', status: 'PROCESSING', channel: null, conclusion: null, student_name: '叶承宇' },
+  { id: 'OBJ-2026-006', thesis_id: '', created_at: '2026-09-01T08:00:00Z', reason: '补充说明已由学校回填', request: '', status: 'RESOLVED', channel: 'OFFLINE', conclusion: '已办结', student_name: '唐思远' },
 ]
 
 onMounted(async () => {

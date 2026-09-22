@@ -1,3 +1,4 @@
+from tests.pdf_samples import pdf_bytes
 from pathlib import Path
 from uuid import UUID
 
@@ -21,7 +22,7 @@ async def pending(client, tokens, thesis_id):
     response = await prepare(client, tokens, thesis_id)
     assert response.status_code == 200, response.text
     file_id = response.json()['data']['file_id']
-    response = await client.put(f'/api/v1/files/{file_id}/content', headers=auth(tokens), content=b'%PDF pending')
+    response = await client.put(f'/api/v1/files/{file_id}/content', headers=auth(tokens), content=pdf_bytes('pending'))
     assert response.status_code == 200, response.text
     return file_id
 

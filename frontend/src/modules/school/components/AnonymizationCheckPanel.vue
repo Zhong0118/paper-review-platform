@@ -5,7 +5,7 @@ defineProps<{ pass: number; reviewRequired: number; failed: number }>()
 <template>
   <aside class="check-panel" aria-label="匿名化检测概览">
     <div><span>自动通过</span><strong>{{ pass }}</strong></div>
-    <div><span>待人工复核</span><strong>{{ reviewRequired }}</strong></div>
+    <div><span>需人工复核</span><strong>{{ reviewRequired }}</strong></div>
     <div><span>检测失败</span><strong>{{ failed }}</strong></div>
   </aside>
 </template>

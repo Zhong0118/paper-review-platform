@@ -31,3 +31,14 @@ export function getPublishedResult(thesisId: string) {
     `/my/theses/${thesisId}/published-result`,
   )
 }
+
+
+export interface SupervisedPublishedThesis {
+  id: string
+  title: string
+  student_name: string
+}
+
+export function listSupervisedPublishedTheses() {
+  return httpApi.get<SupervisedPublishedThesis[]>('/supervisor/theses/published')
+}

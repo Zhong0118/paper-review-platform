@@ -1,3 +1,4 @@
+import json
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Request
@@ -116,6 +117,17 @@ async def expert_get_draft(
     return ok(data, request_id=getattr(request.state, "request_id", None))
 
 
+@expert_router.get("/tasks/{task_id}/result")
+async def expert_get_result(
+    task_id: UUID,
+    request: Request,
+    current: CurrentUser = Depends(require_roles(RoleCode.EXPERT)),
+    session: AsyncSession = Depends(get_session),
+):
+    data = await review_service.get_result(session, current, task_id)
+    return ok(data, request_id=getattr(request.state, "request_id", None))
+
+
 @expert_router.put("/tasks/{task_id}/draft")
 async def expert_put_draft(
     task_id: UUID,
@@ -138,15 +150,16 @@ async def expert_submit_final(
     session: AsyncSession = Depends(get_session),
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
 ):
-    from app.modules.thesis import service as thesis_service
-
+    # Serialize retries before reading the cache; the winner stores it in this transaction.
+    await dispatch_service.get_task_for_expert(session, current, task_id, for_update=True)
+    payload = {"id": str(task_id), "review": json.dumps(body.model_dump(), sort_keys=True, ensure_ascii=False)}
     cached = await thesis_service.remember_idempotent(
-        session, current, idempotency_key, "submit-final", {"id": str(task_id)}
+        session, current, idempotency_key, "submit-final", payload
     )
     if cached:
         return ok(cached, request_id=getattr(request.state, "request_id", None))
     data = await review_service.submit_final(session, current, task_id, body)
-    await thesis_service.store_idempotent(session, current, idempotency_key, "submit-final", {"id": str(task_id)}, data)
+    await thesis_service.store_idempotent(session, current, idempotency_key, "submit-final", payload, data)
     await session.commit()
     return ok(data, request_id=getattr(request.state, "request_id", None))
 
@@ -174,3 +187,23 @@ async def expert_reject(
     task = await dispatch_service.reject_task(session, current, task_id, body.reason)
     await session.commit()
     return ok({"id": str(task.id), "status": task.status}, request_id=getattr(request.state, "request_id", None))
+
+
+@task_router.post("/expert-tasks/{task_id}:reassign")
+async def reassign_task(
+    task_id: UUID, body: AssignBody, request: Request,
+    current: CurrentUser = Depends(require_roles(RoleCode.PLATFORM_REVIEWER)),
+    session: AsyncSession = Depends(get_session),
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+):
+    await dispatch_service.lock_task_thesis(session, task_id)
+    payload = {"id": str(task_id), "expert_id": str(body.expert_id)}
+    cached = await thesis_service.remember_idempotent(session, current, idempotency_key, "reassign", payload)
+    if cached:
+        return ok(cached, request_id=getattr(request.state, "request_id", None))
+    thesis, task = await dispatch_service.reassign(session, current, task_id, body.expert_id, getattr(request.state, "request_id", None))
+    data = await thesis_service.serialize_thesis(session, current, thesis)
+    data["task"] = {"id": str(task.id), "status": task.status, "replaces_task_id": str(task.replaces_task_id)}
+    await thesis_service.store_idempotent(session, current, idempotency_key, "reassign", payload, data)
+    await session.commit()
+    return ok(data, request_id=getattr(request.state, "request_id", None))

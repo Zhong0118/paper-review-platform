@@ -52,3 +52,7 @@ VITE_DEMO_MODE=false pnpm dev
 种子账号密码默认 `ChangeMe!dev-only`：`student.lin`、`school.wang`、`platform.chen`、`expert.zhou`、`supervisor.zhao`、`admin.system`。
 
 `GET /healthz` 存活；`GET /readyz` 在未迁移时返回 `not_migrated`。
+
+### PDF 材料校验（7A-2）
+
+更新后在 backend 环境执行 `pip install -e ".[dev]"`；运行依赖新增 pypdf，ReportLab 仅用于生成真实测试 PDF。原始版和匿名版必须是有效、未加密的 PDF；单文件默认上限 50 MiB，可通过 backend/.env 的 MAX_UPLOAD_BYTES（正整数字节数）调整。图片、空白页或无法可靠提取文本的材料进入人工复核；自动 PASS 仍需学校确认。旧伪 PDF 在重新提交时会被拒绝，需要重新上传。此切片无数据库迁移。

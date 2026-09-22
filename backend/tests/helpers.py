@@ -1,3 +1,4 @@
+from tests.pdf_samples import pdf_bytes
 from types import SimpleNamespace
 
 from httpx import AsyncClient
@@ -38,8 +39,8 @@ async def attach_files(
     tokens: dict,
     thesis_id: str,
     *,
-    original_bytes: bytes = b"%PDF-1.4 original without names",
-    anonymous_bytes: bytes = b"%PDF-1.4 anonymous text without identifiers",
+    original_bytes: bytes = pdf_bytes(),
+    anonymous_bytes: bytes = pdf_bytes(),
     original_name: str = "original.pdf",
     anonymous_name: str = "anonymous.pdf",
     original_type: str = "application/pdf",

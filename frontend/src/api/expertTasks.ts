@@ -35,3 +35,12 @@ export function acceptTask(taskId: string) {
 export function rejectTask(taskId: string, reason: string) {
   return httpApi.post(`/expert/tasks/${taskId}:reject`, { reason })
 }
+
+export interface ExpertMaterials {
+  task_id: string
+  files: Array<{ file_id: string; purpose: string; filename: string }>
+}
+
+export function getMaterials(taskId: string) {
+  return httpApi.get<ExpertMaterials>(`/expert/tasks/${taskId}/materials`)
+}

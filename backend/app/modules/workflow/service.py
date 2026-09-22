@@ -14,6 +14,7 @@ ALLOWED = {
     (ThesisStage.PREPARING, ThesisStage.DRAFT, "reject_anonymization"),
     (ThesisStage.SUBMITTED, ThesisStage.DRAFT, "withdraw"),
     (ThesisStage.PREPARING, ThesisStage.DRAFT, "withdraw"),
+    (ThesisStage.READY_FOR_DISPATCH, ThesisStage.DRAFT, "withdraw"),
     (ThesisStage.READY_FOR_DISPATCH, ThesisStage.UNDER_REVIEW, "assign_first_task"),
     (ThesisStage.UNDER_REVIEW, ThesisStage.RESULT_PROCESSING, "results_ready"),
     (ThesisStage.RESULT_PROCESSING, ThesisStage.COMPLETED, "publish"),
