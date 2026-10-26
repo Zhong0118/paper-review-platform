@@ -3,6 +3,7 @@ from hashlib import sha256
 from io import BytesIO
 from pathlib import Path
 import unicodedata
+from typing import TypedDict
 from xml.etree import ElementTree
 
 from pypdf import PdfReader
@@ -16,7 +17,19 @@ def check_size(size: int) -> None:
         raise AppError("FILE_TOO_LARGE", 413, "文件超过上传大小限制")
 
 
-def inspect_pdf(data: bytes) -> tuple[str, str, bool]:
+class PdfPage(TypedDict):
+    page_number: int
+    text: str
+    uncertain: bool
+
+
+class PdfInspection(TypedDict):
+    pages: list[PdfPage]
+    metadata: str
+    uncertain: bool
+
+
+def extract_pdf_pages(data: bytes) -> PdfInspection:
     check_size(len(data))
     try:
         reader = PdfReader(BytesIO(data), strict=True)
@@ -35,19 +48,20 @@ def inspect_pdf(data: bytes) -> tuple[str, str, bool]:
                 metadata += " " + " ".join(v for el in root.iter() for v in el.attrib.values())
             except Exception:
                 uncertain = True
-        texts = []
+        pages = []
         count = 0
-        for page in reader.pages:
+        for number, page in enumerate(reader.pages, 1):
+            page_uncertain = False
             content = page.get_contents()
             if content is not None and len(content.get_data()) > 2 * 1024 * 1024:
                 raise ValueError("page content too large")
             if content is not None and any(op == b"INLINE IMAGE" for _, op in content.operations):
-                uncertain = True
+                page_uncertain = True
             try:
                 text = page.extract_text() or ""
             except Exception:
                 text = ""
-                uncertain = True
+                page_uncertain = True
             resources = page.get("/Resources", {})
             if resources:
                 resources = resources.get_object()
@@ -58,16 +72,22 @@ def inspect_pdf(data: bytes) -> tuple[str, str, bool]:
             )
             if (not text.strip() or "\ufffd" in text or unknown_glyphs
                     or resources.get("/XObject") or page.get("/Annots")):
-                uncertain = True
+                page_uncertain = True
+            uncertain = uncertain or page_uncertain
             count += len(text)
             if count > 2_000_000:
                 raise ValueError("extracted text too large")
-            texts.append(text)
-        return "\n".join(texts), metadata, uncertain
+            pages.append({"page_number": number, "text": text, "uncertain": page_uncertain})
+        return {"pages": pages, "metadata": metadata, "uncertain": uncertain}
     except AppError:
         raise
     except Exception as exc:
         raise AppError("VALIDATION_FAILED", 422, "PDF 损坏、加密或超出解析限制，请重新上传") from exc
+
+
+def inspect_pdf(data: bytes) -> tuple[str, str, bool]:
+    result = extract_pdf_pages(data)
+    return "\n".join(page["text"] for page in result["pages"]), result["metadata"], result["uncertain"]
 
 
 def validated_bytes(obj) -> bytes:

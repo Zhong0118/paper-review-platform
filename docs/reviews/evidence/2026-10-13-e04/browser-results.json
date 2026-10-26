@@ -1,0 +1,35 @@
+{
+  "date": "2026-10-13",
+  "browser": "Chrome headless via Playwright",
+  "mode": "real",
+  "results": [
+    {
+      "scenario": "student old thesis hidden, warning and boundary shown, refresh retains choice",
+      "status": "PASS"
+    },
+    {
+      "scenario": "school preparation/progress share preference; rows and counts use same scope",
+      "status": "PASS"
+    },
+    {
+      "scenario": "platform queue all/past-year filters the old active thesis",
+      "status": "PASS"
+    },
+    {
+      "scenario": "expert old task hidden in list but direct review deep link remains editable and submits",
+      "status": "PASS"
+    },
+    {
+      "scenario": "school result choices hide old paper in past-year, all enables publishing",
+      "status": "PASS"
+    },
+    {
+      "scenario": "supervisor published list uses thesis creation, not publication date",
+      "status": "PASS"
+    },
+    {
+      "scenario": "student result list preference is personal; explicit old result deep link works outside scope",
+      "status": "PASS"
+    }
+  ]
+}

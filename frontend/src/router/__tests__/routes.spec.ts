@@ -7,11 +7,11 @@ describe('application routes', () => {
   it('assigns one unique route to every golden-path page id', () => {
     const pageIds = appRoutes.map((route) => route.meta?.pageId).filter(Boolean)
 
-    expect(pageIds).toHaveLength(24)
-    expect(new Set(pageIds).size).toBe(24)
+    expect(pageIds).toHaveLength(27)
+    expect(new Set(pageIds).size).toBe(27)
     expect(pageIds).toEqual(
       expect.arrayContaining(
-        Array.from({ length: 24 }, (_, i) => `PAGE-${String(i + 1).padStart(3, '0')}`),
+        Array.from({ length: 27 }, (_, i) => `PAGE-${String(i + 1).padStart(3, '0')}`),
       ),
     )
   })
@@ -59,14 +59,21 @@ describe('application routes', () => {
 
   it('hides unwired workbenches from the live navigation', async () => {
     const { portalMenus } = await import('../menus')
+    expect(portalMenus('school_reviewer', true).map((item) => item.path)).not.toContain('/school/members')
     expect(portalMenus('school_reviewer', false).map((item) => item.path)).toEqual([
       '/school/preparation',
       '/school/progress',
       '/school/results',
       '/school/objections',
+      '/school/batch-rules',
+      '/school/members',
+      '/school/disciplines',
+      '/school/sensitive-terms',
     ])
     expect(portalMenus('platform_reviewer', false).map((item) => item.path)).toEqual([
       '/platform/dispatch',
+      '/platform/experts',
+      '/platform/corrections',
     ])
     expect(portalMenus('expert', false).map((item) => item.path)).toEqual(['/expert/tasks'])
     expect(portalMenus('student', false).map((item) => item.path)).toEqual([
@@ -74,6 +81,8 @@ describe('application routes', () => {
       '/student/results',
     ])
     expect(portalMenus('platform_reviewer', false)[0].badge).toBeUndefined()
+    expect(appRoutes.find(route => route.path === '/school/members')?.meta?.roleCodes).toEqual(['school_reviewer'])
+    expect(appRoutes.find(route => route.path === '/platform/experts')?.meta?.roleCodes).toEqual(['platform_reviewer'])
   })
 
   it('does not leave management routes on the generic pending page', () => {

@@ -86,10 +86,14 @@ async def add_legacy_task(sessions, eid, status='IN_REVIEW', with_result=False):
     async with sessions() as session:
         original = (await session.execute(select(ExpertTask))).scalars().first()
         tid = uuid4()
-        session.add(ExpertTask(id=tid, tenant_id=original.tenant_id, round_id=original.round_id, expert_id=UUID(eid), status=status))
+        session.add(ExpertTask(id=tid, tenant_id=original.tenant_id, round_id=original.round_id,
+                               thesis_id=original.thesis_id, expert_id=UUID(eid), status=status))
         await session.flush()
         if with_result:
-            session.add(ReviewResultVersion(task_id=tid, version_no=1, total=69, scores={}, comments={'recommendation': '其他意见'}, is_current=True))
+            session.add(ReviewResultVersion(task_id=tid, round_id=original.round_id,
+                                            tenant_id=original.tenant_id, version_no=1,
+                                            total=69, scores={},
+                                            comments={'recommendation': '其他意见'}, is_current=True))
         await session.commit()
         return tid
 

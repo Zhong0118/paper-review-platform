@@ -4,13 +4,14 @@ import { createMemoryHistory, createRouter } from 'vue-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import ReviewWorkspacePage from '../pages/ReviewWorkspacePage.vue'
 import ExpertTasksPage from '../pages/ExpertTasksPage.vue'
+import InvitationPage from '../pages/InvitationPage.vue'
 import ReviewFormPane from '../components/ReviewFormPane.vue'
 import { scenarioServiceKey } from '@/demo/serviceProvider'
 
 const api = vi.hoisted(() => ({
-  listExpertTasks: vi.fn(), getReviewDraft: vi.fn(), getReviewResult: vi.fn(),
+  listExpertTasks: vi.fn(), getReviewRules: vi.fn(), getReviewDraft: vi.fn(), getReviewResult: vi.fn(),
   saveReviewDraft: vi.fn(), submitFinalReview: vi.fn(), getMaterials: vi.fn(),
-  getFileContent: vi.fn(), acceptTask: vi.fn(),
+  getFileContent: vi.fn(), acceptTask: vi.fn(), getInvitation: vi.fn(), rejectTask: vi.fn(),
 }))
 vi.mock('@/api/expertTasks', () => api)
 vi.mock('@/api/review', () => api)
@@ -34,6 +35,15 @@ beforeEach(() => {
   vi.clearAllMocks()
   api.listExpertTasks.mockResolvedValue(rows)
   api.getReviewDraft.mockResolvedValue(score)
+  api.getReviewRules.mockResolvedValue({ version: 'pilot-single-v1', required_experts: 1, mode: 'sum_dimensions',
+    dimensions: [
+      { key: 'topicValue', label: '选题价值', max_score: 15 },
+      { key: 'literatureTheory', label: '文献与理论基础', max_score: 15 },
+      { key: 'methodology', label: '研究方法', max_score: 20 },
+      { key: 'innovation', label: '创新性', max_score: 25 },
+      { key: 'writingStandards', label: '写作与学术规范', max_score: 10 },
+      { key: 'resultsWorkload', label: '研究成果与工作量', max_score: 15 },
+    ], bands: [] })
   api.getReviewResult.mockResolvedValue({ ...score, overallComment: '正式意见 A' })
   api.getMaterials.mockResolvedValue({ task_id: 'b', files: [{ file_id: 'file-b', filename: '匿名论文.pdf', purpose: 'anonymous' }] })
   api.getFileContent.mockResolvedValue(new Blob(['%PDF-test'], { type: 'application/pdf' }))
@@ -48,6 +58,7 @@ async function mountPage(path = '/expert/review?task_id=b', page = ReviewWorkspa
     routes: [
       { path: '/expert/review', component: ReviewWorkspacePage },
       { path: '/expert/tasks', component: ExpertTasksPage },
+      { path: '/expert/invitation', component: InvitationPage },
     ],
   })
   await router.push(path)
@@ -64,6 +75,18 @@ async function mountPage(path = '/expert/review?task_id=b', page = ReviewWorkspa
 }
 
 describe('real expert workspace', () => {
+  it('renders a real invitation without invented fee or deadline and lets the expert reject it', async () => {
+    api.listExpertTasks.mockResolvedValue([{ id: 'invite-1', status: 'INVITED' }])
+    api.getInvitation.mockResolvedValue({ id: 'invite-1', status: 'INVITED', anonymous_id: 'A-001',
+      anonymous_title: '匿名论文', discipline_code: '0812', discipline_name: '计算机科学与技术' })
+    const { wrapper } = await mountPage('/expert/invitation', InvitationPage)
+    expect(wrapper.text()).toContain('匿名论文')
+    expect(wrapper.text()).not.toContain('正在加载邀请信息')
+    expect(wrapper.text()).not.toContain('评阅费')
+    expect(wrapper.text()).not.toContain('¥')
+    await wrapper.get('[data-action="open-reject-dialog"]').trigger('click')
+    expect(wrapper.text()).toContain('拒绝任务')
+  })
   it('loads the explicit task and its PDF, with no demo content', async () => {
     const { wrapper } = await mountPage()
     expect(api.getReviewDraft).toHaveBeenCalledWith('b')
@@ -136,6 +159,14 @@ describe('real expert workspace', () => {
     const { wrapper } = await mountPage('/expert/tasks', ExpertTasksPage)
     expect(wrapper.get('[data-action="continue-review"]').attributes('href')).toBe('/expert/review?task_id=b')
   })
+  it('does not show an invented zero fee for real invitations', async () => {
+    api.listExpertTasks.mockResolvedValue([{ ...rows[1], status: 'INVITED', allowed_actions: ['ACCEPT_TASK'] }])
+    const { wrapper } = await mountPage('/expert/tasks', ExpertTasksPage)
+    expect(wrapper.text()).not.toContain('费用')
+    expect(wrapper.text()).not.toContain('¥ 0.00')
+    await wrapper.get('[data-action="accept-task"]').trigger('click')
+    expect(wrapper.text()).not.toContain('¥ 0.00')
+  })
   it('accepts and opens the exact invited task', async () => {
     api.listExpertTasks.mockResolvedValue([{ ...rows[1], status: 'INVITED', allowed_actions: ['ACCEPT_TASK'] }])
     const { wrapper, router } = await mountPage('/expert/tasks', ExpertTasksPage)
@@ -150,11 +181,12 @@ describe('real expert workspace', () => {
     const { wrapper } = await mountPage()
     api.listExpertTasks.mockResolvedValue([{ ...rows[1], status: 'SUBMITTED' }, rows[0]])
     api.getReviewResult.mockResolvedValue({ ...score, overallComment: '正式意见 B' })
-    wrapper.getComponent(ReviewFormPane).vm.$emit('submit', score)
+    const ack = { payload_hash: 'a'.repeat(64), rule_version: 'v1', codes: ['SHORT_OVERALL'] }
+    wrapper.getComponent(ReviewFormPane).vm.$emit('submit', score, ack)
     await flushPromises()
     await wrapper.get('[data-action="confirm-submit-review"]').trigger('click')
     await flushPromises()
-    expect(api.submitFinalReview).toHaveBeenCalledWith('b', score)
+    expect(api.submitFinalReview).toHaveBeenCalledWith('b', score, ack)
     expect(wrapper.getComponent(ReviewFormPane).props('locked')).toBe(true)
     expect(wrapper.get('textarea[name="overallComment"]').element).toHaveProperty('value', '正式意见 B')
     expect(wrapper.find('iframe').exists()).toBe(false)

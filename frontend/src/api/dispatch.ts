@@ -1,7 +1,10 @@
+import type { StatusFilter } from './dashboard'
+import { scopeOptions, type TimeScope, type TimeScopeReporter } from './timeScope'
 import { httpApi, type RequestOptions } from './request'
 
 export interface DispatchQueueItem {
   thesis_id: string
+  tasks?: Array<{ status: string }>
   reassignable_task?: { id: string; expert_id: string } | null
   allowed_actions: string[]
   stage: string
@@ -18,6 +21,15 @@ export interface DispatchCandidate {
   direction_mismatch: boolean
   avoided: boolean
   service_status: string
+  qualification_status: string
+}
+
+export function candidateUnavailableReason(row: DispatchCandidate): string {
+  if (row.avoided) return '回避'
+  if (row.direction_mismatch) return '方向不符'
+  if (row.qualification_status !== 'APPROVED') return '资格未通过'
+  if (row.service_status !== 'AVAILABLE') return '暂停服务'
+  return ''
 }
 
 export interface SchoolProgressTask {
@@ -40,7 +52,9 @@ export interface SchoolProgressRow {
 
 export interface SchoolProgressList {
   items: SchoolProgressRow[]
-  totals: { waiting: number; reviewing: number; completed: number; rejected: number; overdue: number }
+  as_of?: string
+  filtered_count?: number
+  totals: { waiting: number; reviewing: number; completed: number; rejected: number; overdue: number | null }
 }
 
 export function confirmDispatch(thesisId: string, version: number, options?: RequestOptions) {
@@ -51,12 +65,12 @@ export function schoolProgress(thesisId: string) {
   return httpApi.get<SchoolProgressRow>(`/school-review/theses/${thesisId}/progress`)
 }
 
-export function schoolProgressList() {
-  return httpApi.get<SchoolProgressList>('/school-review/progress')
+export function schoolProgressList(scope?: TimeScope, report?: TimeScopeReporter, status: StatusFilter = 'ALL') {
+  return scope === undefined ? httpApi.get<SchoolProgressList>('/school-review/progress') : httpApi.get<SchoolProgressList>('/school-review/progress', { ...scopeOptions(scope, report), params: { time_scope: scope, status_filter: status } })
 }
 
-export function dispatchQueue() {
-  return httpApi.get<DispatchQueueItem[]>('/platform-review/dispatch-queue')
+export function dispatchQueue(scope?: TimeScope, report?: TimeScopeReporter, status: StatusFilter = 'ALL') {
+  return scope === undefined ? httpApi.get<DispatchQueueItem[]>('/platform-review/dispatch-queue') : httpApi.get<DispatchQueueItem[]>('/platform-review/dispatch-queue', { ...scopeOptions(scope, report), params: { time_scope: scope, status_filter: status } })
 }
 
 export function dispatchCandidates(thesisId: string) {

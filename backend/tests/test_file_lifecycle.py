@@ -50,6 +50,7 @@ async def test_same_school_other_student_cannot_prepare(client, db_session):
     student = await login(client, 'student.lin')
     thesis = await create_draft(client, student)
     owner = (await db_session.execute(select(User).where(User.username == 'student.lin'))).scalar_one()
+    await db_session.refresh(owner, attribute_names=["password_hash"])
     member = (await db_session.execute(select(TenantUserMembership).where(TenantUserMembership.user_id == owner.id))).scalar_one()
     other = User(username='same.school.student', password_hash=owner.password_hash, status='ACTIVE')
     db_session.add(other)

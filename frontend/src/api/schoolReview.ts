@@ -1,8 +1,9 @@
+import { scopeOptions, type TimeScope, type TimeScopeReporter } from './timeScope'
 import { httpApi, type RequestOptions } from './request'
 import type { ThesisDetail } from './theses'
 
-export function listSchoolTheses() {
-  return httpApi.get<ThesisDetail[]>('/school-review/theses')
+export function listSchoolTheses(scope?: TimeScope, report?: TimeScopeReporter) {
+  return scope === undefined ? httpApi.get<ThesisDetail[]>('/school-review/theses') : httpApi.get<ThesisDetail[]>('/school-review/theses', scopeOptions(scope, report))
 }
 
 export function getSchoolThesis(id: string) {

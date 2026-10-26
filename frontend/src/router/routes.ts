@@ -31,7 +31,9 @@ export const appRoutes: RouteRecordRaw[] = [
   {
     path: '/platform/experts',
     name: '专家库',
-    component: () => import('@/modules/expert-management/pages/ExpertLibraryPage.vue'),
+    component: () => import.meta.env.VITE_DEMO_MODE === 'true'
+      ? import('@/modules/expert-management/pages/ExpertLibraryPage.vue')
+      : import('@/modules/expert-management/pages/RealExpertLibraryPage.vue'),
     meta: { roleCodes: ['platform_reviewer'], layout: 'admin', pageId: 'PAGE-006' },
   },
   {
@@ -137,5 +139,23 @@ export const appRoutes: RouteRecordRaw[] = [
     name: '学校账户与账单',
     component: () => import('@/modules/school/pages/SchoolAccountPage.vue'),
     meta: { roleCodes: ['school_reviewer'], layout: 'admin', pageId: 'PAGE-024' },
+  },
+  {
+    path: '/school/sensitive-terms',
+    name: '本校材料检测词表',
+    component: () => import('@/modules/school/pages/SensitiveTermsPage.vue'),
+    meta: { roleCodes: ['school_reviewer'], layout: 'admin', pageId: 'PAGE-027' },
+  },
+  {
+    path: '/school/disciplines',
+    name: '本校送审学科',
+    component: () => import('@/modules/school/pages/SchoolDisciplinesPage.vue'),
+    meta: { roleCodes: ['school_reviewer'], layout: 'admin', pageId: 'PAGE-026' },
+  },
+  {
+    path: '/school/members',
+    name: '成员与送审资格',
+    component: () => import('@/modules/school/pages/SchoolMembersPage.vue'),
+    meta: { roleCodes: ['school_reviewer'], layout: 'admin', pageId: 'PAGE-025' },
   },
 ]

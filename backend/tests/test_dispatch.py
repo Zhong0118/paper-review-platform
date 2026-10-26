@@ -157,7 +157,8 @@ async def test_school_progress_waiting_before_assign(client: AsyncClient, seed):
     listed = await client.get("/api/v1/school-review/progress", headers=auth(school))
     assert listed.json()["data"]["totals"]["waiting"] == 1
     assert listed.json()["data"]["items"][0]["tasks"] == []
-    assert listed.json()["data"]["totals"]["overdue"] == 0
+    assert listed.json()["data"]["totals"]["overdue"] is None
+    assert listed.json()["data"]["overdue_status"] == "NOT_CONFIGURED"
 
 
 @pytest.mark.asyncio

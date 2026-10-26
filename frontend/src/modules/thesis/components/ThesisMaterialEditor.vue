@@ -9,6 +9,7 @@ import ThesisFileField from './ThesisFileField.vue'
 
 const props = defineProps<{
   modelValue: StudentDraftInput
+  disciplineOptions?: Array<{code:string;name:string}>
   identityTokens: string[]
 }>()
 const emit = defineEmits<{
@@ -78,7 +79,7 @@ defineExpose({ focusField })
             @input="updateField('abstract', ($event.target as HTMLTextAreaElement).value)"
           ></textarea>
         </label>
-        <DisciplineSelector
+        <DisciplineSelector :options="disciplineOptions"
           :model-value="selectedDiscipline"
           @update:model-value="updateField('discipline', $event)"
         />

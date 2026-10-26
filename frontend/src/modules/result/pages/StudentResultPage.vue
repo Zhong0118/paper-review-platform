@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import TimeScopeSelect from '@/components/app/TimeScopeSelect.vue'
+import { useTimeScope } from '@/composables/useTimeScope'
+import { computed, nextTick, onMounted, ref, watch, onBeforeUnmount } from 'vue'
 import { isAxiosError } from 'axios'
 import { useRoute, useRouter } from 'vue-router'
 
 import BlindRail from '@/components/app/BlindRail.vue'
 import PageHeader from '@/components/app/PageHeader.vue'
 import { useStudentPortalService } from '@/demo/serviceProvider'
-import { getPublishedResult } from '@/api/results'
+import { getPublishedResult, type ReviewOutcome } from '@/api/results'
 import { createObjection, listMyObjections } from '@/api/objections'
 import { listTheses } from '@/api/theses'
 import { toStudentThesisDetail } from '@/api/adapters'
@@ -22,7 +24,9 @@ import StudentObjectionForm from '../components/StudentObjectionForm.vue'
 import StudentObjectionTimeline from '../components/StudentObjectionTimeline.vue'
 import StudentResultSelector from '../components/StudentResultSelector.vue'
 import StudentScoreDimensions from '../components/StudentScoreDimensions.vue'
+import ReviewOutcomeNotice from '../components/ReviewOutcomeNotice.vue'
 
+const timeScope = useTimeScope()
 const demoEnabled = import.meta.env.VITE_DEMO_MODE === 'true'
 const service = demoEnabled ? useStudentPortalService() : null
 const authStore = useAuthStore()
@@ -32,6 +36,7 @@ const router = useRouter()
 const theses = ref<StudentThesisDetail[]>([])
 const selectedThesis = ref<StudentThesisDetail | null>(null)
 const result = ref<StudentResult | null>(null)
+const publishedMeta = ref<{ outcome: ReviewOutcome; ruleVersion: string; correctionPending?: boolean } | null>(null)
 const loading = ref(true)
 const error = ref('')
 const feedback = ref('')
@@ -65,9 +70,11 @@ async function loadSelected(id: string) {
   const request = ++selectionRequest
   selectedThesis.value = null
   result.value = null
+  publishedMeta.value = null
   loading.value = true
   error.value = ''
   feedback.value = ''
+  let loadedMeta: { outcome: ReviewOutcome; ruleVersion: string; correctionPending?: boolean } | null = null
   try {
     const [thesis, publishedResult] = await Promise.all([
       demoEnabled && service ? service.getStudentThesis(id) : listTheses().then((items) => {
@@ -84,6 +91,7 @@ async function loadSelected(id: string) {
             })
             .then(async (data) => {
               if (!data) return null
+              loadedMeta = { outcome: data.outcome, ruleVersion: data.rule_snapshot.version, correctionPending: data.correction_pending }
               const objections = await listMyObjections(id)
               const latest = objections[0]
               return {
@@ -91,7 +99,11 @@ async function loadSelected(id: string) {
                 totalScore: data.total,
                 conclusion: data.items[0]?.recommendation ?? '',
                 publishedAt: '',
-                dimensions: [],
+                dimensions: data.rule_snapshot.dimensions.map((dimension) => ({
+                  key: dimension.key, label: dimension.label,
+                  score: data.items[0]?.scores[dimension.key] ?? 0,
+                  maxScore: dimension.max_score,
+                })),
                 results: data.items.map((item) => ({
                   expertAlias: item.alias,
                   score: item.total,
@@ -117,6 +129,7 @@ async function loadSelected(id: string) {
     if (request !== selectionRequest) return
     selectedThesis.value = thesis
     result.value = publishedResult
+    publishedMeta.value = loadedMeta
   } catch (loadError) {
     if (request === selectionRequest) error.value = errorMessage(loadError)
   } finally {
@@ -124,16 +137,22 @@ async function loadSelected(id: string) {
   }
 }
 
-async function loadPage() {
+let listGeneration = 0
+async function loadPage(allowDeepLink = true) {
+  const request = ++listGeneration
+  selectionRequest++; selectedThesis.value = null; result.value = null; publishedMeta.value = null
   loading.value = true
   error.value = ''
   try {
-    theses.value =
+    const loaded =
       demoEnabled && service
         ? await service.listStudentTheses()
-        : (await listTheses()).map(toStudentThesisDetail)
+        : (await listTheses(...timeScope.request())).map(toStudentThesisDetail)
+    if (request !== listGeneration) return
+    theses.value = loaded
     const queryId = typeof route.query.thesisId === 'string' ? route.query.thesisId : ''
     const selected = theses.value.find((thesis) => thesis.id === queryId) ?? theses.value[0]
+    if (!selected && queryId && allowDeepLink) { await loadSelected(queryId); return }
     if (!selected) {
       selectedThesis.value = null
       result.value = null
@@ -144,9 +163,10 @@ async function loadPage() {
     }
     await loadSelected(selected.id)
   } catch (loadError) {
+    if (request !== listGeneration) return
     error.value = errorMessage(loadError)
   } finally {
-    loading.value = false
+    if (request === listGeneration) loading.value = false
   }
 }
 
@@ -223,13 +243,15 @@ watch(
 )
 
 onMounted(() => void loadPage())
+watch([timeScope.scope, timeScope.identity], () => { if (!demoEnabled && authStore.user) void loadPage(false) })
+onBeforeUnmount(() => { listGeneration++; selectionRequest++ })
 </script>
 
 <template>
   <PortalLayout
     :menu-items="portalMenus('student', demoEnabled)"
     active-path="/student/results"
-    context-label="学生端 · 海岳大学"
+    :context-label="demoEnabled ? '学生端 · 海岳大学' : '学生端 · ' + (authStore.user?.tenantCode ?? '本校')"
     :user-name="authStore.user?.displayName ?? '林知远'"
     :background-locked="Boolean(confirmationInput) || demoDialogOpen"
   >
@@ -239,6 +261,7 @@ onMounted(() => void loadPage())
         title="评审结果与异议"
         description="按本人论文查看公开进度和已发布结果；专家真实身份、联系方式和内部处理记录始终隐藏。"
       />
+      <TimeScopeSelect v-if="!demoEnabled" :model-value="timeScope.scope.value" :meta="timeScope.meta.value" @update:model-value="timeScope.setScope" />
       <BlindRail
         audience="本人论文的公开进度、匿名评阅结果与异议状态"
         hidden-from="专家姓名、联系方式和内部处理记录"
@@ -249,7 +272,7 @@ onMounted(() => void loadPage())
       <section v-if="loading" class="student-result-page__state">正在加载本人论文…</section>
       <section v-else-if="error" class="student-result-page__state" role="alert">
         <p>{{ error }}</p>
-        <button type="button" data-action="reload-results" @click="loadPage">重新加载</button>
+        <button type="button" data-action="reload-results" @click="loadPage()">重新加载</button>
       </section>
       <section v-else-if="!selectedThesis" class="student-result-page__state">
         暂无本人论文记录。
@@ -291,6 +314,9 @@ onMounted(() => void loadPage())
             </div>
           </section>
 
+          <p v-if="!demoEnabled && publishedMeta?.correctionPending" role="status">更正处理中，学校确认前旧结果继续有效。</p>
+          <ReviewOutcomeNotice v-if="!demoEnabled && publishedMeta" :outcome="publishedMeta.outcome" :rule-version="publishedMeta.ruleVersion" />
+
           <StudentScoreDimensions :dimensions="result.dimensions" />
           <AnonymousResultTable :rows="result.results" />
           <StudentObjectionTimeline v-if="result.objection" :objection="result.objection" />
@@ -306,7 +332,7 @@ onMounted(() => void loadPage())
 
     <StudentDemoScenarioController
       :enabled="demoEnabled"
-      @changed="loadPage"
+      @changed="loadPage()"
       @reset-dialog-change="demoDialogOpen = $event"
     />
 

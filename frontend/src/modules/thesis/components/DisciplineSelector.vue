@@ -27,7 +27,9 @@ const open = ref(false)
 const activeIndex = ref(-1)
 const placement = ref<'top' | 'bottom'>('bottom')
 
-const filteredOptions = computed(() => searchDisciplines(query.value))
+const filteredOptions = computed(() => props.options === undefined
+  ? searchDisciplines(query.value)
+  : props.options.filter(item => `${item.code} ${item.name}`.toLowerCase().includes(query.value.trim().toLowerCase())))
 const activeOption = computed(() => filteredOptions.value[activeIndex.value])
 const activeDescendant = computed(() =>
   activeOption.value ? optionId(activeOption.value.code) : undefined,
@@ -155,6 +157,7 @@ onBeforeUnmount(() => {
       <b aria-hidden="true">⌄</b>
     </button>
 
+    <p v-if="options !== undefined && modelValue && !options.some(item => item.code === modelValue?.code)">已保存的历史学科，当前不可新选；提交前请核对学校开放范围。</p>
     <div v-if="open" class="discipline-selector__popover" :data-placement="placement">
       <input
         ref="searchInput"

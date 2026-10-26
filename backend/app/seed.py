@@ -1,12 +1,13 @@
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from sqlalchemy import select
+import json
+
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.security import hash_password
-from app.modules.expert.models import Expert
 from app.modules.tenant.models import DisciplineCatalog, Organization, ReviewBatch, Tenant
 from app.modules.user.models import (
     Role,
@@ -55,16 +56,24 @@ async def _user(session: AsyncSession, username: str, display_name: str, passwor
 
 
 async def _tenant(session: AsyncSession, code: str, name: str) -> Tenant:
-    found = (await session.execute(select(Tenant).where(Tenant.code == code))).scalar_one_or_none()
+    # Explicit legacy columns keep historical migration fixtures independent of new metadata.
+    from types import SimpleNamespace
+    found = (await session.execute(text('SELECT id,code,name FROM tenants WHERE code=:code'), {'code':code})).mappings().one_or_none()
     if found:
-        return found
-    tenant = Tenant(id=uuid4(), code=code, name=name, status="ACTIVE")
-    session.add(tenant)
-    await session.flush()
-    return tenant
+        return SimpleNamespace(**found)
+    tenant_id = uuid4()
+    await session.execute(text("INSERT INTO tenants (id,code,name,status,sync_mapping,config_version) VALUES (:id,:code,:name,'ACTIVE','{}',1)"),
+                          {'id':tenant_id,'code':code,'name':name})
+    return SimpleNamespace(id=tenant_id,code=code,name=name)
+
+
+def _require_development_seed() -> None:
+    if get_settings().app_env == "production":
+        raise RuntimeError("demo seed is forbidden in production")
 
 
 async def seed_database(session: AsyncSession) -> None:
+    _require_development_seed()
     settings = get_settings()
     password = settings.seed_password
     now = datetime.now(timezone.utc)
@@ -114,10 +123,11 @@ async def seed_database(session: AsyncSession) -> None:
     demo_batch = await batch_for(demo, "2026-spring", "2026 年春季硕士论文盲审")
     other_batch = await batch_for(other, "2026-spring", "2026 年春季硕士论文盲审")
 
-    for code, name in (("0812", "计算机科学与技术"), ("0835", "软件工程")):
-        exists = (await session.execute(select(DisciplineCatalog).where(DisciplineCatalog.code == code))).scalar_one_or_none()
-        if not exists:
-            session.add(DisciplineCatalog(id=uuid4(), code=code, name=name, is_active=True))
+    from app.modules.tenant.catalog_data import official_bundle
+    for item in official_bundle()['disciplines']:
+        await session.execute(text("INSERT INTO discipline_catalog (id,code,name,is_active) VALUES (:id,:code,:name,true) ON CONFLICT (code) DO NOTHING"),
+                              {'id':uuid4(),'code':item['code'],'name':item['name']})
+
 
     student = await _user(session, "student.lin", "林知远", password)
     school = await _user(session, "school.wang", "王老师", password)
@@ -192,7 +202,10 @@ async def seed_database(session: AsyncSession) -> None:
 
     elig = (
         await session.execute(
-            select(StudentEligibility).where(StudentEligibility.student_membership_id == student_m.id)
+            select(StudentEligibility).where(
+                StudentEligibility.student_membership_id == student_m.id,
+                StudentEligibility.review_batch_id == demo_batch.id,
+            )
         )
     ).scalar_one_or_none()
     if not elig:
@@ -221,7 +234,10 @@ async def seed_database(session: AsyncSession) -> None:
     ).scalar_one()
     other_elig = (
         await session.execute(
-            select(StudentEligibility).where(StudentEligibility.student_membership_id == other_m.id)
+            select(StudentEligibility).where(
+                StudentEligibility.student_membership_id == other_m.id,
+                StudentEligibility.review_batch_id == other_batch.id,
+            )
         )
     ).scalar_one_or_none()
     if not other_elig:
@@ -240,14 +256,23 @@ async def seed_database(session: AsyncSession) -> None:
                 source_updated_at=now,
             )
         )
+    # The acceptance fixture seeds revision 0010 before exercising later migrations.
+    has_qualification = await session.scalar(text("""SELECT EXISTS (
+        SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema()
+        AND table_name='experts' AND column_name='qualification_status')"""))
     for user_obj, codes in ((expert, ["0812"]), (expert_qian, ["0835"])):
-        found_ex = (await session.execute(select(Expert).where(Expert.user_id == user_obj.id))).scalar_one_or_none()
-        if not found_ex:
-            session.add(Expert(id=uuid4(), user_id=user_obj.id, service_status="AVAILABLE", discipline_codes=codes))
+        if not await session.scalar(text('SELECT id FROM experts WHERE user_id=:user_id'), {'user_id': user_obj.id}):
+            extra_column = ', qualification_status' if has_qualification else ''
+            extra_value = ", 'APPROVED'" if has_qualification else ''
+            await session.execute(text(
+                f"INSERT INTO experts (id,user_id,service_status,discipline_codes{extra_column}) "
+                f"VALUES (:id,:user_id,'AVAILABLE',CAST(:codes AS jsonb){extra_value})"),
+                {'id': uuid4(), 'user_id': user_obj.id, 'codes': json.dumps(codes)})
     await session.commit()
 
 
 async def main() -> None:
+    _require_development_seed()
     from app.db.session import SessionLocal
 
     async with SessionLocal() as session:

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref } from 'vue'
 
+import RealCorrectionPanel from '@/modules/result/components/RealCorrectionPanel.vue'
 import BlindRail from '@/components/app/BlindRail.vue'
 import PageHeader from '@/components/app/PageHeader.vue'
 import { useScenarioService } from '@/demo/serviceProvider'
@@ -167,7 +168,7 @@ async function confirmAction() {
 }
 
 onMounted(() => {
-  void loadRequests()
+  if (demoEnabled) void loadRequests()
 })
 </script>
 
@@ -179,7 +180,8 @@ onMounted(() => {
     :user-name="authStore.user?.displayName ?? '陈岚'"
     :background-locked="Boolean(confirmationAction) || Boolean(selectedRequest) || demoDialogOpen"
   >
-    <div ref="pageRoot" class="correction-page">
+    <RealCorrectionPanel v-if="!demoEnabled" mode="platform" />
+    <div v-else ref="pageRoot" class="correction-page">
       <PlatformDemoScenarioController
         :enabled="demoEnabled"
         @changed="loadRequests"

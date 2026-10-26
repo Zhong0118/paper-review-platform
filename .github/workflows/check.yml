@@ -1,0 +1,83 @@
+name: Checks
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: postgres
+          POSTGRES_USER: paper_review_test_runner
+          POSTGRES_PASSWORD: paper_review_ci_only
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U paper_review_test_runner -d postgres"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql+asyncpg://paper_review_test_runner:paper_review_ci_only@127.0.0.1:5433/paper_review_test
+      BUSINESS_DATABASE_URL: postgresql+asyncpg://paper_review_ci_business:paper_review_ci_business_only@127.0.0.1:5433/paper_review_test
+      AUTH_DATABASE_URL: postgresql+asyncpg://paper_review_ci_auth:paper_review_ci_auth_only@127.0.0.1:5433/paper_review_test
+      JWT_SECRET: ci-only-secret-at-least-32-bytes-long
+      SEED_PASSWORD: ci-only-seed-password
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.5.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.12.0
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install backend development dependencies
+        run: |
+          python -m venv backend/.venv
+          backend/.venv/bin/pip install --disable-pip-version-check -e "./backend[dev]"
+
+      - name: Install frontend dependencies
+        run: pnpm --dir frontend install --frozen-lockfile
+
+      - name: Create test database and restricted runtime logins
+        run: |
+          backend/.venv/bin/python - <<'PY'
+          import os
+          import psycopg
+          from psycopg import sql
+          from sqlalchemy.engine import make_url
+
+          admin = make_url(os.environ["DATABASE_URL"]).set(drivername="postgresql", database="postgres")
+          business = make_url(os.environ["BUSINESS_DATABASE_URL"])
+          auth = make_url(os.environ["AUTH_DATABASE_URL"])
+          with psycopg.connect(admin.render_as_string(hide_password=False), autocommit=True) as conn:
+              if not conn.execute("SELECT 1 FROM pg_database WHERE datname = %s", (business.database,)).fetchone():
+                  conn.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(business.database)))
+              for role in (business, auth):
+                  conn.execute(sql.SQL(
+                      "CREATE ROLE {} LOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE "
+                      "NOINHERIT PASSWORD {}"
+                  ).format(sql.Identifier(role.username), sql.Literal(role.password)))
+          for role in (business, auth):
+              with psycopg.connect(role.set(drivername="postgresql").render_as_string(hide_password=False)) as conn:
+                  assert conn.execute("SELECT current_user").fetchone()[0] == role.username
+          PY
+
+      - name: Run checks
+        run: scripts/check.sh

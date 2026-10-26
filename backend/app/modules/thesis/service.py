@@ -1,7 +1,7 @@
+from app.shared.time_scope import apply_thesis_scope
 from starlette.concurrency import run_in_threadpool
 from app.modules.files.pdf import validated_bytes
 from datetime import datetime, timezone
-from hashlib import sha256
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -13,7 +13,7 @@ from app.modules.audit import service as audit_service
 from app.modules.auth.deps import CurrentUser
 from app.modules.files.models import FileObject
 from app.modules.tenant.models import DisciplineCatalog, Organization, ReviewBatch, Tenant
-from app.modules.thesis.detector import run_anonymization_check
+from app.modules.thesis import sensitive_terms
 from app.modules.thesis.models import AnonymizationCheck, Thesis, ThesisVersion, ThesisVersionFile
 from app.modules.user.models import StudentEligibility, TenantUserMembership
 from app.modules.workflow import service as workflow_service
@@ -60,31 +60,33 @@ def _normalize_keywords(keywords: list[str]) -> list[str]:
 
 
 async def _eligibility_for_student(session: AsyncSession, user: CurrentUser) -> StudentEligibility:
+    from app.modules.tenant import service as tenant_service
+
     if user.role != RoleCode.STUDENT or user.tenant_id is None:
         raise AppError("ACCESS_DENIED", 403, "无权执行该操作")
+    candidate, _ = await tenant_service.current_student_eligibility(session, user.id, user.tenant_id)
+    batch = await tenant_service.get_batch(session, user.tenant_id, candidate.review_batch_id, lock=True)
     membership = (
         await session.execute(
             select(TenantUserMembership).where(
+                TenantUserMembership.id == candidate.student_membership_id,
                 TenantUserMembership.user_id == user.id,
                 TenantUserMembership.tenant_id == user.tenant_id,
                 TenantUserMembership.membership_type == "STUDENT",
-            )
+            ).with_for_update().execution_options(populate_existing=True)
         )
     ).scalar_one_or_none()
-    if membership is None:
-        raise AppError("ACCESS_DENIED", 403, "无权执行该操作")
     elig = (
         await session.execute(
             select(StudentEligibility).where(
-                StudentEligibility.student_membership_id == membership.id,
+                StudentEligibility.id == candidate.id,
                 StudentEligibility.tenant_id == user.tenant_id,
-            )
+                StudentEligibility.student_membership_id == candidate.student_membership_id,
+                StudentEligibility.review_batch_id == batch.id,
+            ).with_for_update().execution_options(populate_existing=True)
         )
     ).scalar_one_or_none()
-    if elig is None or elig.status != "ELIGIBLE":
-        raise AppError("ACCESS_DENIED", 403, "当前没有有效送审资格")
-    batch = await session.get(ReviewBatch, elig.review_batch_id)
-    if batch is None or batch.status != "OPEN":
+    if membership is None or not membership.is_active or elig is None or elig.status != "ELIGIBLE" or batch.status != "OPEN":
         raise AppError("ACCESS_DENIED", 403, "当前没有有效送审资格")
     return elig
 
@@ -130,6 +132,7 @@ def allowed_actions(
     submitted_before: bool,
     *,
     has_open_objection: bool = False,
+    stale_check: bool = False,
 ) -> list[str]:
     actions: list[str] = []
     if role == RoleCode.STUDENT:
@@ -142,7 +145,7 @@ def allowed_actions(
         if thesis.stage == ThesisStage.COMPLETED and not has_open_objection:
             actions.append("SUBMIT_OBJECTION")
     if role == RoleCode.SCHOOL_REVIEWER and thesis.stage == ThesisStage.PREPARING:
-        if check is None or check.auto_conclusion != AnonymizationConclusion.FAIL:
+        if not stale_check and check is not None and check.auto_conclusion != AnonymizationConclusion.FAIL:
             actions.append("CONFIRM_ANONYMIZATION")
         actions.append("REJECT_ANONYMIZATION")
     if role == RoleCode.SCHOOL_REVIEWER and thesis.stage == ThesisStage.READY_FOR_DISPATCH:
@@ -170,6 +173,7 @@ async def serialize_thesis(session: AsyncSession, user: CurrentUser, thesis: The
             for link, f in rows
         ]
     check = await _latest_check(session, thesis)
+    stale_check = await sensitive_terms.is_stale(session, thesis, check)
     events = await _events(session, thesis.id)
     submitted_before = any(e.action == "submit" for e in events)
     has_open_objection = False
@@ -200,6 +204,7 @@ async def serialize_thesis(session: AsyncSession, user: CurrentUser, thesis: The
             "name": elig.student_name,
             "student_no": elig.student_no,
             "supervisor_name": elig.supervisor_name,
+            "degree_type": elig.degree_type,
             "tenant_name": tenant.name if tenant else "",
             "college_name": org.name if org else "",
         }
@@ -209,15 +214,15 @@ async def serialize_thesis(session: AsyncSession, user: CurrentUser, thesis: The
         "version": thesis.version,
         "return_reason": thesis.return_reason,
         "allowed_actions": allowed_actions(
-            user.role, thesis, check, submitted_before, has_open_objection=has_open_objection
+            user.role, thesis, check, submitted_before, has_open_objection=has_open_objection, stale_check=stale_check
         ),
         "student": student_block,
         "batch_name": batch.name if batch else "",
-        "anonymization": {
-            "auto_conclusion": check.auto_conclusion if check else None,
-            "manual_conclusion": check.manual_conclusion if check else None,
-            "findings": check.findings if check else [],
-        },
+        "review_batch": {
+            "id": str(batch.id), "name": batch.name,
+            "end_at": batch.end_at.isoformat() if batch.end_at else None,
+        } if batch else None,
+        "anonymization": sensitive_terms.serialize_report(check, stale_check),
         "current_version": None
         if version is None
         else {
@@ -240,6 +245,8 @@ async def serialize_thesis(session: AsyncSession, user: CurrentUser, thesis: The
 async def create_draft(session: AsyncSession, user: CurrentUser, data: DraftInput) -> Thesis:
     elig = await _eligibility_for_student(session, user)
     await _require_discipline(session, data.discipline_code, data.discipline_name)
+    from app.modules.tenant.catalog_service import require_school_discipline
+    await require_school_discipline(session, user.tenant_id, data.discipline_code)
     keywords = _normalize_keywords(data.keywords)
     existing = (
         await session.execute(
@@ -304,7 +311,7 @@ async def get_student_thesis(
     return thesis
 
 
-async def list_student_theses(session: AsyncSession, user: CurrentUser) -> list[Thesis]:
+async def list_student_theses(session: AsyncSession, user: CurrentUser, *, time_scope="all", as_of=None) -> list[Thesis]:
     if user.role != RoleCode.STUDENT or user.tenant_id is None:
         raise AppError("ACCESS_DENIED", 403, "无权执行该操作")
     membership = (
@@ -319,7 +326,7 @@ async def list_student_theses(session: AsyncSession, user: CurrentUser) -> list[
     return list(
         (
             await session.execute(
-                select(Thesis).where(Thesis.student_membership_id == membership.id).order_by(Thesis.created_at.desc())
+                apply_thesis_scope(select(Thesis).where(Thesis.student_membership_id == membership.id).order_by(Thesis.created_at.desc()), time_scope, as_of)
             )
         ).scalars()
     )
@@ -329,10 +336,13 @@ async def patch_draft(session: AsyncSession, user: CurrentUser, thesis_id: UUID,
     thesis = await get_student_thesis(session, user, thesis_id, for_update=True)
     if thesis.stage != ThesisStage.DRAFT:
         raise AppError("STATE_TRANSITION_DENIED", 409, "当前状态不允许编辑")
-    await _require_discipline(session, data.discipline_code, data.discipline_name)
     version = await session.get(ThesisVersion, thesis.current_version_id, populate_existing=True)
     if version is None or not version.is_editable:
         raise AppError("STATE_TRANSITION_DENIED", 409, "当前版本不可编辑")
+    if (version.discipline_code,version.discipline_name) != (data.discipline_code,data.discipline_name):
+        await _require_discipline(session, data.discipline_code, data.discipline_name)
+        from app.modules.tenant.catalog_service import require_school_discipline
+        await require_school_discipline(session, user.tenant_id, data.discipline_code)
     version.title = data.title
     version.abstract = data.abstract
     version.discipline_code = data.discipline_code
@@ -364,7 +374,9 @@ async def _clone_editable_version(session: AsyncSession, thesis: Thesis) -> Thes
         await session.execute(select(ThesisVersionFile).where(ThesisVersionFile.thesis_version_id == old.id))
     ).scalars()
     for link in files:
-        session.add(ThesisVersionFile(thesis_version_id=new.id, file_id=link.file_id, purpose=link.purpose))
+        session.add(ThesisVersionFile(thesis_version_id=new.id, thesis_id=thesis.id,
+                                      tenant_id=thesis.tenant_id, file_id=link.file_id,
+                                      purpose=link.purpose))
     thesis.current_version_id = new.id
     await session.flush()
     return new
@@ -372,12 +384,20 @@ async def _clone_editable_version(session: AsyncSession, thesis: Thesis) -> Thes
 
 async def submit(session: AsyncSession, user: CurrentUser, thesis_id: UUID, expected_version: int, request_id: str | None) -> Thesis:
     locked = await get_student_thesis(session, user, thesis_id, for_update=True)
-    elig = await _eligibility_for_student(session, user)
+    elig = (await session.execute(select(StudentEligibility).where(
+        StudentEligibility.student_membership_id == locked.student_membership_id,
+        StudentEligibility.review_batch_id == locked.review_batch_id,
+    ))).scalar_one_or_none()
+    if elig is None:
+        raise AppError("VALIDATION_FAILED", 422, "论文缺少原批次送审资格")
     if locked.stage != ThesisStage.DRAFT:
         raise AppError("STATE_TRANSITION_DENIED", 409, "当前状态不允许提交")
     version = await session.get(ThesisVersion, locked.current_version_id, populate_existing=True)
     if version is None:
         raise AppError("VALIDATION_FAILED", 422, "缺少论文版本")
+    await _require_discipline(session, version.discipline_code, version.discipline_name)
+    from app.modules.tenant.catalog_service import require_school_discipline
+    await require_school_discipline(session, user.tenant_id, version.discipline_code)
     files = {
         link.purpose: link
         for link in (
@@ -414,15 +434,8 @@ async def submit(session: AsyncSession, user: CurrentUser, thesis_id: UUID, expe
         request_id=request_id,
     )
     anonymous, body = checked[FilePurpose.ANONYMOUS]
-    conclusion, findings = await run_in_threadpool(run_anonymization_check, version, elig, anonymous, body)
-    session.add(
-        AnonymizationCheck(
-            thesis_version_id=version.id,
-            auto_conclusion=conclusion,
-            findings=findings,
-            detector_version="v2-pdf",
-        )
-    )
+    report = await sensitive_terms.create_report(session, user, locked, version, elig, anonymous, body)
+    conclusion = report.auto_conclusion
     if conclusion == AnonymizationConclusion.FAIL:
         await workflow_service.transition(
             session,
@@ -474,7 +487,8 @@ async def delete_draft(session: AsyncSession, user: CurrentUser, thesis_id: UUID
     )).scalars())
     await session.execute(delete(ThesisVersionFile).where(ThesisVersionFile.thesis_version_id.in_(version_ids)))
     # Keep file bytes and audit history; detached uploads can no longer write to a draft.
-    await session.execute(update(FileObject).where(FileObject.upload_version_id.in_(version_ids)).values(upload_version_id=None))
+    await session.execute(update(FileObject).where(FileObject.thesis_id == thesis.id)
+                          .values(upload_version_id=None, thesis_id=None))
     thesis.current_version_id = None
     await session.flush()
     await session.execute(delete(ThesisVersion).where(ThesisVersion.id.in_(version_ids)))
@@ -483,13 +497,13 @@ async def delete_draft(session: AsyncSession, user: CurrentUser, thesis_id: UUID
     await session.flush()
 
 
-async def list_school_theses(session: AsyncSession, user: CurrentUser) -> list[Thesis]:
+async def list_school_theses(session: AsyncSession, user: CurrentUser, *, time_scope="all", as_of=None) -> list[Thesis]:
     if user.role != RoleCode.SCHOOL_REVIEWER or user.tenant_id is None:
         raise AppError("ACCESS_DENIED", 403, "无权执行该操作")
     return list(
         (
             await session.execute(
-                select(Thesis).where(Thesis.tenant_id == user.tenant_id).order_by(Thesis.updated_at.desc())
+                apply_thesis_scope(select(Thesis).where(Thesis.tenant_id == user.tenant_id).order_by(Thesis.updated_at.desc()), time_scope, as_of)
             )
         ).scalars()
     )
@@ -541,6 +555,12 @@ async def confirm_anonymization(
             raise AppError("STATE_TRANSITION_DENIED", 409, "当前状态不允许确认")
         if check is None or check.auto_conclusion == AnonymizationConclusion.FAIL:
             raise AppError("ANONYMIZATION_FAILED", 422, "匿名检测未通过，不能确认送审")
+        if await sensitive_terms.is_stale(session, locked, check):
+            raise AppError("VERSION_CONFLICT", 409, "检测依据已变化，请重新检测后确认")
+        anonymous = await sensitive_terms.anonymous_file(session, locked)
+        await run_in_threadpool(validated_bytes, anonymous)
+        if any(f.get("kind") == "SCHOOL_TERM" and f.get("severity") == "WARN" for f in check.findings) and not (body.reason or "").strip():
+            raise AppError("VALIDATION_FAILED", 422, "确认学校词表提示需填写人工核验理由")
         check.manual_conclusion = AnonymizationConclusion.PASS
         await workflow_service.transition(
             session,
@@ -548,6 +568,7 @@ async def confirm_anonymization(
             to_stage=ThesisStage.READY_FOR_DISPATCH,
             action="confirm_anonymization",
             actor=user,
+            reason=body.reason,
             expected_version=body.version,
             request_id=request_id,
         )
@@ -576,38 +597,12 @@ async def confirm_anonymization(
 
 
 async def remember_idempotent(session: AsyncSession, user: CurrentUser, key: str | None, route: str, payload: dict) -> dict | None:
-    from app.modules.audit.models import IdempotencyKey
-
-    if not key:
-        return None
-    request_hash = sha256(repr(sorted(payload.items())).encode()).hexdigest()
-    existing = (
-        await session.execute(
-            select(IdempotencyKey).where(IdempotencyKey.user_id == user.id, IdempotencyKey.key == key)
-        )
-    ).scalar_one_or_none()
-    if existing:
-        if existing.request_hash != request_hash:
-            raise AppError("IDEMPOTENCY_CONFLICT", 409, "同一幂等键用于不同请求")
-        return existing.response_body
-    return None
+    return await audit_service.replay(session, user, key, route, payload)
 
 
 async def store_idempotent(
     session: AsyncSession, user: CurrentUser, key: str | None, route: str, payload: dict, response_body: dict, code: int = 200
 ) -> None:
-    from app.modules.audit.models import IdempotencyKey
-
-    if not key:
-        return
-    request_hash = sha256(repr(sorted(payload.items())).encode()).hexdigest()
-    session.add(
-        IdempotencyKey(
-            user_id=user.id,
-            key=key,
-            route=route,
-            request_hash=request_hash,
-            response_code=code,
-            response_body=response_body,
-        )
+    await audit_service.remember(
+        session, user, key, route, payload, response_body, code
     )

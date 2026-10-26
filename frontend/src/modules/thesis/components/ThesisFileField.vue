@@ -17,6 +17,7 @@ const emit = defineEmits<{
   'native-file': [value: { purpose: ThesisFileMeta['purpose']; file: File }]
 }>()
 
+const demoEnabled = import.meta.env.VITE_DEMO_MODE === 'true'
 const input = ref<HTMLInputElement>()
 const progress = ref(0)
 const error = ref('')
@@ -105,7 +106,8 @@ onBeforeUnmount(cancelValidation)
     <div class="file-field__heading">
       <div>
         <strong>{{ label }}</strong>
-        <small>仅支持 PDF；这里只保存文件元数据，不保存文件正文。</small>
+        <small v-if="demoEnabled">仅支持 PDF；这里只保存文件元数据，不保存文件正文。</small>
+        <small v-else>仅支持 PDF 文件将受控保存 匿名版请先进行检测</small>
       </div>
       <label class="file-field__choose">
         {{ current ? '重新选择' : error ? '重新选择 PDF' : '选择 PDF' }}
@@ -133,7 +135,7 @@ onBeforeUnmount(cancelValidation)
     </div>
 
     <p v-if="hasAnonymousRisk" class="file-field__warning" role="alert">
-      请检查文件名和正文中的身份线索；当前只检查文件名，正文尚未自动检测。
+      {{ demoEnabled ? '请检查文件名和正文中的身份线索；当前只检查文件名，正文尚未自动检测。' : '文件名存在疑似身份线索 请查看匿名材料检测报告并核对正文' }}
     </p>
   </section>
 </template>

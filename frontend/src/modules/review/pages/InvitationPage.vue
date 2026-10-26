@@ -54,7 +54,7 @@ onMounted(async () => {
       task.value = tasks.find((t) => t.status === 'INVITED') ?? tasks[0] ?? null
     } else {
       const tasks = await listExpertTasks()
-      const invited = tasks.find((t) => t.status === 'INVITED') ?? tasks[0]
+      const invited = tasks.find((t) => t.status === 'INVITED')
       task.value = invited
         ? ({
             id: invited.id,
@@ -216,7 +216,7 @@ async function confirmReject() {
       <PageHeader
         eyebrow="PAGE-009 · REVIEW INVITATION"
         title="评审邀请"
-        description="确认专业匹配、截止时间、评阅费和回避声明后决定是否接单；拒绝需选择原因并等待平台改派。"
+        :description="demoEnabled ? '确认专业匹配、截止时间、评阅费和回避声明后决定是否接单；拒绝需选择原因并等待平台改派。' : '确认专业匹配与回避声明后决定是否接单；拒绝需选择原因并等待平台改派。'"
       />
       <BlindRail
         audience="匿名概要、任务规则与本人回避声明"
@@ -241,7 +241,7 @@ async function confirmReject() {
             <dt>匿名题目</dt>
             <dd>{{ task.anonymousTitle }}</dd>
           </div>
-          <div>
+          <div v-if="demoEnabled">
             <dt>匿名摘要</dt>
             <dd>{{ task.abstract }}</dd>
           </div>
@@ -249,26 +249,26 @@ async function confirmReject() {
             <dt>送审方向</dt>
             <dd>{{ task.discipline.name }}</dd>
           </div>
-          <div>
+          <div v-if="demoEnabled">
             <dt>匹配说明</dt>
             <dd>{{ task.matchNote }}</dd>
           </div>
-          <div>
+          <div v-if="demoEnabled">
             <dt>接单截止</dt>
             <dd><time>{{ task.acceptBy }}</time></dd>
           </div>
-          <div>
+          <div v-if="demoEnabled">
             <dt>评阅截止</dt>
             <dd><time>{{ task.dueAt }}</time></dd>
           </div>
-          <div>
+          <div v-if="demoEnabled">
             <dt>评审费用</dt>
             <dd>
               <strong>¥ {{ task.fee.toFixed(2) }}</strong>
               <span class="invite-sheet__fee-note">{{ task.feeNote }}</span>
             </dd>
           </div>
-          <div>
+          <div v-if="demoEnabled">
             <dt>评审模板</dt>
             <dd>{{ task.templateNote }}</dd>
           </div>
@@ -321,9 +321,8 @@ async function confirmReject() {
             接受后视同同意双盲评阅约定与回避声明：仅可见匿名版论文材料，不得向任何第三方披露评审内容，也不得联系论文作者。
           </p>
           <p>
-            任务 <strong>{{ task.anonymousId }}</strong> · 评阅截止
-            <time>{{ task.dueAt }}</time> · 费用
-            <strong>¥ {{ task.fee.toFixed(2) }}</strong>
+            任务 <strong>{{ task.anonymousId }}</strong>
+            <template v-if="demoEnabled"> · 评阅截止 <time>{{ task.dueAt }}</time> · 费用 <strong>¥ {{ task.fee.toFixed(2) }}</strong></template>
           </p>
           <p v-if="acceptError" class="action-dialog__error" role="alert">{{ acceptError }}</p>
           <footer>

@@ -16,7 +16,12 @@ async def test_workspace_actions_and_formal_result(client, seed):
     assert (await client.get(f"/api/v1/expert/tasks/{task_id}/result", headers=auth(expert))).status_code == 404
     await client.put(f"/api/v1/expert/tasks/{task_id}/draft", headers=auth(expert), json=VALID_DRAFT)
     final = {**VALID_DRAFT, "overallComment": "正式意见不同于草稿", "topicValue": 10}
-    assert (await client.post(f"/api/v1/expert/tasks/{task_id}:submit-final", headers=auth(expert), json=final)).status_code == 200
+    preview = await client.post(f"/api/v1/expert-tasks/{task_id}/review-checks", headers=auth(expert), json={"payload": final})
+    assert preview.status_code == 200
+    report = preview.json()["data"]
+    ack = {key: report[key] for key in ("payload_hash", "rule_version")}
+    ack["codes"] = sorted({item["code"] for item in report["findings"]})
+    assert (await client.post(f"/api/v1/expert/tasks/{task_id}:submit-final", headers=auth(expert), json={**final, "check_ack": ack})).status_code == 200
     result = await client.get(f"/api/v1/expert/tasks/{task_id}/result", headers=auth(expert))
     assert result.status_code == 200
     assert result.json()["data"]["overallComment"] == final["overallComment"]

@@ -1,3 +1,4 @@
+import { scopeOptions, type TimeScope, type TimeScopeReporter } from './timeScope'
 import { httpApi } from './request'
 
 export interface ExpertTaskRow {
@@ -20,8 +21,8 @@ export interface ExpertInvitation {
   fee: string
 }
 
-export function listExpertTasks() {
-  return httpApi.get<ExpertTaskRow[]>('/expert/tasks')
+export function listExpertTasks(scope?: TimeScope, report?: TimeScopeReporter) {
+  return scope === undefined ? httpApi.get<ExpertTaskRow[]>('/expert/tasks') : httpApi.get<ExpertTaskRow[]>('/expert/tasks', scopeOptions(scope, report))
 }
 
 export function getInvitation(taskId: string) {

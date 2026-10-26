@@ -1,3 +1,5 @@
+import type { SensitiveReport } from './sensitiveChecks'
+import { scopeOptions, type TimeScope, type TimeScopeReporter } from './timeScope'
 import { httpApi, type RequestOptions } from './request'
 
 export interface ThesisFileRef {
@@ -12,11 +14,7 @@ export interface ThesisDetail {
   version: number
   return_reason: string | null
   allowed_actions: string[]
-  anonymization: {
-    auto_conclusion: string | null
-    manual_conclusion: string | null
-    findings: Array<{ field: string; matched_text: string; location: string }>
-  }
+  anonymization: SensitiveReport
   current_version: {
     id: string
     title: string
@@ -32,10 +30,12 @@ export interface ThesisDetail {
     name: string
     student_no: string
     supervisor_name: string | null
+    degree_type?: string | null
     tenant_name: string
     college_name: string
   } | null
   batch_name?: string
+  review_batch?: { id: string; name: string; end_at: string | null } | null
 }
 
 export interface DraftPayload {
@@ -46,8 +46,8 @@ export interface DraftPayload {
   keywords: string[]
 }
 
-export function listTheses() {
-  return httpApi.get<ThesisDetail[]>('/theses')
+export function listTheses(scope?: TimeScope, report?: TimeScopeReporter) {
+  return scope === undefined ? httpApi.get<ThesisDetail[]>('/theses') : httpApi.get<ThesisDetail[]>('/theses', scopeOptions(scope, report))
 }
 
 export function getThesis(id: string) {

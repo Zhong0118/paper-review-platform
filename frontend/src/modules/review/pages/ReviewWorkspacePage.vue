@@ -5,7 +5,7 @@ import BlindRail from '@/components/app/BlindRail.vue'
 import PageHeader from '@/components/app/PageHeader.vue'
 import StatusTag from '@/components/app/StatusTag.vue'
 import { useScenarioService } from '@/demo/serviceProvider'
-import { getReviewDraft, getReviewResult, saveReviewDraft, submitFinalReview } from '@/api/review'
+import { getReviewDraft, getReviewResult, getReviewRules, saveReviewDraft, submitFinalReview, type ReviewRule } from '@/api/review'
 import { listExpertTasks } from '@/api/expertTasks'
 import type { ExpertTaskSummary, ReviewScoreInput } from '@/demo/types'
 import PortalLayout from '@/layouts/PortalLayout.vue'
@@ -14,6 +14,8 @@ import { useAuthStore } from '@/stores/auth'
 import RealAnonymousDocumentPane from '../components/RealAnonymousDocumentPane.vue'
 import AnonymousDocumentPane from '../components/AnonymousDocumentPane.vue'
 import ReviewFormPane from '../components/ReviewFormPane.vue'
+import type { CheckAck } from '@/api/reviewChecks'
+import RealCorrectionPanel from '@/modules/result/components/RealCorrectionPanel.vue'
 import WorkspaceSplitter from '../components/WorkspaceSplitter.vue'
 import ExpertDemoScenarioController from '@/modules/expert-management/components/ExpertDemoScenarioController.vue'
 
@@ -30,6 +32,7 @@ const notice = ref('')
 const loadError = ref('')
 /** 已保存草稿（刷新后由服务读回并回填表单；服务投影在 expert 视角下可见）。 */
 const draft = ref<ReviewScoreInput | null>(null)
+const rule = ref<ReviewRule | null>(null)
 /** 自动保存指示（演示：保存动作成功后显示，2.4s 后淡出）。 */
 const autosaveVisible = ref(false)
 let autosaveHideTimer: ReturnType<typeof setTimeout> | null = null
@@ -73,6 +76,7 @@ async function loadRealTask() {
   const generation = ++loadGeneration
   task.value = null
   draft.value = null
+  rule.value = null
   locked.value = true
   loadError.value = ''
   notice.value = ''
@@ -95,10 +99,12 @@ async function loadRealTask() {
     if (!current || !['IN_REVIEW', 'SUBMITTED'].includes(current.status)) {
       throw new Error('任务不存在或当前不可评阅，请返回任务列表。')
     }
-    const saved = current.status === 'SUBMITTED'
-      ? await getReviewResult(id)
-      : await getReviewDraft(id)
+    const [loadedRule, saved] = await Promise.all([
+      getReviewRules(id),
+      current.status === 'SUBMITTED' ? getReviewResult(id) : getReviewDraft(id),
+    ])
     if (generation !== loadGeneration) return
+    rule.value = loadedRule
     draft.value = Object.keys(saved).length ? saved as ReviewScoreInput : null
     task.value = {
       id: current.id, status: current.status,
@@ -189,10 +195,12 @@ const submitDialog = ref<HTMLElement | null>(null)
 const submitDialogOpener = ref<HTMLElement | null>(null)
 const submitError = ref('')
 const pendingInput = ref<ReviewScoreInput | null>(null)
+const pendingAck = ref<CheckAck | undefined>()
 
-async function requestSubmit(input: ReviewScoreInput) {
+async function requestSubmit(input: ReviewScoreInput, ack?: CheckAck) {
   if (locked.value || submitPending.value) return
   pendingInput.value = input
+  pendingAck.value = ack
   submitError.value = ''
   if (document.activeElement instanceof HTMLElement) {
     submitDialogOpener.value = document.activeElement
@@ -243,7 +251,7 @@ async function confirmSubmit() {
   submitError.value = ''
   try {
     if (demoEnabled && service) await service.submitFinalReview(input)
-    else await submitFinalReview(id, input)
+    else await submitFinalReview(id, input, pendingAck.value)
     if (generation !== loadGeneration) return
     const refreshGeneration = loadGeneration + (demoEnabled ? 0 : 1)
     await reloadCurrentTask()
@@ -362,6 +370,7 @@ watch(() => route.query.task_id, () => { if (!demoEnabled) void loadRealTask() }
         </template>
       </PageHeader>
       <p v-if="task" class="task-context">{{ task.anonymousId }} · {{ task.anonymousTitle }}</p>
+      <p v-if="!demoEnabled && rule" data-review-rule>评审规则 {{ rule.version }} · {{ rule.dimensions.length }} 维 · {{ rule.dimensions.reduce((sum, item) => sum + item.max_score, 0) }} 分</p>
       <BlindRail
         :audience="submitted ? '本人正式评阅意见' : '匿名版论文材料与本人评阅意见'"
         hidden-from="作者、导师身份、其他专家意见与论文原始版"
@@ -371,7 +380,10 @@ watch(() => route.query.task_id, () => { if (!demoEnabled) void loadRealTask() }
         本任务已逾期，逾期标记不会因保存或提交自动取消；请尽快完成评阅并提交。
       </p>
       <p v-if="notice" class="notice" role="status">{{ notice }}</p>
-      <p v-if="loadError" class="load-error" role="alert">{{ loadError }} <RouterLink to="/expert/tasks">返回任务列表</RouterLink></p>
+      <p v-if="loadError" class="load-error" role="alert">{{ loadError }}
+        <button v-if="!demoEnabled && route.query.task_id" type="button" data-action="retry-review-rules" @click="loadRealTask">重新加载</button>
+        <RouterLink to="/expert/tasks">返回任务列表</RouterLink>
+      </p>
       <p v-if="autosaveVisible" class="autosave-indicator" data-autosave role="status">
         {{ demoEnabled ? '已自动保存草稿（本地演示存储）' : '草稿已保存至服务器' }}
       </p>
@@ -384,8 +396,11 @@ watch(() => route.query.task_id, () => { if (!demoEnabled) void loadRealTask() }
         </template>
         <template #form>
           <ReviewFormPane
-            v-if="task"
+            v-if="task && (demoEnabled || rule)"
             :key="task.id"
+            :check-target="demoEnabled ? undefined : { kind: 'task', id: task.id }"
+            @edited="pendingInput = null; pendingAck = undefined"
+            :dimensions="demoEnabled ? undefined : rule?.dimensions"
             :locked="formLocked"
             :saving="saving"
             :draft="draft"
@@ -396,6 +411,8 @@ watch(() => route.query.task_id, () => { if (!demoEnabled) void loadRealTask() }
           />
         </template>
       </WorkspaceSplitter>
+
+      <RealCorrectionPanel v-if="!demoEnabled && submitted && task" :key="task.id" mode="expert" :task-id="task.id" :dimensions="rule?.dimensions" />
 
       <section v-if="submitted && task" class="post-submit">
         <h3>提交完成</h3>

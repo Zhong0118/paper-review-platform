@@ -7,14 +7,14 @@ from jwt import InvalidTokenError
 
 from app.modules.files.pdf import check_size
 from app.core.exceptions import AppError
-from app.core.security import decode_download_token
+from app.modules.auth import service as auth_service
 from app.modules.audit import service as audit_service
-from app.modules.user.models import User
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.response import ok
-from app.db.session import get_session
+from app.db.rls_context import bind_candidate_identity, verified_download_claims
+from app.db.session import get_auth_session, get_session
 from app.modules.auth.deps import CurrentUser, get_current_user, bearer
 from app.modules.files import service as files_service
 
@@ -80,14 +80,16 @@ async def authorize_user(
     request: Request,
     creds: HTTPAuthorizationCredentials | None = Depends(bearer),
     session: AsyncSession = Depends(get_session),
+    auth_session: AsyncSession = Depends(get_auth_session),
 ) -> CurrentUser:
     try:
         return await get_current_user(request, creds, session)
     except (AppError, ValueError, KeyError, TypeError) as exc:
-        await audit_service.record(session, user=None, action="file_authorize", object_type="file",
+        await session.rollback()
+        await audit_service.record(auth_session, user=None, action="file_authorize", object_type="file",
                                    object_id=str(file_id), result="DENIED",
                                    request_id=getattr(request.state, "request_id", None))
-        await session.commit()
+        await auth_session.commit()
         if isinstance(exc, AppError):
             raise
         raise AppError("AUTH_REQUIRED", 401, "未认证或会话失效") from exc
@@ -120,26 +122,31 @@ async def file_reader(
     token: str | None = Query(default=None),
     creds: HTTPAuthorizationCredentials | None = Depends(bearer),
     session: AsyncSession = Depends(get_session),
+    auth_session: AsyncSession = Depends(get_auth_session),
 ) -> CurrentUser:
     try:
         if token is None:
             return await get_current_user(request, creds, session)
-        payload = decode_download_token(token)
-        if UUID(payload["file_id"]) != file_id:
+        claims, token_file_id = verified_download_claims(token)
+        if token_file_id != file_id:
             raise AppError("RESOURCE_NOT_FOUND", 404, "资源不存在或不可见")
-        user = await session.get(User, UUID(payload["sub"]))
-        if user is None or user.status != "ACTIVE":
-            raise AppError("AUTH_REQUIRED", 401, "未认证或会话失效")
-        current = CurrentUser(id=user.id, role=payload["role"],
-                              tenant_id=UUID(payload["tenant_id"]) if payload.get("tenant_id") else None,
-                              data_scope={})
+        await bind_candidate_identity(session, claims)
+        identity = await auth_service.load_active_identity(
+            session, claims.user_id, token_role=claims.role,
+            token_tenant_id=claims.tenant_id, token_auth_version=claims.auth_version,
+        )
+        current = CurrentUser(id=identity.user.id, role=identity.role.code,
+                              tenant_id=identity.assignment.tenant_id,
+                              data_scope=identity.assignment.data_scope or {},
+                              auth_version=identity.user.auth_version)
         request.state.current_user = current
         return current
     except (InvalidTokenError, ValueError, KeyError, TypeError, AppError) as exc:
-        await audit_service.record(session, user=None, action="file_read", object_type="file",
+        await session.rollback()
+        await audit_service.record(auth_session, user=None, action="file_read", object_type="file",
                                    object_id=str(file_id), result="DENIED",
                                    request_id=getattr(request.state, "request_id", None))
-        await session.commit()
+        await auth_session.commit()
         if isinstance(exc, AppError):
             raise
         raise AppError("AUTH_REQUIRED", 401, "未认证或会话失效") from exc

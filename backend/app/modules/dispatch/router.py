@@ -1,3 +1,4 @@
+from app.shared.time_scope import TimeScopeRequest, time_scope_request
 import json
 from uuid import UUID
 
@@ -9,7 +10,7 @@ from app.core.response import ok
 from app.db.session import get_session
 from app.modules.auth.deps import CurrentUser, require_roles
 from app.modules.dispatch import service as dispatch_service
-from app.modules.review.service import ReviewPayload
+from app.modules.review.service import ReviewPayload, ReviewSubmission
 from app.modules.review import service as review_service
 from app.modules.thesis import service as thesis_service
 from app.shared.enums import RoleCode
@@ -30,10 +31,12 @@ class RejectBody(BaseModel):
 @platform_router.get("/dispatch-queue")
 async def queue(
     request: Request,
+    status_filter: str = "ALL",
     current: CurrentUser = Depends(require_roles(RoleCode.PLATFORM_REVIEWER)),
     session: AsyncSession = Depends(get_session),
+    scope: TimeScopeRequest = Depends(time_scope_request),
 ):
-    data = await dispatch_service.dispatch_queue(session, current)
+    data = await dispatch_service.dispatch_queue(session, current, time_scope=scope.scope, as_of=scope.as_of, status_filter=status_filter)
     return ok(data, request_id=getattr(request.state, "request_id", None))
 
 
@@ -79,8 +82,9 @@ async def expert_tasks(
     request: Request,
     current: CurrentUser = Depends(require_roles(RoleCode.EXPERT)),
     session: AsyncSession = Depends(get_session),
+    scope: TimeScopeRequest = Depends(time_scope_request),
 ):
-    data = await dispatch_service.list_expert_tasks(session, current)
+    data = await dispatch_service.list_expert_tasks(session, current, time_scope=scope.scope, as_of=scope.as_of)
     return ok(data, request_id=getattr(request.state, "request_id", None))
 
 
@@ -144,21 +148,25 @@ async def expert_put_draft(
 @expert_router.post("/tasks/{task_id}:submit-final")
 async def expert_submit_final(
     task_id: UUID,
-    body: ReviewPayload,
+    body: ReviewSubmission,
     request: Request,
     current: CurrentUser = Depends(require_roles(RoleCode.EXPERT)),
     session: AsyncSession = Depends(get_session),
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
 ):
-    # Serialize retries before reading the cache; the winner stores it in this transaction.
-    await dispatch_service.get_task_for_expert(session, current, task_id, for_update=True)
-    payload = {"id": str(task_id), "review": json.dumps(body.model_dump(), sort_keys=True, ensure_ascii=False)}
+    await dispatch_service.get_task_for_expert(session, current, task_id)
+    review = ReviewPayload(**body.model_dump(exclude={'check_ack'}))
+    ack = body.check_ack.model_dump() if body.check_ack else None
+    payload = {"id": str(task_id), "review": json.dumps(review.model_dump(), sort_keys=True, ensure_ascii=False)}
+    if ack is not None:
+        payload['check_ack'] = ack
     cached = await thesis_service.remember_idempotent(
         session, current, idempotency_key, "submit-final", payload
     )
     if cached:
         return ok(cached, request_id=getattr(request.state, "request_id", None))
-    data = await review_service.submit_final(session, current, task_id, body)
+    await dispatch_service.get_task_for_expert(session, current, task_id, for_update=True)
+    data = await review_service.submit_final(session, current, task_id, review, check_ack=ack)
     await thesis_service.store_idempotent(session, current, idempotency_key, "submit-final", payload, data)
     await session.commit()
     return ok(data, request_id=getattr(request.state, "request_id", None))
@@ -196,14 +204,31 @@ async def reassign_task(
     session: AsyncSession = Depends(get_session),
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
 ):
-    await dispatch_service.lock_task_thesis(session, task_id)
     payload = {"id": str(task_id), "expert_id": str(body.expert_id)}
     cached = await thesis_service.remember_idempotent(session, current, idempotency_key, "reassign", payload)
     if cached:
         return ok(cached, request_id=getattr(request.state, "request_id", None))
+    await dispatch_service.lock_task_thesis(session, task_id)
     thesis, task = await dispatch_service.reassign(session, current, task_id, body.expert_id, getattr(request.state, "request_id", None))
     data = await thesis_service.serialize_thesis(session, current, thesis)
     data["task"] = {"id": str(task.id), "status": task.status, "replaces_task_id": str(task.replaces_task_id)}
     await thesis_service.store_idempotent(session, current, idempotency_key, "reassign", payload, data)
     await session.commit()
     return ok(data, request_id=getattr(request.state, "request_id", None))
+
+
+@expert_router.get("/tasks/{task_id}/rules")
+async def expert_rules(
+    task_id: UUID, request: Request,
+    current: CurrentUser = Depends(require_roles(RoleCode.EXPERT)),
+    session: AsyncSession = Depends(get_session),
+):
+    from app.modules.dispatch.models import ReviewRound
+    from app.modules.review.rules import validate_rule_snapshot
+    from app.core.exceptions import AppError
+
+    task = await dispatch_service.get_task_for_expert(session, current, task_id)
+    round_ = await session.get(ReviewRound, task.round_id)
+    if round_ is None:
+        raise AppError("RESOURCE_NOT_FOUND", 404, "资源不存在或不可见")
+    return ok(validate_rule_snapshot(round_.rule_snapshot), request_id=getattr(request.state, "request_id", None))

@@ -7,9 +7,11 @@ import PreparationPage from '@/modules/school/pages/PreparationListPage.vue'
 import SchoolTable from '@/modules/school/components/SchoolThesisTable.vue'
 import Candidates from '@/modules/dispatch/components/CandidateExpertTable.vue'
 import StudentPage from '../pages/StudentResultPage.vue'
+import ObjectionPage from '@/modules/school/pages/ObjectionWorkbenchPage.vue'
+import PortalLayout from '@/layouts/PortalLayout.vue'
 
-const api = vi.hoisted(() => ({ dispatchQueue: vi.fn(), dispatchCandidates: vi.fn(), assignExpert: vi.fn(), listTheses: vi.fn(), getPublishedResult: vi.fn(), listMyObjections: vi.fn(), createObjection: vi.fn(), reassignExpert: vi.fn(), listSchoolTheses: vi.fn(), terminateThesis: vi.fn() }))
-vi.mock('@/api/dispatch', () => api)
+const api = vi.hoisted(() => ({ dispatchQueue: vi.fn(), dispatchCandidates: vi.fn(), assignExpert: vi.fn(), listTheses: vi.fn(), getPublishedResult: vi.fn(), listMyObjections: vi.fn(), listSchoolObjections: vi.fn(), createObjection: vi.fn(), reassignExpert: vi.fn(), listSchoolTheses: vi.fn(), terminateThesis: vi.fn() }))
+vi.mock('@/api/dispatch', async (importOriginal) => ({ ...await importOriginal<typeof import('@/api/dispatch')>(), ...api }))
 vi.mock('@/api/results', () => api)
 vi.mock('@/api/theses', () => api)
 vi.mock('@/api/objections', () => api)
@@ -17,20 +19,23 @@ vi.mock('@/api/schoolReview', () => api)
 enableAutoUnmount(afterEach)
 afterEach(() => vi.unstubAllEnvs())
 const queue = ['a', 'b'].map(id => ({ thesis_id: id, title: `论文${id}`, stage: 'UNDER_REVIEW', allowed_actions: ['ASSIGN_EXPERT'], discipline_code: '0812' }))
-const candidate = { expert_id: 'e', discipline_codes: ['0812'], direction_mismatch: false, avoided: false, service_status: 'AVAILABLE' }
+const candidate = { expert_id: 'e', discipline_codes: ['0812'], direction_mismatch: false, avoided: false, service_status: 'AVAILABLE', qualification_status: 'APPROVED' }
+const publishedRule = { version: 'pilot-single-v1', dimensions: [], required_experts: 1, mode: 'sum_dimensions', bands: [] }
+const publishedOutcome = { code: 'PASS', label: '通过' }
 beforeEach(() => {
   vi.stubEnv('VITE_DEMO_MODE', 'false')
   vi.resetAllMocks()
   api.dispatchQueue.mockResolvedValue(queue)
   api.dispatchCandidates.mockResolvedValue([candidate])
   api.listTheses.mockResolvedValue(queue.map(row => ({ id: row.thesis_id, stage: 'COMPLETED', allowed_actions: ['SUBMIT_OBJECTION'], recent_events: [], current_version: { title: row.title } })))
-  api.getPublishedResult.mockImplementation(async (id) => ({ thesis_id: id, total: 80, items: [] }))
+  api.getPublishedResult.mockImplementation(async (id) => ({ thesis_id: id, total: 80, items: [], rule_snapshot: publishedRule, outcome: publishedOutcome }))
   api.listMyObjections.mockResolvedValue([])
+  api.listSchoolObjections.mockResolvedValue([])
 })
-async function page(component: typeof StudentPage | typeof DispatchPage | typeof PreparationPage) {
+async function page(component: typeof StudentPage | typeof DispatchPage | typeof PreparationPage | typeof ObjectionPage) {
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/', component }] })
   await router.push('/?thesisId=a')
-  const wrapper = mount(component, { global: { plugins: [createPinia(), router], stubs: { PortalLayout: { template: '<div><slot/><slot name="modal"/></div>' } } } })
+  const wrapper = mount(component, { global: { plugins: [createPinia(), router], stubs: { PortalLayout: { props: ['contextLabel', 'userName'], template: '<div><slot/><slot name="modal"/></div>' } } } })
   await flushPromises()
   return { wrapper, router }
 }
@@ -54,6 +59,18 @@ it.each([{ direction_mismatch: true }, { service_status: 'UNAVAILABLE' }, { avoi
   api.dispatchCandidates.mockResolvedValue([{ ...candidate, ...change }])
   const { wrapper } = await page(DispatchPage)
   expect(wrapper.getComponent(Candidates).props('rows')[0].rowType).toBe('conflicted')
+})
+it('does not present placeholder fees or completion statistics as real candidate data', async () => {
+  const { wrapper } = await page(DispatchPage)
+  const candidateTable = wrapper.getComponent(Candidates)
+  expect(candidateTable.text()).not.toContain('费用标准')
+  expect(candidateTable.text()).not.toContain('接单率')
+  expect(candidateTable.text()).not.toContain('平均完成时间')
+  expect(candidateTable.text()).not.toContain('¥ 0.00')
+})
+it('uses the current school context on the real objection page', async () => {
+  const { wrapper } = await page(ObjectionPage)
+  expect(wrapper.getComponent(PortalLayout).props('contextLabel')).toBe('学校端 · 本校')
 })
 it('shows current objection time', async () => {
   api.listMyObjections.mockResolvedValue([{ id: 'open', status: 'SUBMITTED', reason: '当前异议', created_at: '2026-09-21T12:00:00Z' }])
@@ -80,9 +97,9 @@ it('ignores late result responses after changing paper', async () => {
   await flushPromises()
   await router.push('/?thesisId=a')
   await flushPromises()
-  resolveOld({ thesis_id: 'b', total: 1, items: [] })
+  resolveOld({ thesis_id: 'b', total: 1, items: [], rule_snapshot: publishedRule, outcome: publishedOutcome })
   await flushPromises()
-  expect(wrapper.get('select').element.value).toBe('a')
+  expect(wrapper.get('select:not([data-time-scope])').element.value).toBe('a')
   expect(wrapper.text()).toContain('80.0')
 })
 it('ignores late candidate responses from the previous paper', async () => {

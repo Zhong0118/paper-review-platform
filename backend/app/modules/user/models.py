@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, UniqueConstraint, text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, UniqueConstraint, Uuid, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -10,9 +10,13 @@ from app.db.mixins import BaseModel
 
 class User(BaseModel):
     __tablename__ = "users"
+    __mapper_args__ = {"eager_defaults": False}
 
     username: Mapped[str | None] = mapped_column(String(64), unique=True, nullable=True)
-    password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True, deferred=True)
+    provisioned_by: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True, deferred=True)
+    provisioned_tenant_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True, deferred=True)
+    auth_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default=text("1"))
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="ACTIVE")
     display_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
     contact_phone: Mapped[str | None] = mapped_column(String(32), nullable=True)
@@ -34,6 +38,8 @@ class TenantUserMembership(BaseModel):
     __table_args__ = (
         UniqueConstraint("tenant_id", "external_id"),
         UniqueConstraint("tenant_id", "user_id"),
+        UniqueConstraint("id", "tenant_id", name="uq_memberships_id_tenant_for_objections"),
+        Index("ix_membership_tenant_type_active", "tenant_id", "membership_type", "is_active"),
     )
 
     tenant_id: Mapped[UUID] = mapped_column(ForeignKey("tenants.id"), nullable=False)
@@ -49,6 +55,9 @@ class TenantUserMembership(BaseModel):
 
 class UserRoleAssignment(BaseModel):
     __tablename__ = "user_role_assignments"
+    __table_args__ = (
+        UniqueConstraint("user_id", name="uq_user_role_assignments_user_id"),
+    )
 
     user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
     tenant_id: Mapped[UUID | None] = mapped_column(ForeignKey("tenants.id"), nullable=True)

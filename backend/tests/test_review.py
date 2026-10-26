@@ -12,9 +12,9 @@ VALID_DRAFT = {
     "resultsWorkload": 12,
     "recommendation": "建议通过",
     "strengths": "结构清楚",
-    "issues": "实验偏少",
+    "issues": "现有实验仍缺少不同样本规模的对照分析，建议补充并说明局限性。",
     "revisionAdvice": "补充对照",
-    "overallComment": "达到硕士答辩要求。",
+    "overallComment": "本文研究问题明确，采用的方法基本适当，实验结果能够支持主要结论。建议作者进一步补充数据来源说明，并详细讨论研究结论的适用条件。",
 }
 
 
@@ -24,7 +24,7 @@ async def test_save_and_reload_draft(client: AsyncClient, seed):
     saved = await client.put(f"/api/v1/expert/tasks/{task_id}/draft", headers=auth(expert), json=VALID_DRAFT)
     assert saved.status_code == 200, saved.text
     loaded = await client.get(f"/api/v1/expert/tasks/{task_id}/draft", headers=auth(expert))
-    assert loaded.json()["data"]["issues"] == "实验偏少"
+    assert loaded.json()["data"]["issues"] == VALID_DRAFT["issues"]
 
 
 @pytest.mark.asyncio

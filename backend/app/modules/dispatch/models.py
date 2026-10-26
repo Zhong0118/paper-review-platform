@@ -1,19 +1,31 @@
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import DateTime, ForeignKey, ForeignKeyConstraint, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.dialects.postgresql import JSONB
+from app.modules.review.rules import pilot_rule_snapshot
 
 from app.db.mixins import BaseModel
 
 
 class ReviewRound(BaseModel):
     __tablename__ = "review_rounds"
-    __table_args__ = (UniqueConstraint("thesis_id", "round_no"),)
+    __table_args__ = (
+        UniqueConstraint("thesis_id", "round_no"),
+        UniqueConstraint("id", "thesis_id", "tenant_id", name="uq_review_rounds_id_thesis_tenant"),
+        ForeignKeyConstraint(["thesis_id", "tenant_id"], ["theses.id", "theses.tenant_id"],
+                             name="fk_review_rounds_thesis_tenant"),
+        ForeignKeyConstraint(["thesis_version_id", "thesis_id", "tenant_id"],
+                             ["thesis_versions.id", "thesis_versions.thesis_id", "thesis_versions.tenant_id"],
+                             name="fk_review_rounds_version_thesis_tenant"),
+    )
 
     tenant_id: Mapped[UUID] = mapped_column(ForeignKey("tenants.id"), nullable=False)
     thesis_id: Mapped[UUID] = mapped_column(ForeignKey("theses.id"), nullable=False)
     thesis_version_id: Mapped[UUID] = mapped_column(ForeignKey("thesis_versions.id"), nullable=False)
+    rule_snapshot: Mapped[dict] = mapped_column(JSONB, nullable=False, default=pilot_rule_snapshot)
+    anonymous_title: Mapped[str] = mapped_column(String(255), nullable=False)
     round_no: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="CREATED")
     discipline_code: Mapped[str] = mapped_column(String(32), nullable=False)
@@ -23,9 +35,19 @@ class ReviewRound(BaseModel):
 
 class ExpertTask(BaseModel):
     __tablename__ = "expert_tasks"
+    __table_args__ = (
+        UniqueConstraint("id", "round_id", "tenant_id", name="uq_expert_tasks_id_round_tenant"),
+        ForeignKeyConstraint(["round_id", "thesis_id", "tenant_id"],
+                             ["review_rounds.id", "review_rounds.thesis_id", "review_rounds.tenant_id"],
+                             name="fk_expert_tasks_round_thesis_tenant"),
+        ForeignKeyConstraint(["replaces_task_id", "round_id", "tenant_id"],
+                             ["expert_tasks.id", "expert_tasks.round_id", "expert_tasks.tenant_id"],
+                             name="fk_expert_tasks_replacement_same_round"),
+    )
 
     tenant_id: Mapped[UUID] = mapped_column(ForeignKey("tenants.id"), nullable=False)
     round_id: Mapped[UUID] = mapped_column(ForeignKey("review_rounds.id"), nullable=False)
+    thesis_id: Mapped[UUID] = mapped_column(ForeignKey("theses.id"), nullable=False)
     expert_id: Mapped[UUID] = mapped_column(ForeignKey("experts.id"), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="INVITED")
     replaces_task_id: Mapped[UUID | None] = mapped_column(ForeignKey("expert_tasks.id"), nullable=True)

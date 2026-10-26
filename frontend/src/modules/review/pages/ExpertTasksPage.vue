@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref } from 'vue'
+import TimeScopeSelect from '@/components/app/TimeScopeSelect.vue'
+import { useTimeScope } from '@/composables/useTimeScope'
+import { computed, nextTick, onMounted, ref, watch, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import BlindRail from '@/components/app/BlindRail.vue'
 import PageHeader from '@/components/app/PageHeader.vue'
@@ -13,6 +15,8 @@ import ExpertTaskTable from '../components/ExpertTaskTable.vue'
 import ExpertDemoScenarioController from '@/modules/expert-management/components/ExpertDemoScenarioController.vue'
 
 const router = useRouter()
+const authStore = useAuthStore()
+const timeScope = useTimeScope()
 const demoEnabled = import.meta.env.VITE_DEMO_MODE === 'true'
 const service = demoEnabled ? useScenarioService() : null
 const demoDialogOpen = ref(false)
@@ -74,11 +78,14 @@ const tabCounts = computed(() => {
   return counts
 })
 
+let listGeneration = 0
 async function loadTasks() {
+  const request = ++listGeneration
+  loading.value = true; error.value = ''; tasks.value = []
   try {
-    tasks.value = demoEnabled && service
+    const loaded = demoEnabled && service
       ? await service.listExpertTasks({ own: true })
-      : (await listExpertTasks()).map((row) => ({
+      : (await listExpertTasks(...timeScope.request())).map((row) => ({
           id: row.id,
           status: row.status,
           anonymousId: row.anonymous_id ?? row.id.slice(0, 8),
@@ -89,13 +96,16 @@ async function loadTasks() {
           overdue: false,
           allowedActions: row.allowed_actions ?? (row.status === 'INVITED' ? ['ACCEPT_TASK'] : []),
         })) as ExpertTaskSummary[]
+    if (request !== listGeneration) return
+    tasks.value = loaded
     // 默认停留在第一个非空分组，避免空 Tab 白屏
     activeTab.value =
       tabs.find((tab) => tasks.value.some(tab.matcher))?.value ?? tabs[0].value
   } catch (err) {
+    if (request !== listGeneration) return
     error.value = err instanceof Error ? err.message : '任务列表加载失败。'
   } finally {
-    loading.value = false
+    if (request === listGeneration) loading.value = false
   }
 }
 
@@ -169,6 +179,8 @@ async function confirmAccept() {
     acceptPending.value = false
   }
 }
+watch([timeScope.scope, timeScope.identity], () => { if (!demoEnabled && useAuthStore().user) void loadTasks() })
+onBeforeUnmount(() => { listGeneration++ })
 </script>
 
 <template>
@@ -188,8 +200,9 @@ async function confirmAccept() {
       <PageHeader
         eyebrow="PAGE-008 · EXPERT TASKS"
         title="评审任务"
-        description="仅展示本人任务。接单前仅见匿名概要、截止时间、费用与评审说明；接受后才能查看匿名论文材料。"
+        :description="demoEnabled ? '仅展示本人任务。接单前仅见匿名概要、截止时间、费用与评审说明；接受后才能查看匿名论文材料。' : '仅展示本人任务。接单前仅见匿名概要与评审说明；接受后才能查看匿名论文材料。'"
       />
+      <TimeScopeSelect v-if="!demoEnabled" :model-value="timeScope.scope.value" :meta="timeScope.meta.value" @update:model-value="timeScope.setScope" />
       <BlindRail
         audience="匿名论文概要与本人任务"
         hidden-from="学生姓名、学号、导师、学校原始论文和其他专家意见"
@@ -213,7 +226,7 @@ async function confirmAccept() {
 
       <p v-if="error" class="tasks-page__error" role="alert">{{ error }}</p>
       <p v-else-if="loading" class="tasks-page__loading">正在加载任务…</p>
-      <ExpertTaskTable v-else :rows="visibleTasks" @accept="requestAccept" />
+      <ExpertTaskTable :preference-identity="demoEnabled ? null : authStore.user" v-else :rows="visibleTasks" :show-fee="demoEnabled" @accept="requestAccept" />
     </div>
 
     <template #modal>
@@ -232,8 +245,8 @@ async function confirmAccept() {
           </p>
           <p>
             任务 <strong>{{ acceptTarget.anonymousId }}</strong> ·
-            评阅截止 <time>{{ acceptTarget.dueAt }}</time> · 费用
-            <strong>¥ {{ acceptTarget.fee.toFixed(2) }}</strong>
+            评阅截止 <time>{{ acceptTarget.dueAt || '未设置' }}</time>
+            <template v-if="demoEnabled"> · 费用 <strong>¥ {{ acceptTarget.fee.toFixed(2) }}</strong></template>
           </p>
           <p v-if="acceptError" class="action-dialog__error" role="alert">{{ acceptError }}</p>
           <footer>

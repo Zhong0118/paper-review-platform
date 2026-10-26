@@ -12,7 +12,6 @@ from app.core.exceptions import AppError
 from app.modules.auth.deps import CurrentUser
 from app.modules.files.models import FileObject
 from app.modules.files import service as files
-from app.modules.thesis.service import create_draft, DraftInput
 from app.modules.thesis.models import ThesisVersionFile
 from app.modules.user.models import User, TenantUserMembership
 from app.seed import seed_database
@@ -23,6 +22,10 @@ from tests.conftest import migrated_test_schema, _test_url
 @pytest.mark.parametrize('completed', [True, False])
 async def test_upgrade_preserves_legacy_file_and_disables_writes(tmp_path, completed):
     with migrated_test_schema('0006_open_objection') as schema:
+        # Seed with the current ORM, then return to the legacy schema under test.
+        migration_env = {**os.environ, 'DATABASE_URL': _test_url(), 'PGOPTIONS': f'-c search_path={schema}'}
+        subprocess.run([sys.executable, '-m', 'alembic', 'upgrade', '0015_rls_children'],
+                       cwd=Path(__file__).resolve().parents[1], check=True, capture_output=True, env=migration_env)
         engine = create_async_engine(_test_url(), connect_args={'server_settings': {'search_path': schema}})
         sessions = async_sessionmaker(engine, expire_on_commit=False)
         file_id = uuid4()
@@ -34,8 +37,26 @@ async def test_upgrade_preserves_legacy_file_and_disables_writes(tmp_path, compl
                 owner = (await session.execute(select(User).where(User.username == 'student.lin'))).scalar_one()
                 member = (await session.execute(select(TenantUserMembership).where(TenantUserMembership.user_id == owner.id))).scalar_one()
                 user = CurrentUser(id=owner.id, tenant_id=member.tenant_id, role='student', data_scope={})
-                thesis = await create_draft(session, user, DraftInput(title='migration', abstract='', discipline_code='0812', discipline_name='计算机科学与技术', keywords=["migration"]))
-                version_id = thesis.current_version_id
+                # Historical migration fixtures must not invoke current business services:
+                # their catalog/configuration dependencies did not exist at revision 0015.
+                thesis_id, version_id = uuid4(), uuid4()
+                await session.execute(text('''INSERT INTO theses
+                    (id, tenant_id, student_membership_id, review_batch_id, stage, submission_source, version)
+                    SELECT :id, tenant_id, student_membership_id, review_batch_id, 'DRAFT', 'STUDENT', 1
+                    FROM student_eligibilities WHERE student_membership_id=:member'''),
+                    {'id': thesis_id, 'member': member.id})
+                await session.execute(text('''INSERT INTO thesis_versions
+                    (id, thesis_id, tenant_id, version_no, title, abstract, discipline_code,
+                     discipline_name, keywords, is_editable)
+                    VALUES (:id, :thesis, :tenant, 1, 'migration', '', '0812', '计算机科学与技术',
+                            '["migration"]', true)'''),
+                    {'id': version_id, 'thesis': thesis_id, 'tenant': member.tenant_id})
+                await session.execute(text('UPDATE theses SET current_version_id=:version WHERE id=:id'),
+                                      {'version': version_id, 'id': thesis_id})
+                await session.commit()
+            subprocess.run([sys.executable, '-m', 'alembic', 'downgrade', '0006_open_objection'],
+                           cwd=Path(__file__).resolve().parents[1], check=True, capture_output=True, env=migration_env)
+            async with sessions() as session:
                 await session.execute(text('''INSERT INTO file_objects
                     (id, tenant_id, purpose, storage_key, original_filename, content_type,
                      size_bytes, sha256, scan_status, uploaded_by, completed_at)
@@ -43,7 +64,10 @@ async def test_upgrade_preserves_legacy_file_and_disables_writes(tmp_path, compl
                             9, 'legacy-hash', 'CLEAN', :owner, CASE WHEN :completed THEN now() ELSE NULL END)'''),
                     {'id': file_id, 'tenant': user.tenant_id, 'path': str(path), 'owner': user.id, 'completed': completed})
                 if completed:
-                    session.add(ThesisVersionFile(thesis_version_id=version_id, file_id=file_id, purpose='anonymous'))
+                    await session.execute(text('''INSERT INTO thesis_version_files
+                        (id, thesis_version_id, file_id, purpose)
+                        VALUES (:id, :version, :file, 'anonymous')'''),
+                        {'id': uuid4(), 'version': version_id, 'file': file_id})
                 await session.commit()
             subprocess.run([sys.executable, '-m', 'alembic', 'upgrade', 'head'],
                            cwd=Path(__file__).resolve().parents[1], check=True, capture_output=True,

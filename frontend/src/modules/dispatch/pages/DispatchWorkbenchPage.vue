@@ -1,10 +1,15 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
+import TimeScopeSelect from '@/components/app/TimeScopeSelect.vue'
+import { useTimeScope } from '@/composables/useTimeScope'
+import { useOperationsDashboard } from '@/composables/useOperationsDashboard'
+import type { StatusFilter } from '@/api/dashboard'
+import TaskProgressSummary from '@/modules/school/components/TaskProgressSummary.vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch, onBeforeUnmount } from 'vue'
 
 import BlindRail from '@/components/app/BlindRail.vue'
 import PageHeader from '@/components/app/PageHeader.vue'
 import { useScenarioService } from '@/demo/serviceProvider'
-import { assignExpert, dispatchCandidates, dispatchQueue, reassignExpert } from '@/api/dispatch'
+import { assignExpert, candidateUnavailableReason, dispatchCandidates, dispatchQueue, reassignExpert } from '@/api/dispatch'
 import type { DispatchThesisSeed, ExpertTaskSummary, OperationsQueue } from '@/demo/types'
 import { isDueSoon } from '@/modules/expert-management/services/platformOperationService'
 import PortalLayout from '@/layouts/PortalLayout.vue'
@@ -20,6 +25,8 @@ import type { ExpertMatchCandidate } from '@/demo/types'
 
 type ConfirmationKind = 'ASSIGN' | 'REASSIGN' | 'REMIND' | 'EXTEND'
 
+const timeScope = useTimeScope()
+const dashboard = useOperationsDashboard(true, timeScope)
 const demoEnabled = import.meta.env.VITE_DEMO_MODE === 'true'
 const service = demoEnabled ? useScenarioService() : null
 const authStore = useAuthStore()
@@ -187,25 +194,35 @@ async function refreshTasks() {
   tasks.value = await service.listExpertTasks()
 }
 
-async function loadWorkbench() {
+const filterLabels = { ALL: '派单队列', WAITING: '待派论文', INVITED: '邀请中任务', IN_REVIEW: '评阅中任务', SUBMITTED: '已提交任务' }
+let listGeneration = 0
+async function loadWorkbench(refreshMetrics = true) {
+  const request = ++listGeneration
   loading.value = true
   listError.value = ''
   feedback.value = ''
   actionError.value = ''
   try {
     if (!demoEnabled) {
+      if (refreshMetrics) void dashboard.load()
+      dashboard.resetList()
+      dispatchTheses.value = []
       ++candidateRequest
       selectedExpertIds.value = []
       matches.value = []
       assigned.value = false
       reassignableTasks.value = {}
-      const queue = await dispatchQueue()
+      const [scope, report] = timeScope.request()
+      let listAsOf = ''
+      const queue = await dispatchQueue(scope, meta => { report(meta); listAsOf = meta.asOf }, dashboard.status.value)
+      if (request !== listGeneration) return
+      dashboard.receiveList(['ALL', 'WAITING'].includes(dashboard.status.value) ? queue.length : queue.reduce((n, row) => n + (row.tasks?.length ?? 0), 0), listAsOf)
       reassignableTasks.value = Object.fromEntries(queue.filter(item => item.allowed_actions.includes('REASSIGN_EXPERT') && item.reassignable_task).map(item => [item.thesis_id, item.reassignable_task!]))
       dispatchTheses.value = queue.map((item) => ({
         id: item.thesis_id,
         title: item.title,
         studentName: item.student_name,
-        status: item.allowed_actions.includes('ASSIGN_EXPERT') ? 'PENDING_DISPATCH' : 'IN_REVIEW',
+        status: item.allowed_actions.includes('ASSIGN_EXPERT') ? 'PENDING_DISPATCH' : item.stage === 'COMPLETED' || item.stage === 'RESULT_PROCESSING' ? 'COMPLETED' : 'IN_REVIEW',
         discipline: { code: item.discipline_code, name: item.discipline_code },
       })) as unknown as DispatchThesisSeed[]
       queues.value = [
@@ -240,9 +257,10 @@ async function loadWorkbench() {
     }
     if (selectedThesisId.value) await selectThesis(selectedThesisId.value, true)
   } catch (error) {
+    if (request !== listGeneration) return
     listError.value = error instanceof Error ? error.message : '加载失败，请重试。'
   } finally {
-    loading.value = false
+    if (request === listGeneration) loading.value = false
   }
 }
 
@@ -267,14 +285,14 @@ async function selectThesis(thesisId: string, silent = false) {
         discipline: { code: row.discipline_codes[0] ?? '', name: row.discipline_codes.join(',') },
         fields: row.discipline_codes,
         keywordHits: [],
-        conflictHit: row.avoided || row.direction_mismatch || row.service_status !== 'AVAILABLE' || row.expert_id === reassignableTasks.value[thesisId]?.expert_id,
-        conflictReason: row.expert_id === reassignableTasks.value[thesisId]?.expert_id ? '当前任务专家' : row.avoided ? '回避' : row.direction_mismatch ? '方向不符' : row.service_status !== 'AVAILABLE' ? '暂停服务' : '',
+        conflictHit: Boolean(candidateUnavailableReason(row)) || row.expert_id === reassignableTasks.value[thesisId]?.expert_id,
+        conflictReason: row.expert_id === reassignableTasks.value[thesisId]?.expert_id ? '当前任务专家' : candidateUnavailableReason(row),
         activeTasks: 0,
         acceptanceRate: '—',
         onTimeRate: '—',
         avgCompletionDays: 0,
         feeStandard: 0,
-        matchReason: row.direction_mismatch ? '方向不符' : '可派',
+        matchReason: candidateUnavailableReason(row) || '可派',
       })) as unknown as ExpertMatchCandidate[]
       refreshRows()
     } catch (error) {
@@ -438,6 +456,13 @@ onUnmounted(() => {
   ++candidateRequest
   window.removeEventListener('resize', updateMobileFlag)
 })
+watch([timeScope.scope, timeScope.identity], () => { if (!demoEnabled && authStore.user) void loadWorkbench() })
+function showStatus(status: StatusFilter) {
+  if (status === dashboard.status.value) void loadWorkbench(false)
+  else void dashboard.drill(status)
+}
+watch(dashboard.status, () => { if (!demoEnabled) void loadWorkbench(false) })
+onBeforeUnmount(() => { listGeneration++; candidateRequest++ })
 </script>
 
 <template>
@@ -451,14 +476,15 @@ onUnmounted(() => {
     <div ref="workbenchRoot" class="dispatch-page">
       <PlatformDemoScenarioController
         :enabled="demoEnabled"
-        @changed="loadWorkbench"
+        @changed="loadWorkbench()"
         @reset-dialog-change="demoDialogOpen = $event"
       />
       <PageHeader
         eyebrow="PAGE-007 · REVIEW OPERATIONS"
         title="送审运营台"
-        description="按运营队列管理待派单、接单、评阅、逾期、改派与补审；候选排序可解释，最终由运营人工确认。"
+        :description="demoEnabled ? '按运营队列管理待派单、接单、评阅、逾期、改派与补审；候选排序可解释，最终由运营人工确认。' : '按论文创建范围核对待派、邀请、评阅和提交数量 点击卡片查看对应列表'"
       />
+      <TimeScopeSelect v-if="!demoEnabled" :model-value="timeScope.scope.value" :meta="timeScope.meta.value" @update:model-value="timeScope.setScope" />
       <BlindRail
         audience="平台运营可见学生、导师与专家身份及匹配依据"
         hidden-from="仅访问匿名论文，不提供原始版；身份不得外泄给学校或专家"
@@ -468,10 +494,24 @@ onUnmounted(() => {
       <p v-if="actionError" role="alert" class="dispatch-page__error">{{ actionError }}</p>
       <p v-if="feedback" role="status" class="dispatch-page__feedback">{{ feedback }}</p>
 
-      <OperationsQueueTable v-model:active="activeQueue" :queues="queues" />
+      <TaskProgressSummary v-if="!demoEnabled" live :data="dashboard.data.value" :loading="dashboard.loading.value" :error="dashboard.error.value" @filter="showStatus" @retry="dashboard.load" />
+      <div v-if="!demoEnabled" class="live-filter">
+        <strong>{{ filterLabels[dashboard.status.value] }}</strong>
+        <button type="button" @click="showStatus('ALL')">查看派单队列</button>
+        <button type="button" @click="loadWorkbench()">刷新</button>
+        <p v-if="dashboard.listCount.value !== null" role="status">{{ dashboard.changed.value ? '数据已更新 · ' : '' }}当前 {{ dashboard.listCount.value }} {{ ['ALL', 'WAITING'].includes(dashboard.status.value) ? '篇论文' : '个任务' }} <small v-if="dashboard.listAsOf.value">· 列表更新于 {{ new Date(dashboard.listAsOf.value).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }) }} 北京时间</small></p>
+        <p v-if="loading" role="status">正在加载任务列表…</p>
+        <button v-if="listError" type="button" @click="loadWorkbench(false)">重试列表</button>
+      </div>
+      <OperationsQueueTable v-if="demoEnabled" v-model:active="activeQueue" :queues="queues" />
 
-      <section class="queue-panel" :data-queue-panel="activeQueue" aria-label="队列内容">
-        <template v-if="activeQueue === 'PENDING_ASSIGNMENT'">
+      <section v-if="demoEnabled || (!loading && !listError)" class="queue-panel" :data-queue-panel="activeQueue" aria-label="队列内容">
+        <template v-if="!demoEnabled && dashboard.status.value === 'SUBMITTED'">
+          <h2>已提交任务</h2><p>仅展示任务状态 正式评语和评分由学校核对</p>
+          <article v-for="thesis in dispatchTheses" :key="thesis.id" data-submitted-task>{{ thesis.title }} · 已提交</article>
+          <p v-if="!dispatchTheses.length">当前范围暂无已提交任务</p>
+        </template>
+        <template v-else-if="activeQueue === 'PENDING_ASSIGNMENT'">
           <div class="queue-panel__split">
             <div>
               <header class="queue-panel__header">
@@ -513,11 +553,12 @@ onUnmounted(() => {
                 </div>
                 <small>回避命中项已自动禁选，无法强制跳过</small>
               </header>
-              <CandidateExpertTable
+              <CandidateExpertTable :preference-identity="demoEnabled ? null : authStore.user"
                 v-if="selectedThesisId"
                 v-model="selectedExpertIds"
                 :rows="candidateRows()"
                 :mobile="isMobile"
+                :show-demo-metrics="demoEnabled"
               />
               <p v-else class="candidate-section__empty">请先选择一篇待派论文。</p>
             </section>
@@ -527,7 +568,7 @@ onUnmounted(() => {
           <footer class="dispatch-footer">
             <p v-if="!selectedThesis" role="status">请先选择一篇待派论文。</p>
             <p v-else role="status">
-              已选 {{ selectedExpertIds.length }} 位专家；演示批次固定为单专家，只能选择 1 位。
+              已选 {{ selectedExpertIds.length }} 位专家；{{ demoEnabled ? '演示批次' : '试点规则' }}固定为单专家，只能选择 1 位。
             </p>
             <button
               type="button"
@@ -558,7 +599,7 @@ onUnmounted(() => {
               <div class="task-row__main">
                 <strong>{{ task.anonymousId }}</strong>
                 <span>{{ task.anonymousTitle }}</span>
-                <small>评阅截止 {{ task.dueAt }} · 费用 ¥ {{ task.fee.toFixed(2) }}</small>
+                <small>评阅截止 {{ task.dueAt }}<template v-if="demoEnabled"> · 费用 ¥ {{ task.fee.toFixed(2) }}</template></small>
               </div>
               <div class="task-row__actions">
                 <button
@@ -598,7 +639,7 @@ onUnmounted(() => {
               <div class="task-row__main">
                 <strong>{{ task.anonymousId }}</strong>
                 <span>{{ task.anonymousTitle }}</span>
-                <small>原任务已拒绝 · 费用 ¥ {{ task.fee.toFixed(2) }}</small>
+                <small>原任务已拒绝<template v-if="demoEnabled"> · 费用 ¥ {{ task.fee.toFixed(2) }}</template></small>
               </div>
               <button
                 type="button"
@@ -742,6 +783,18 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+.live-filter { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; padding: .9rem 1rem; border: 1px solid #dce3e9; background: white; }
+.live-filter > strong { margin-right: auto; color: #263744; }
+.live-filter > p { flex-basis: 100%; margin: .2rem 0 0; color: #687682; font-size: .75rem; }
+.live-filter button { padding: .45rem .75rem; border: 1px solid #cbd7e2; border-radius: .25rem; background: #f7fafc; color: #1b4f8a; cursor: pointer; transition: background .15s, transform .15s; }
+.live-filter button:hover { background: #eaf2fa; transform: translateY(-1px); }
+.live-filter button:active { transform: scale(.98); }
+.queue-panel > h2 { margin: 1rem 1rem .5rem; color: #263744; font-size: 1rem; }
+.queue-panel > p { margin: .5rem 1rem 1rem; color: #687682; font-size: .8rem; }
+[data-submitted-task] { padding: 1rem; border-top: 1px solid #e3e8ec; color: #334b60; font-size: .85rem; animation: row-appear .18s ease; }
+@keyframes row-appear { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) { [data-submitted-task] { animation: none; } .live-filter button { transition: none; } }
+
 .dispatch-page {
   display: grid;
   min-width: 0;

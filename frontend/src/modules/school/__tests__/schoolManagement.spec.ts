@@ -1,4 +1,5 @@
 import { mount } from '@vue/test-utils'
+import { createPinia } from 'pinia'
 import { createMemoryHistory, createRouter, type RouteComponent } from 'vue-router'
 import { describe, expect, it } from 'vitest'
 
@@ -14,7 +15,7 @@ async function mountRegisteredPage(pageId: string, path: string) {
   await router.isReady()
   return mount(component, {
     global: {
-      plugins: [router],
+      plugins: [createPinia(), router],
       stubs: { AppHeader: true },
     },
   })

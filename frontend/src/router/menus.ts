@@ -10,8 +10,8 @@ export const defaultRouteByRole: Record<RoleCode, string> = {
 }
 
 const LIVE_PATHS: Partial<Record<RoleCode, string[]>> = {
-  school_reviewer: ['/school/preparation', '/school/progress', '/school/results', '/school/objections'],
-  platform_reviewer: ['/platform/dispatch'],
+  school_reviewer: ['/school/preparation', '/school/progress', '/school/results', '/school/objections', '/school/batch-rules', '/school/members', '/school/disciplines', '/school/sensitive-terms'],
+  platform_reviewer: ['/platform/dispatch', '/platform/experts', '/platform/corrections'],
   student: ['/student/dashboard', '/student/results'],
   supervisor: ['/supervisor/results'],
   expert: ['/expert/tasks'],
@@ -57,5 +57,8 @@ export function portalMenus(
   const items = menusByRole[role] ?? []
   if (demoEnabled) return items
   const allowed = new Set(LIVE_PATHS[role] ?? [])
-  return items.filter((item) => allowed.has(item.path)).map(({ badge, ...item }) => item)
+  const liveItems = role === 'school_reviewer'
+    ? [...items, { label: '成员与送审资格', path: '/school/members' }, {label:'本校送审学科',path:'/school/disciplines'}, {label:'材料检测词表',path:'/school/sensitive-terms'}]
+    : items
+  return liveItems.filter((item) => allowed.has(item.path)).map(({ badge, ...item }) => item)
 }

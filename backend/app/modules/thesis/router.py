@@ -1,3 +1,4 @@
+from app.shared.time_scope import TimeScopeRequest, time_scope_request
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Request
@@ -33,8 +34,9 @@ async def list_theses(
     request: Request,
     current: CurrentUser = Depends(require_roles(RoleCode.STUDENT)),
     session: AsyncSession = Depends(get_session),
+    scope: TimeScopeRequest = Depends(time_scope_request),
 ):
-    items = await thesis_service.list_student_theses(session, current)
+    items = await thesis_service.list_student_theses(session, current, time_scope=scope.scope, as_of=scope.as_of)
     data = [await thesis_service.serialize_thesis(session, current, item) for item in items]
     return ok(data, request_id=getattr(request.state, "request_id", None))
 
@@ -128,8 +130,9 @@ async def school_list(
     request: Request,
     current: CurrentUser = Depends(require_roles(RoleCode.SCHOOL_REVIEWER)),
     session: AsyncSession = Depends(get_session),
+    scope: TimeScopeRequest = Depends(time_scope_request),
 ):
-    items = await thesis_service.list_school_theses(session, current)
+    items = await thesis_service.list_school_theses(session, current, time_scope=scope.scope, as_of=scope.as_of)
     data = [await thesis_service.serialize_thesis(session, current, item) for item in items]
     return ok(data, request_id=getattr(request.state, "request_id", None))
 
@@ -207,12 +210,14 @@ async def school_confirm_dispatch(
 @school_router.get("/progress")
 async def school_progress_list(
     request: Request,
+    status_filter: str = "ALL",
     current: CurrentUser = Depends(require_roles(RoleCode.SCHOOL_REVIEWER)),
     session: AsyncSession = Depends(get_session),
+    scope: TimeScopeRequest = Depends(time_scope_request),
 ):
     from app.modules.dispatch import service as dispatch_service
 
-    data = await dispatch_service.school_progress_list(session, current)
+    data = await dispatch_service.school_progress_list(session, current, time_scope=scope.scope, as_of=scope.as_of, status_filter=status_filter)
     return ok(data, request_id=getattr(request.state, "request_id", None))
 
 
@@ -277,10 +282,11 @@ async def supervisor_published_theses(
     request: Request,
     current: CurrentUser = Depends(require_roles(RoleCode.SUPERVISOR)),
     session: AsyncSession = Depends(get_session),
+    scope: TimeScopeRequest = Depends(time_scope_request),
 ):
     from app.modules.result import service as result_service
 
-    data = await result_service.list_supervised_published_theses(session, current)
+    data = await result_service.list_supervised_published_theses(session, current, time_scope=scope.scope, as_of=scope.as_of)
     return ok(data, request_id=getattr(request.state, "request_id", None))
 
 
@@ -379,12 +385,23 @@ async def terminate_thesis(
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
 ):
     payload = {"id": str(thesis_id), **body.model_dump()}
-    await thesis_service.get_school_thesis(session, current, thesis_id, for_update=True)
+    await thesis_service.get_school_thesis(session, current, thesis_id)
     cached = await thesis_service.remember_idempotent(session, current, idempotency_key, "terminate", payload)
     if cached:
         return ok(cached, request_id=getattr(request.state, "request_id", None))
+    await thesis_service.get_school_thesis(session, current, thesis_id, for_update=True)
     thesis = await thesis_service.terminate(session, current, thesis_id, body.version, body.reason, getattr(request.state, "request_id", None))
     data = await thesis_service.serialize_thesis(session, current, thesis)
     await thesis_service.store_idempotent(session, current, idempotency_key, "terminate", payload, data)
     await session.commit()
     return ok(data, request_id=getattr(request.state, "request_id", None))
+
+
+@school_router.get("/review-rule")
+async def school_review_rule(
+    request: Request,
+    current: CurrentUser = Depends(require_roles(RoleCode.SCHOOL_REVIEWER)),
+):
+    from app.modules.review.rules import pilot_rule_snapshot
+
+    return ok(pilot_rule_snapshot(), request_id=getattr(request.state, "request_id", None))

@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref } from 'vue'
+import TimeScopeSelect from '@/components/app/TimeScopeSelect.vue'
+import { useTimeScope } from '@/composables/useTimeScope'
+import { computed, nextTick, onMounted, ref, watch, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 
 import BlindRail from '@/components/app/BlindRail.vue'
@@ -30,6 +32,7 @@ import StudentThesisTable from '../components/StudentThesisTable.vue'
 type ConfirmationAction = 'DELETE_DRAFT' | 'WITHDRAW_BEFORE_DISPATCH' | 'REQUEST_WITHDRAWAL'
 
 const authStore = useAuthStore()
+const timeScope = useTimeScope()
 const demoEnabled = import.meta.env.VITE_DEMO_MODE === 'true'
 const router = useRouter()
 const service = demoEnabled ? useStudentPortalService() : null
@@ -121,7 +124,9 @@ function selectThesis(id: string) {
   feedback.value = ''
 }
 
+let listGeneration = 0
 async function loadWorkspaceData(preserveSelection = true) {
+  const request = ++listGeneration
   loading.value = true
   listError.value = ''
   try {
@@ -138,8 +143,9 @@ async function loadWorkspaceData(preserveSelection = true) {
           })),
       demoEnabled && service
         ? service.listStudentTheses()
-        : listTheses().then((items) => items.map(toStudentThesisDetail)),
+        : listTheses(...timeScope.request()).then((items) => items.map(toStudentThesisDetail)),
     ])
+    if (request !== listGeneration) return
     eligibility.value = loadedEligibility
     eligibilityReason.value = loadedEligibility.eligible ? '' : loadedEligibility.reason
     theses.value = loaded
@@ -147,9 +153,10 @@ async function loadWorkspaceData(preserveSelection = true) {
       chooseInitialThesis()
     }
   } catch {
+    if (request !== listGeneration) return
     listError.value = '论文列表加载失败，请重新加载。'
   } finally {
-    loading.value = false
+    if (request === listGeneration) loading.value = false
   }
 }
 
@@ -351,13 +358,15 @@ function handleDrawerAction(action: StudentAction) {
 }
 
 onMounted(() => void loadWorkspaceData(false))
+watch([timeScope.scope, timeScope.identity], () => { if (!demoEnabled && authStore.user) { theses.value = []; selectedThesisId.value = null; void loadWorkspaceData(false) } })
+onBeforeUnmount(() => { listGeneration++ })
 </script>
 
 <template>
   <PortalLayout
     :menu-items="portalMenus('student', demoEnabled)"
     active-path="/student/dashboard"
-    context-label="学生端 · 海岳大学"
+    :context-label="demoEnabled ? '学生端 · 海岳大学' : '学生端 · ' + (authStore.user?.tenantCode ?? '本校')"
     :user-name="authStore.user?.displayName ?? '林知远'"
     :background-locked="drawerOpen || Boolean(confirmationAction) || demoDialogOpen"
   >
@@ -380,6 +389,7 @@ onMounted(() => void loadWorkspaceData(false))
         </template>
       </PageHeader>
 
+      <TimeScopeSelect v-if="!demoEnabled" :model-value="timeScope.scope.value" :meta="timeScope.meta.value" @update:model-value="timeScope.setScope" />
       <BlindRail
         audience="本人论文、公开流程和学校处理说明"
         hidden-from="评审专家身份、内部派单队列和账务信息"
@@ -390,7 +400,7 @@ onMounted(() => void loadWorkspaceData(false))
         <EligibilityCard
           :eligible="eligibility?.eligible ?? false"
           :batch-name="eligibility?.batchName ?? '资格信息加载中'"
-          :deadline="eligibility?.deadline ?? '--'"
+          :deadline="eligibility?.deadline || '未设置'"
         />
         <article class="deadline-card">
           <span>当前批次说明</span>

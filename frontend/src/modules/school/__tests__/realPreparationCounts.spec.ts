@@ -1,17 +1,21 @@
+import { createRouter, createMemoryHistory } from 'vue-router'
 import { createPinia } from 'pinia'
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import Page from '../pages/PreparationListPage.vue'
 import Panel from '../components/AnonymizationCheckPanel.vue'
 import Table from '../components/SchoolThesisTable.vue'
-const api = vi.hoisted(() => ({ listSchoolTheses: vi.fn(), confirmAnonymization: vi.fn(), terminateThesis: vi.fn() }))
+const api = vi.hoisted(() => ({ listSchoolTheses: vi.fn(), confirmAnonymization: vi.fn(), terminateThesis: vi.fn(), checkSensitiveThesis: vi.fn() }))
 vi.mock('@/api/schoolReview', () => api)
+vi.mock('@/api/sensitiveChecks', () => api)
 enableAutoUnmount(afterEach)
 afterEach(() => vi.unstubAllEnvs())
 const row = (id: string, conclusion: string | null) => ({ id, version: 3, stage: 'PREPARING', allowed_actions: ['CONFIRM_ANONYMIZATION'], current_version: { title: id }, anonymization: { auto_conclusion: conclusion, manual_conclusion: 'PASS' } })
 beforeEach(() => { vi.stubEnv('VITE_DEMO_MODE', 'false'); vi.resetAllMocks(); api.listSchoolTheses.mockResolvedValue([]) })
 async function page() {
-  const wrapper = mount(Page, { global: { plugins: [createPinia()], stubs: { PortalLayout: { template: '<div><slot/></div>' } } } })
+  const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:pathMatch(.*)*', component: { render: () => null } }] })
+  await router.push('/school/preparation'); await router.isReady()
+  const wrapper = mount(Page, { global: { plugins: [createPinia(), router], stubs: { PortalLayout: { template: '<div><slot/></div>' } } } })
   await flushPromises()
   return wrapper
 }
@@ -53,4 +57,14 @@ it('refreshes counts after a command and hides stale data if refresh fails', asy
   expect(wrapper.findComponent(Panel).exists()).toBe(false)
   expect(wrapper.findComponent(Table).exists()).toBe(false)
   expect(wrapper.get('[role="alert"]').text()).toContain('刷新失败')
+})
+
+it('checks the selected school anonymous file and reloads server allowed actions',async()=>{
+  const item = {...row('a','PASS'),current_version:{id:'version-a',title:'论文',files:[{file_id:'file-a',purpose:'anonymous',filename:'a.pdf'}]}}
+  api.listSchoolTheses.mockResolvedValue([item]);api.checkSensitiveThesis.mockResolvedValue({})
+  const wrapper=await page()
+  wrapper.getComponent(Table).vm.$emit('select','a');await flushPromises()
+  await wrapper.get('[data-run-sensitive]').trigger('click');await flushPromises()
+  expect(api.checkSensitiveThesis).toHaveBeenCalledWith('a',{expected_version:3,file_id:'file-a'},true)
+  expect(api.listSchoolTheses).toHaveBeenCalledTimes(2)
 })

@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, String
+from sqlalchemy import BigInteger, CheckConstraint, DateTime, ForeignKey, ForeignKeyConstraint, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.mixins import BaseModel
@@ -9,8 +9,19 @@ from app.db.mixins import BaseModel
 
 class FileObject(BaseModel):
     __tablename__ = "file_objects"
+    __table_args__ = (
+        UniqueConstraint("id", "thesis_id", "tenant_id", "purpose", name="uq_file_objects_id_thesis_tenant_purpose"),
+        ForeignKeyConstraint(["thesis_id", "tenant_id"], ["theses.id", "theses.tenant_id"],
+                             name="fk_file_objects_thesis_tenant"),
+        ForeignKeyConstraint(["upload_version_id", "thesis_id", "tenant_id"],
+                             ["thesis_versions.id", "thesis_versions.thesis_id", "thesis_versions.tenant_id"],
+                             name="fk_file_objects_version_thesis_tenant"),
+        CheckConstraint("upload_version_id IS NULL OR thesis_id IS NOT NULL",
+                        name="ck_file_objects_version_has_thesis"),
+    )
 
     tenant_id: Mapped[UUID] = mapped_column(ForeignKey("tenants.id"), nullable=False)
+    thesis_id: Mapped[UUID | None] = mapped_column(ForeignKey("theses.id"), nullable=True)
     upload_version_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("thesis_versions.id"), nullable=True
     )

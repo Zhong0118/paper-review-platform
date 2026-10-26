@@ -9,7 +9,7 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.main import create_app
-from app.db.session import get_session
+from app.db.session import get_auth_session, get_session
 from app.modules.auth.deps import CurrentUser
 from app.modules.files import service as files
 from app.modules.thesis import service as theses
@@ -34,6 +34,7 @@ async def independent_sessions():
             async with sessions() as session:
                 yield session
         app.dependency_overrides[get_session] = request_session
+        app.dependency_overrides[get_auth_session] = request_session
         try:
             async with AsyncClient(transport=ASGITransport(app=app), base_url='http://test') as client:
                 yield sessions, client

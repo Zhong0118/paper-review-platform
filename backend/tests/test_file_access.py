@@ -131,7 +131,7 @@ async def test_legacy_download_token_not_a_login(independent_sessions):
     sessions, client = independent_sessions
     async with sessions() as session:
         user = (await session.execute(select(User).where(User.username == 'expert.zhou'))).scalar_one()
-        legacy = create_access_token(user_id=user.id, role='expert', tenant_id=None, data_scope={'purpose':'download','file_id':'old'})
+        legacy = create_access_token(user_id=user.id, role='expert', tenant_id=None, auth_version=user.auth_version, data_scope={'purpose':'download','file_id':'old'})
     assert (await client.get('/api/v1/me', headers={'Authorization':'Bearer '+legacy})).status_code == 401
 
 

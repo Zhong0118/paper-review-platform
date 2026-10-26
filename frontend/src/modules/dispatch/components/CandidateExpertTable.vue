@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import ColumnPreferences from '@/components/app/ColumnPreferences.vue'
+import { useColumnPreferences, type ColumnIdentity } from '@/composables/useColumnPreferences'
 import ConflictReason from './ConflictReason.vue'
 
 export interface ExpertCandidate {
@@ -24,9 +26,29 @@ export interface ExpertCandidate {
 const props = defineProps<{
   rows: ExpertCandidate[]
   modelValue: string[]
-  /** 移动端卡片视图由布局断点驱动；与专家库/任务列表一致（≤900px 由页面传入）。 */
+  showDemoMetrics?: boolean
+  /** 移动断点由页面传入；真实模式保留横向表格，演示模式使用卡片。 */
   mobile?: boolean
+  preferenceIdentity?: ColumnIdentity | null
 }>()
+const preferences = useColumnPreferences('dispatch-candidates', 1, () => [
+  ...(!props.preferenceIdentity ? [{ id: 'selection', label: '选择', required: true, defaultVisible: true }] : []),
+  { id: 'expert', label: '专家', required: true, defaultVisible: true },
+  { id: 'unit', label: '单位 / 职称', required: false, defaultVisible: true },
+  { id: 'discipline', label: '专业匹配', required: false, defaultVisible: true },
+  { id: 'fields', label: '擅长领域', required: false, defaultVisible: true },
+  { id: 'keywords', label: '关键词命中', required: false, defaultVisible: true },
+  ...(props.showDemoMetrics ? [
+    { id: 'load', label: '当前负载', required: false, defaultVisible: true },
+    { id: 'acceptance', label: '接单率', required: false, defaultVisible: true },
+    { id: 'onTime', label: '按时完成率', required: false, defaultVisible: true },
+    { id: 'average', label: '平均完成时间', required: false, defaultVisible: true },
+    { id: 'fee', label: '费用标准', required: false, defaultVisible: true },
+  ] : []),
+  { id: 'conflict', label: '回避校验', required: false, defaultVisible: true },
+  ...(props.preferenceIdentity ? [{ id: 'actions', label: '选择', required: true, defaultVisible: true }] : []),
+], () => props.preferenceIdentity ?? null)
+const { visibleColumns } = preferences
 const emit = defineEmits<{ 'update:modelValue': [ids: string[]] }>()
 
 function toggle(id: string, checked: boolean) {
@@ -35,70 +57,38 @@ function toggle(id: string, checked: boolean) {
 </script>
 
 <template>
-  <div v-if="!mobile" class="candidate-table-wrap">
+  <ColumnPreferences v-if="preferenceIdentity" :preferences="preferences" label="候选专家" />
+  <div v-if="!mobile || preferenceIdentity" class="candidate-table-wrap">
     <table class="candidate-table">
       <thead>
-        <tr>
-          <th>选择</th>
-          <th>专家</th>
-          <th>单位 / 职称</th>
-          <th>专业匹配</th>
-          <th>擅长领域</th>
-          <th>关键词命中</th>
-          <th>当前负载</th>
-          <th>接单率</th>
-          <th>按时完成率</th>
-          <th>平均完成时间</th>
-          <th>费用标准</th>
-          <th>回避校验</th>
-        </tr>
+        <TransitionGroup name="table-columns" tag="tr">
+          <th v-for="column in visibleColumns" :key="column.id" :data-column-header="column.id">{{ column.label }}</th>
+        </TransitionGroup>
       </thead>
       <tbody>
-        <tr
+        <TransitionGroup name="table-columns" tag="tr"
           v-for="row in rows"
           :key="row.id"
           :data-expert="row.rowType"
           :data-expert-id="row.id"
         >
-          <td>
-            <input
-              type="checkbox"
-              :checked="modelValue.includes(row.id)"
-              :disabled="row.conflictHit"
-              :aria-label="`选择 ${row.alias}`"
-              @change="toggle(row.id, ($event.target as HTMLInputElement).checked)"
-            />
+          <td v-for="column in visibleColumns" :key="column.id" :data-column-cell="column.id">
+            <input v-if="column.id === 'actions' || column.id === 'selection'" type="checkbox" :checked="modelValue.includes(row.id)" :disabled="row.conflictHit" :aria-label="`选择 ${row.alias}`" @change="toggle(row.id, ($event.target as HTMLInputElement).checked)" />
+            <template v-else-if="column.id === 'expert'"><strong>{{ row.name }}</strong><small>{{ row.alias }} · 仅平台可见</small></template>
+            <template v-else-if="column.id === 'unit'"><strong>{{ row.unit }}</strong><small>{{ row.title }}</small></template>
+            <template v-else-if="column.id === 'discipline'"><code>{{ row.discipline.code }}</code><span>{{ row.discipline.name }}</span></template>
+            <template v-else-if="column.id === 'fields'"><span v-for="field in row.fields" :key="field" class="tag">{{ field }}</span></template>
+            <template v-else-if="column.id === 'keywords'">
+              <span v-if="row.keywordHits.length > 0"><span v-for="keyword in row.keywordHits" :key="keyword" class="tag hit">{{ keyword }}</span></span><small v-else>无直接命中</small>
+            </template>
+            <template v-else-if="column.id === 'load'">{{ row.activeTasks }} 个</template>
+            <template v-else-if="column.id === 'acceptance'">{{ row.acceptanceRate }}</template>
+            <template v-else-if="column.id === 'onTime'">{{ row.onTimeRate }}</template>
+            <template v-else-if="column.id === 'average'">{{ row.avgCompletionDays }} 天</template>
+            <template v-else-if="column.id === 'fee'">¥ {{ Number(row.feeStandard).toFixed(2) }}</template>
+            <ConflictReason v-else-if="column.id === 'conflict'" :hit="row.conflictHit" :reason="row.conflictReason" />
           </td>
-          <td>
-            <strong>{{ row.name }}</strong>
-            <small>{{ row.alias }} · 仅平台可见</small>
-          </td>
-          <td>
-            <strong>{{ row.unit }}</strong>
-            <small>{{ row.title }}</small>
-          </td>
-          <td>
-            <code>{{ row.discipline.code }}</code>
-            <span>{{ row.discipline.name }}</span>
-          </td>
-          <td>
-            <span v-for="field in row.fields" :key="field" class="tag">{{ field }}</span>
-          </td>
-          <td>
-            <span v-if="row.keywordHits.length > 0">
-              <span v-for="keyword in row.keywordHits" :key="keyword" class="tag hit">
-                {{ keyword }}
-              </span>
-            </span>
-            <small v-else>无直接命中</small>
-          </td>
-          <td>{{ row.activeTasks }} 个</td>
-          <td>{{ row.acceptanceRate }}</td>
-          <td>{{ row.onTimeRate }}</td>
-          <td>{{ row.avgCompletionDays }} 天</td>
-          <td>¥ {{ Number(row.feeStandard).toFixed(2) }}</td>
-          <td><ConflictReason :hit="row.conflictHit" :reason="row.conflictReason" /></td>
-        </tr>
+        </TransitionGroup>
       </tbody>
     </table>
     <ul class="match-reasons" aria-label="候选匹配原因">
@@ -109,7 +99,7 @@ function toggle(id: string, checked: boolean) {
     </ul>
   </div>
 
-  <!-- 移动端卡片视图（≤900px）：候选专家以卡片呈现，390px 无整页横向滚动 -->
+  <!-- 演示模式移动卡片；真实模式保留可配置表格 -->
   <ul v-else class="candidate-cards" aria-label="候选专家">
     <li
       v-for="row in rows"
@@ -157,15 +147,15 @@ function toggle(id: string, checked: boolean) {
             <small v-else>无直接命中</small>
           </dd>
         </div>
-        <div>
+        <div v-if="showDemoMetrics">
           <dt>负载 / 接单率</dt>
           <dd>{{ row.activeTasks }} 个 · {{ row.acceptanceRate }}</dd>
         </div>
-        <div>
+        <div v-if="showDemoMetrics">
           <dt>按时完成率 / 平均完成时间</dt>
           <dd>{{ row.onTimeRate }} · {{ row.avgCompletionDays }} 天</dd>
         </div>
-        <div>
+        <div v-if="showDemoMetrics">
           <dt>费用标准</dt>
           <dd>¥ {{ row.feeStandard.toFixed(2) }}</dd>
         </div>
@@ -323,4 +313,7 @@ function toggle(id: string, checked: boolean) {
   font-size: 0.68rem;
   line-height: 1.5;
 }
+.table-columns-enter-active, .table-columns-leave-active, .table-columns-move { transition: opacity .18s, transform .18s; }
+.table-columns-enter-from, .table-columns-leave-to { opacity: 0; }
+@media (prefers-reduced-motion: reduce) { .table-columns-enter-active, .table-columns-leave-active, .table-columns-move { transition: none; } }
 </style>

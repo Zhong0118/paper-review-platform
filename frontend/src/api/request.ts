@@ -47,6 +47,7 @@ export type ApiErrorCode =
   | 'AUTH_REQUIRED'
   | 'ACCESS_DENIED'
   | 'RESOURCE_NOT_FOUND'
+  | 'RESOURCE_CONFLICT'
   | 'VALIDATION_FAILED'
   | 'STATE_TRANSITION_DENIED'
   | 'VERSION_CONFLICT'
@@ -61,6 +62,7 @@ export type ApiErrorCode =
 export interface RequestOptions extends AxiosRequestConfig {
   /** 幂等键，命令接口必传 */
   idempotencyKey?: string
+  onHeaders?: (headers: Record<string, unknown>) => void
 }
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api/v1'
@@ -128,15 +130,16 @@ http.interceptors.response.use(
 )
 
 /** 解包响应体，返回 data */
-async function unwrap<T>(promise: Promise<{ data: ApiResponse<T> }>): Promise<T> {
+async function unwrap<T>(promise: Promise<{ data: ApiResponse<T>; headers: Record<string, unknown> }>, onHeaders?: RequestOptions['onHeaders']): Promise<T> {
   const response = await promise
+  onHeaders?.(response.headers)
   return response.data.data
 }
 
 /** 类型化请求方法 */
 export const httpApi = {
   get<T>(url: string, config?: RequestOptions): Promise<T> {
-    return unwrap(http.get<ApiResponse<T>>(url, config))
+    return unwrap(http.get<ApiResponse<T>>(url, config), config?.onHeaders)
   },
   post<T>(url: string, data?: unknown, config?: RequestOptions): Promise<T> {
     return unwrap(http.post<ApiResponse<T>>(url, data, config))

@@ -2,23 +2,36 @@
 import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { REVIEW_SCORE_TEMPLATE } from '@/demo/types'
 import type { ReviewScoreInput } from '@/demo/types'
+import type { ReviewRuleDimension } from '@/api/review'
 import ScoreDimensionInput from './ScoreDimensionInput.vue'
+import ReviewCheckPanel from '@/components/app/ReviewCheckPanel.vue'
+import type { CheckAck, CheckFinding, CheckTarget } from '@/api/reviewChecks'
 
 const props = defineProps<{
   locked: boolean
   saving?: boolean
+  hideExit?: boolean
+  checkTarget?: CheckTarget
   /** 已保存草稿（刷新后回填表单；缺省/空则保持空表单）。 */
   draft?: ReviewScoreInput | null
+  dimensions?: ReviewRuleDimension[]
 }>()
 const emit = defineEmits<{
   save: [input: ReviewScoreInput]
   /** 输入变化自动保存（表单内防抖 800ms 后发出，页面收到即落盘）。 */
   autosave: [input: ReviewScoreInput]
-  submit: [input: ReviewScoreInput]
+  submit: [input: ReviewScoreInput, ack?: CheckAck]
+  edited: []
   exit: []
 }>()
 
-// 六维评分按模板数据动态渲染（设计 §4.4：维度/满分/说明均来自模板快照，不写死）。
+const checkAck = ref<CheckAck | null>(null)
+const formElement = ref<HTMLElement | null>(null)
+
+const dimensions = computed<ReviewRuleDimension[]>(() => props.dimensions ?? REVIEW_SCORE_TEMPLATE.map(
+  ({ key, label, maxScore }) => ({ key, label, max_score: maxScore }),
+))
+// 六维评分按当前任务的规则快照渲染；演示模式传入旧模板投影。
 const scores = reactive<Record<string, number>>(
   Object.fromEntries(REVIEW_SCORE_TEMPLATE.map((dimension) => [dimension.key, 0])),
 )
@@ -34,7 +47,7 @@ const overallComment = ref('')
 /** 回填已保存草稿（页面刷新后恢复表单内容）。 */
 function applyDraft(draft: ReviewScoreInput | null | undefined) {
   if (!draft) return
-  for (const dimension of REVIEW_SCORE_TEMPLATE) {
+  for (const dimension of dimensions.value) {
     const value = draft[dimension.key]
     if (Number.isFinite(value)) scores[dimension.key] = value
   }
@@ -43,7 +56,7 @@ function applyDraft(draft: ReviewScoreInput | null | undefined) {
   issues.value = draft.issues ?? ''
   revisionAdvice.value = draft.revisionAdvice ?? ''
   overallComment.value = draft.overallComment ?? ''
-  for (const dimension of REVIEW_SCORE_TEMPLATE) {
+  for (const dimension of dimensions.value) {
     evaluations[dimension.key] = draft.evaluations?.[dimension.key] ?? ''
   }
 }
@@ -55,22 +68,22 @@ watch(
 )
 
 const total = computed(() =>
-  REVIEW_SCORE_TEMPLATE.reduce((sum, dimension) => sum + (scores[dimension.key] ?? 0), 0),
+  dimensions.value.reduce((sum, dimension) => sum + (scores[dimension.key] ?? 0), 0),
 )
 const maxTotal = computed(() =>
-  REVIEW_SCORE_TEMPLATE.reduce((sum, dimension) => sum + dimension.maxScore, 0),
+  dimensions.value.reduce((sum, dimension) => sum + dimension.max_score, 0),
 )
 
 // 提交前完整性检查：按模板逐维校验越界/缺项，并校验必填文本，全部字段级报错。
 const fieldErrors = computed<Array<{ field: string; message: string }>>(() => {
   const errors: Array<{ field: string; message: string }> = []
-  for (const dimension of REVIEW_SCORE_TEMPLATE) {
+  for (const dimension of dimensions.value) {
     const value = scores[dimension.key] ?? 0
-    if (!Number.isFinite(value) || value < 0 || value > dimension.maxScore) {
+    if (!Number.isFinite(value) || value < 0 || value > dimension.max_score) {
       errors.push({
         field: dimension.key,
         // 与 ScoreDimensionInput 单维错误、服务端校验保持同一文案（评审修复：统一越界文案）。
-        message: `${dimension.label}分值应在 0–${dimension.maxScore} 之间（满分 ${dimension.maxScore}）。`,
+        message: `${dimension.label}分值应在 0–${dimension.max_score} 之间（满分 ${dimension.max_score}）。`,
       })
     }
   }
@@ -124,9 +137,22 @@ function scheduleAutosave() {
 
 watch(
   [scores, evaluations, recommendation, strengths, issues, revisionAdvice, overallComment],
-  () => scheduleAutosave(),
+  () => { emit('edited'); scheduleAutosave() },
   { deep: true },
 )
+
+function locate(finding: CheckFinding) {
+  const name = finding.field === 'issues' ? 'mainIssues' : finding.field
+  const element = Array.from(formElement.value?.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>('input,textarea,select') ?? [])
+    .find(field => field.name === name)
+  if (!element) return
+  element.focus()
+  element.scrollIntoView?.({ block: 'center', behavior: 'smooth' })
+  if (element instanceof HTMLTextAreaElement) {
+    const points = Array.from(element.value)
+    element.setSelectionRange(points.slice(0, finding.start).join('').length, points.slice(0, finding.end).join('').length)
+  }
+}
 
 onBeforeUnmount(() => {
   if (autosaveTimer !== null) {
@@ -137,7 +163,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section
+  <section ref="formElement"
     class="review-form"
     :data-review-locked="locked ? 'true' : 'false'"
     aria-labelledby="review-form-title"
@@ -150,13 +176,14 @@ onBeforeUnmount(() => {
 
     <div class="score-sheet">
       <ScoreDimensionInput
-        v-for="dimension in REVIEW_SCORE_TEMPLATE"
+        v-for="dimension in dimensions"
         :key="dimension.key"
         :dimension-key="dimension.key"
         :label="dimension.label"
-        :max="dimension.maxScore"
-        :guide="dimension.guide"
+        :max="dimension.max_score"
+        :guide="props.dimensions ? '' : REVIEW_SCORE_TEMPLATE.find(item => item.key === dimension.key)?.guide ?? ''"
         :model-value="scores[dimension.key] ?? 0"
+        :evaluation="evaluations[dimension.key] ?? ''"
         :locked="locked"
         @update:model-value="scores[dimension.key] = $event"
         @update:evaluation="evaluations[dimension.key] = $event"
@@ -188,6 +215,10 @@ onBeforeUnmount(() => {
       <textarea v-model="overallComment" name="overallComment" rows="5" :disabled="locked" />
     </label>
     <label>
+      <span>主要优点（选填）</span>
+      <textarea v-model="strengths" name="strengths" rows="3" :disabled="locked" />
+    </label>
+    <label>
       <span>主要问题</span>
       <textarea v-model="issues" name="mainIssues" rows="3" :disabled="locked" />
     </label>
@@ -196,6 +227,8 @@ onBeforeUnmount(() => {
       <textarea v-model="revisionAdvice" name="revisionAdvice" rows="3" :disabled="locked" />
     </label>
 
+    <ReviewCheckPanel v-if="checkTarget && !locked" :target="checkTarget" :payload="payload()"
+      @ack="checkAck = $event" @locate="locate" />
     <footer class="actions">
       <button
         type="button"
@@ -206,15 +239,15 @@ onBeforeUnmount(() => {
       >
         保存草稿
       </button>
-      <button type="button" class="quiet" data-action="exit-review" :disabled="locked" @click="emit('exit')">
+      <button v-if="!hideExit" type="button" class="quiet" data-action="exit-review" :disabled="locked" @click="emit('exit')">
         暂存退出
       </button>
       <button
         type="button"
         class="primary"
         data-action="submit-final-review"
-        :disabled="locked || !complete"
-        @click="emit('submit', payload())"
+        :disabled="locked || !complete || (!!checkTarget && !checkAck)"
+        @click="checkTarget ? emit('submit', payload(), checkAck ?? undefined) : emit('submit', payload())"
       >
         最终提交
       </button>

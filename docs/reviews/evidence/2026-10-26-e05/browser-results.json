@@ -1,0 +1,31 @@
+{
+  "date": "2026-10-26",
+  "browser": "Chrome headless via Playwright",
+  "mode": "real",
+  "results": [
+    {
+      "scenario": "school real counts, one published paper, same-status anonymous drill-down",
+      "status": "PASS"
+    },
+    {
+      "scenario": "past-year and explicit status persist on refresh; old thesis excluded",
+      "status": "PASS"
+    },
+    {
+      "scenario": "concurrent real accept changes count; card drill announces updated zero count",
+      "status": "PASS"
+    },
+    {
+      "scenario": "metrics outage keeps independent list, shows no fabricated zero, retry recovers",
+      "status": "PASS"
+    },
+    {
+      "scenario": "platform operational response whitelist; submitted list includes result-stage tasks with no scores/comments",
+      "status": "PASS"
+    },
+    {
+      "scenario": "waiting drill keeps candidate selection; mobile cards fit viewport",
+      "status": "PASS"
+    }
+  ]
+}

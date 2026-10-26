@@ -1,3 +1,5 @@
+from app.shared.time_scope import apply_thesis_scope, resolve_time_scope, utc_now
+from app.modules.review.rules import pilot_rule_snapshot
 from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
@@ -7,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import AppError
 from app.modules.audit import service as audit_service
 from app.modules.auth.deps import CurrentUser
+from app.modules.auth.service import load_active_identity
 from app.modules.dispatch.models import ExpertTask, ReviewRound
 from app.modules.expert.models import Expert, ExpertConflict
 from app.modules.files.models import FileObject
@@ -53,6 +56,8 @@ async def confirm_dispatch(session: AsyncSession, user: CurrentUser, thesis: The
         tenant_id=thesis.tenant_id,
         thesis_id=thesis.id,
         thesis_version_id=version.id,
+        anonymous_title=version.title,
+        rule_snapshot=pilot_rule_snapshot(),
         round_no=existing.round_no + 1 if existing else 1,
         status=RoundStatus.CREATED,
         discipline_code=version.discipline_code,
@@ -72,7 +77,12 @@ async def confirm_dispatch(session: AsyncSession, user: CurrentUser, thesis: The
     return round_
 
 
-async def _avoided(session: AsyncSession, expert_id: UUID, display_name: str | None, supervisor_name: str) -> bool:
+async def _avoided(session: AsyncSession, expert_id: UUID, display_name: str | None, supervisor_name: str, tenant_id: UUID) -> bool:
+    if (await session.execute(select(ExpertConflict.id).where(
+        ExpertConflict.expert_id == expert_id, ExpertConflict.kind == "TENANT_ID",
+        ExpertConflict.value == str(tenant_id),
+    ).limit(1))).scalar_one_or_none() is not None:
+        return True
     if not supervisor_name:
         return False
     if display_name and (supervisor_name in display_name or display_name in supervisor_name):
@@ -81,6 +91,16 @@ async def _avoided(session: AsyncSession, expert_id: UUID, display_name: str | N
         ExpertConflict.expert_id == expert_id, ExpertConflict.kind == "SUPERVISOR_NAME",
         ExpertConflict.value == supervisor_name,
     ).limit(1))).scalar_one_or_none() is not None
+
+
+async def _active_expert_user(session: AsyncSession, user_id: UUID) -> bool:
+    try:
+        identity = await load_active_identity(session, user_id)
+    except AppError as exc:
+        if exc.code == "AUTH_REQUIRED":
+            return False
+        raise
+    return identity.role.code == RoleCode.EXPERT and identity.assignment.tenant_id is None
 
 
 async def list_candidates(session: AsyncSession, user: CurrentUser, thesis_id: UUID) -> list[dict]:
@@ -102,9 +122,11 @@ async def list_candidates(session: AsyncSession, user: CurrentUser, thesis_id: U
     experts = (await session.execute(select(Expert, User).join(User, User.id == Expert.user_id))).all()
     items = []
     for expert, usr in experts:
+        if not await _active_expert_user(session, usr.id):
+            continue
         codes = expert.discipline_codes or []
         mismatch = version is not None and version.discipline_code not in codes
-        avoided = await _avoided(session, expert.id, usr.display_name, supervisor_name)
+        avoided = await _avoided(session, expert.id, usr.display_name, supervisor_name, thesis.tenant_id)
         items.append(
             {
                 "expert_id": str(expert.id),
@@ -114,6 +136,7 @@ async def list_candidates(session: AsyncSession, user: CurrentUser, thesis_id: U
                 "direction_mismatch": mismatch,
                 "avoided": avoided,
                 "service_status": expert.service_status,
+                "qualification_status": expert.qualification_status,
             }
         )
     return items
@@ -132,8 +155,10 @@ async def assign(session: AsyncSession, user: CurrentUser, thesis_id: UUID, expe
     if (round_ is None or round_.thesis_version_id != thesis.current_version_id
             or round_.status not in {RoundStatus.CREATED, RoundStatus.ACTIVE}):
         raise AppError("STATE_TRANSITION_DENIED", 409, "请先由学校确认送出")
-    expert = await session.get(Expert, expert_id)
-    if expert is None or expert.service_status != "AVAILABLE":
+    expert = (await session.execute(select(Expert).where(Expert.id == expert_id).with_for_update()
+                                    .execution_options(populate_existing=True))).scalar_one_or_none()
+    if (expert is None or expert.service_status != "AVAILABLE" or expert.qualification_status != "APPROVED"
+            or not await _active_expert_user(session, expert.user_id)):
         raise _hidden()
     version = await session.get(ThesisVersion, thesis.current_version_id)
     if version and version.discipline_code not in (expert.discipline_codes or []):
@@ -145,7 +170,7 @@ async def assign(session: AsyncSession, user: CurrentUser, thesis_id: UUID, expe
         )
     ).scalar_one_or_none()
     supervisor_name = (elig.supervisor_name if elig else "") or ""
-    if await _avoided(session, expert.id, usr.display_name if usr else None, supervisor_name):
+    if await _avoided(session, expert.id, usr.display_name if usr else None, supervisor_name, thesis.tenant_id):
         raise AppError("STATE_TRANSITION_DENIED", 409, "命中回避关系")
     live = (
         await session.execute(
@@ -160,6 +185,7 @@ async def assign(session: AsyncSession, user: CurrentUser, thesis_id: UUID, expe
     task = ExpertTask(
         tenant_id=thesis.tenant_id,
         round_id=round_.id,
+        thesis_id=thesis.id,
         expert_id=expert.id,
         status=ExpertTaskStatus.INVITED,
         invited_at=datetime.now(timezone.utc),
@@ -268,19 +294,23 @@ async def reject_task(session: AsyncSession, user: CurrentUser, task_id: UUID, r
     return task
 
 
-async def list_expert_tasks(session: AsyncSession, user: CurrentUser) -> list[dict]:
+async def list_expert_tasks(session: AsyncSession, user: CurrentUser, *, time_scope="all", as_of=None) -> list[dict]:
     expert = await expert_for_user(session, user.id)
-    tasks = list((await session.execute(select(ExpertTask).where(ExpertTask.expert_id == expert.id))).scalars())
+    query = select(ExpertTask).where(ExpertTask.expert_id == expert.id)
+    lower, upper = resolve_time_scope(time_scope, as_of if as_of is not None else utc_now())
+    if lower is not None:
+        from sqlalchemy import func
+        query = query.where(func.task_thesis_in_period(ExpertTask.id, lower, upper))
+    tasks = list((await session.execute(query)).scalars())
     items = []
     for task in tasks:
         round_ = await session.get(ReviewRound, task.round_id)
-        version = await session.get(ThesisVersion, round_.thesis_version_id) if round_ else None
         items.append(
             {
                 "id": str(task.id),
                 "status": task.status,
                 "anonymous_id": str(task.id)[:8],
-                "anonymous_title": (version.title if version else "匿名论文") or "匿名论文",
+                "anonymous_title": (round_.anonymous_title if round_ else "匿名论文") or "匿名论文",
                 "discipline_code": round_.discipline_code if round_ else "",
                 "discipline_name": round_.discipline_name if round_ else "",
                 "allowed_actions": {
@@ -296,13 +326,12 @@ async def list_expert_tasks(session: AsyncSession, user: CurrentUser) -> list[di
 async def invitation(session: AsyncSession, user: CurrentUser, task_id: UUID) -> dict:
     task = await get_task_for_expert(session, user, task_id)
     round_ = await session.get(ReviewRound, task.round_id)
-    version = await session.get(ThesisVersion, round_.thesis_version_id) if round_ else None
     return {
         "id": str(task.id),
         "status": task.status,
         "discipline_code": round_.discipline_code if round_ else "",
         "discipline_name": round_.discipline_name if round_ else "",
-        "anonymous_title": (version.title if version else "匿名论文") or "匿名论文",
+        "anonymous_title": (round_.anonymous_title if round_ else "匿名论文") or "匿名论文",
         "anonymous_id": str(task.id)[:8],
         "fee": "未启用",
     }
@@ -372,77 +401,55 @@ async def school_progress(session: AsyncSession, thesis: Thesis) -> dict:
     }
 
 
-async def school_progress_list(session: AsyncSession, user: CurrentUser) -> dict:
+async def school_progress_list(session: AsyncSession, user: CurrentUser, *, time_scope="all", as_of=None, status_filter="ALL") -> dict:
+    from app.modules.dispatch.projection import operation_rows, matches_filter, card_counts, validate_status_filter
     if user.role != RoleCode.SCHOOL_REVIEWER or user.tenant_id is None:
         raise AppError("ACCESS_DENIED", 403, "无权执行该操作")
-    rounds = list(
-        (
-            await session.execute(
-                select(ReviewRound).join(Thesis, Thesis.id == ReviewRound.thesis_id).where(
-                    ReviewRound.tenant_id == user.tenant_id,
-                    ReviewRound.thesis_version_id == Thesis.current_version_id,
-                    ReviewRound.status != RoundStatus.CANCELLED,
-                ).order_by(ReviewRound.created_at.desc())
-            )
-        ).scalars()
-    )
+    validate_status_filter(status_filter)
+    as_of = as_of or utc_now()
+    rows = await operation_rows(session, user, time_scope=time_scope, as_of=as_of, labels=True)
+    rows = [r for r in rows if r['round_id'] and matches_filter(r, status_filter)]
+    cards = card_counts(rows)
     items = []
-    totals = {"waiting": 0, "reviewing": 0, "completed": 0, "rejected": 0, "overdue": 0}
-    for round_ in rounds:
-        thesis = await session.get(Thesis, round_.thesis_id)
-        if thesis is None or thesis.tenant_id != user.tenant_id:
-            continue
-        row = await school_progress(session, thesis)
-        version = await session.get(ThesisVersion, thesis.current_version_id)
-        elig = (
-            await session.execute(
-                select(StudentEligibility).where(StudentEligibility.student_membership_id == thesis.student_membership_id)
-            )
-        ).scalar_one_or_none()
-        row["title"] = version.title if version else ""
-        row["student_name"] = elig.student_name if elig else ""
-        open_tasks = row["invited_count"] + row["in_review_count"] + row["submitted_count"]
-        if open_tasks == 0:
-            totals["waiting"] += 1
-        totals["reviewing"] += row["invited_count"] + row["in_review_count"]
-        totals["completed"] += row["submitted_count"]
-        totals["rejected"] += row["rejected_count"]
-        items.append(row)
-    return {"items": items, "totals": totals}
+    for row in rows:
+        tasks = row['tasks']
+        item = {k: row[k] for k in ('thesis_id', 'stage', 'round_status', 'waiting', 'title', 'student_name')}
+        item.update({key: sum(t['status'] == status for t in tasks) for key, status in (
+            ('invited_count', 'INVITED'), ('in_review_count', 'IN_REVIEW'),
+            ('submitted_count', 'SUBMITTED'), ('rejected_count', 'REJECTED'))})
+        item['tasks'] = [{'alias': f'T-{index:03d}', 'status': t['status']}
+                         for index, t in enumerate(tasks, start=1)
+                         if status_filter == 'ALL' or t['status'] == status_filter]
+        items.append(item)
+    filtered_count = len(items) if status_filter in ('ALL', 'WAITING') else sum(len(r['tasks']) for r in items)
+    return {'items': items, 'totals': {
+        'waiting': cards['waiting_theses'], 'reviewing': cards['invited_tasks'] + cards['in_review_tasks'],
+        'completed': cards['submitted_tasks'], 'rejected': sum(r['rejected_count'] for r in items), 'overdue': None,
+    }, 'overdue_status': 'NOT_CONFIGURED', 'as_of': as_of.isoformat(), 'status_filter': status_filter, 'filtered_count': filtered_count}
 
 
-async def dispatch_queue(session: AsyncSession, user: CurrentUser) -> list[dict]:
+async def dispatch_queue(session: AsyncSession, user: CurrentUser, *, time_scope="all", as_of=None, status_filter="ALL") -> list[dict]:
+    from app.modules.dispatch.projection import operation_rows, matches_filter, validate_status_filter
     if user.role != RoleCode.PLATFORM_REVIEWER:
         raise AppError("ACCESS_DENIED", 403, "无权执行该操作")
-    theses = (await session.execute(select(Thesis).where(Thesis.stage.in_([ThesisStage.READY_FOR_DISPATCH, ThesisStage.UNDER_REVIEW])))).scalars()
+    validate_status_filter(status_filter)
+    rows = await operation_rows(session, user, time_scope=time_scope, as_of=as_of, labels=True)
     items = []
-    for thesis in theses:
-        elig = (
-            await session.execute(
-                select(StudentEligibility).where(StudentEligibility.student_membership_id == thesis.student_membership_id, StudentEligibility.review_batch_id == thesis.review_batch_id)
-            )
-        ).scalar_one_or_none()
-        version = await session.get(ThesisVersion, thesis.current_version_id)
-        round_ = await _round_for(session, thesis.id)
-        can_assign = False
-        reassignable_task = None
-        if round_ and round_.thesis_version_id == thesis.current_version_id and round_.status in (RoundStatus.CREATED, RoundStatus.ACTIVE):
-            occupied = (await session.execute(select(ExpertTask).where(
-                ExpertTask.round_id == round_.id,
-                ExpertTask.status.in_([ExpertTaskStatus.INVITED, ExpertTaskStatus.IN_REVIEW, ExpertTaskStatus.SUBMITTED]),
-            ).limit(1))).scalar_one_or_none()
-            can_assign = occupied is None
-            if thesis.stage == ThesisStage.UNDER_REVIEW and round_.status == RoundStatus.ACTIVE and occupied and occupied.status in {ExpertTaskStatus.INVITED, ExpertTaskStatus.IN_REVIEW}:
-                reassignable_task = occupied
-        items.append(
-            {
-                "thesis_id": str(thesis.id),
-                "stage": thesis.stage,
-                "allowed_actions": ["ASSIGN_EXPERT"] if can_assign else (["REASSIGN_EXPERT"] if reassignable_task else []),
-                "reassignable_task": {"id": str(reassignable_task.id), "expert_id": str(reassignable_task.expert_id)} if reassignable_task else None,
-                "student_name": elig.student_name if elig else "",
-                "title": version.title if version else "",
-                "discipline_code": version.discipline_code if version else "",
-            }
-        )
+    for row in rows:
+        # The unfiltered workbench keeps its existing dispatch scope. Explicit
+        # submitted drill-down also includes result-processing/completed work.
+        if status_filter == 'ALL' and row['stage'] not in ('READY_FOR_DISPATCH', 'UNDER_REVIEW'):
+            continue
+        if not matches_filter(row, status_filter):
+            continue
+        replacement = next((t for t in row['tasks'] if t['status'] in ('INVITED', 'IN_REVIEW')), None)
+        if row['stage'] != 'UNDER_REVIEW' or row['round_status'] != 'ACTIVE':
+            replacement = None
+        items.append({
+            **{k: row[k] for k in ('thesis_id', 'stage', 'title', 'student_name', 'discipline_code')},
+            'allowed_actions': ['ASSIGN_EXPERT'] if row['waiting'] else (['REASSIGN_EXPERT'] if replacement else []),
+            'reassignable_task': {k: replacement[k] for k in ('id', 'expert_id')} if replacement else None,
+            'tasks': [{'status': t['status']} for t in row['tasks']
+                      if t['status'] in ('INVITED', 'IN_REVIEW', 'SUBMITTED') and (status_filter == 'ALL' or t['status'] == status_filter)],
+        })
     return items

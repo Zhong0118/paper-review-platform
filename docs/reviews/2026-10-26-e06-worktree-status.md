@@ -1,0 +1,522 @@
+# E06结束时完整工作树状态
+
+日期：2026-10-26。分支`codex/slice-7a1-file-integrity`，HEAD`39a8962c489163018a49ef5058171925c4faaa9d`。
+
+已跟踪修改99、已有删除157、未跟踪文件256，无暂存提交。本清单包括全部历史未提交工作，不将整份diff归为E06。原始起始路径在最终状态中缺失数：0。保留已有157项删除，无reset/clean/提交/推送/部署。
+
+E06验证见[验收记录](2026-10-12-e06-validation.md)。git-ignored执行日志、构建产物不在清单中；临时验收密码已删除。
+
+```text
+ M README.md
+ M backend/alembic/env.py
+ M backend/app/api.py
+ M backend/app/core/config.py
+ D backend/app/core/constants.py
+ M backend/app/core/logging.py
+ M backend/app/core/security.py
+ M backend/app/db/models.py
+ M backend/app/db/session.py
+ M backend/app/main.py
+ D backend/app/modules/audit/domain.py
+ D backend/app/modules/audit/enums.py
+ D backend/app/modules/audit/events.py
+ D backend/app/modules/audit/model.py
+ D backend/app/modules/audit/permissions.py
+ D backend/app/modules/audit/repository.py
+ D backend/app/modules/audit/router.py
+ D backend/app/modules/audit/schema.py
+ M backend/app/modules/audit/service.py
+ D backend/app/modules/audit/tasks.py
+ D backend/app/modules/audit/tests.py
+ M backend/app/modules/auth/deps.py
+ D backend/app/modules/auth/domain.py
+ D backend/app/modules/auth/enums.py
+ D backend/app/modules/auth/events.py
+ D backend/app/modules/auth/model.py
+ D backend/app/modules/auth/permissions.py
+ D backend/app/modules/auth/repository.py
+ M backend/app/modules/auth/router.py
+ D backend/app/modules/auth/schema.py
+ M backend/app/modules/auth/service.py
+ D backend/app/modules/auth/tasks.py
+ D backend/app/modules/auth/tests.py
+ D backend/app/modules/dispatch/domain.py
+ D backend/app/modules/dispatch/enums.py
+ D backend/app/modules/dispatch/events.py
+ D backend/app/modules/dispatch/model.py
+ M backend/app/modules/dispatch/models.py
+ D backend/app/modules/dispatch/permissions.py
+ D backend/app/modules/dispatch/repository.py
+ M backend/app/modules/dispatch/router.py
+ D backend/app/modules/dispatch/schema.py
+ M backend/app/modules/dispatch/service.py
+ D backend/app/modules/dispatch/tasks.py
+ D backend/app/modules/dispatch/tests.py
+ D backend/app/modules/expert/domain.py
+ D backend/app/modules/expert/enums.py
+ D backend/app/modules/expert/events.py
+ D backend/app/modules/expert/model.py
+ M backend/app/modules/expert/models.py
+ D backend/app/modules/expert/permissions.py
+ D backend/app/modules/expert/repository.py
+ M backend/app/modules/expert/router.py
+ M backend/app/modules/expert/schema.py
+ M backend/app/modules/expert/service.py
+ D backend/app/modules/expert/tasks.py
+ D backend/app/modules/expert/tests.py
+ D backend/app/modules/files/domain.py
+ D backend/app/modules/files/enums.py
+ D backend/app/modules/files/events.py
+ D backend/app/modules/files/model.py
+ M backend/app/modules/files/models.py
+ D backend/app/modules/files/permissions.py
+ D backend/app/modules/files/repository.py
+ M backend/app/modules/files/router.py
+ D backend/app/modules/files/schema.py
+ M backend/app/modules/files/service.py
+ D backend/app/modules/files/tasks.py
+ D backend/app/modules/files/tests.py
+ D backend/app/modules/finance/domain.py
+ D backend/app/modules/finance/enums.py
+ D backend/app/modules/finance/events.py
+ D backend/app/modules/finance/model.py
+ D backend/app/modules/finance/permissions.py
+ D backend/app/modules/finance/repository.py
+ D backend/app/modules/finance/router.py
+ D backend/app/modules/finance/schema.py
+ D backend/app/modules/finance/service.py
+ D backend/app/modules/finance/tasks.py
+ D backend/app/modules/finance/tests.py
+ D backend/app/modules/integration/clients/http_client.py
+ D backend/app/modules/integration/clients/java_adapter.py
+ D backend/app/modules/integration/clients/school_api_client.py
+ D backend/app/modules/integration/domain.py
+ D backend/app/modules/integration/enums.py
+ D backend/app/modules/integration/events.py
+ D backend/app/modules/integration/model.py
+ D backend/app/modules/integration/permissions.py
+ D backend/app/modules/integration/provider/base.py
+ D backend/app/modules/integration/provider/graduate_system.py
+ D backend/app/modules/integration/provider/school_sso.py
+ D backend/app/modules/integration/repository.py
+ D backend/app/modules/integration/router.py
+ D backend/app/modules/integration/schema.py
+ D backend/app/modules/integration/service.py
+ D backend/app/modules/integration/tasks.py
+ D backend/app/modules/integration/tests.py
+ D backend/app/modules/notice/domain.py
+ D backend/app/modules/notice/email_service.py
+ D backend/app/modules/notice/enums.py
+ D backend/app/modules/notice/events.py
+ D backend/app/modules/notice/model.py
+ D backend/app/modules/notice/permissions.py
+ D backend/app/modules/notice/repository.py
+ D backend/app/modules/notice/router.py
+ D backend/app/modules/notice/schema.py
+ D backend/app/modules/notice/service.py
+ D backend/app/modules/notice/sms_service.py
+ D backend/app/modules/notice/tasks.py
+ D backend/app/modules/notice/tests.py
+ D backend/app/modules/result/domain.py
+ D backend/app/modules/result/enums.py
+ D backend/app/modules/result/events.py
+ D backend/app/modules/result/model.py
+ M backend/app/modules/result/models.py
+ M backend/app/modules/result/objection_models.py
+ D backend/app/modules/result/permissions.py
+ D backend/app/modules/result/repository.py
+ D backend/app/modules/result/router.py
+ D backend/app/modules/result/schema.py
+ M backend/app/modules/result/service.py
+ D backend/app/modules/result/tasks.py
+ D backend/app/modules/result/tests.py
+ D backend/app/modules/review/domain.py
+ D backend/app/modules/review/enums.py
+ D backend/app/modules/review/events.py
+ D backend/app/modules/review/model.py
+ M backend/app/modules/review/models.py
+ D backend/app/modules/review/permissions.py
+ D backend/app/modules/review/repository.py
+ D backend/app/modules/review/router.py
+ D backend/app/modules/review/schema.py
+ M backend/app/modules/review/service.py
+ D backend/app/modules/review/tasks.py
+ D backend/app/modules/review/tests.py
+ M backend/app/modules/statistics/dashboard_service.py
+ D backend/app/modules/statistics/domain.py
+ D backend/app/modules/statistics/enums.py
+ D backend/app/modules/statistics/events.py
+ D backend/app/modules/statistics/model.py
+ D backend/app/modules/statistics/permissions.py
+ D backend/app/modules/statistics/repository.py
+ D backend/app/modules/statistics/router.py
+ D backend/app/modules/statistics/schema.py
+ D backend/app/modules/statistics/tasks.py
+ D backend/app/modules/statistics/tests.py
+ D backend/app/modules/template/enums.py
+ D backend/app/modules/template/events.py
+ D backend/app/modules/template/model.py
+ D backend/app/modules/template/permissions.py
+ D backend/app/modules/template/repository.py
+ D backend/app/modules/template/router.py
+ D backend/app/modules/template/schema.py
+ D backend/app/modules/template/service.py
+ D backend/app/modules/template/tasks.py
+ D backend/app/modules/template/tests.py
+ D backend/app/modules/tenant/domain.py
+ D backend/app/modules/tenant/enums.py
+ D backend/app/modules/tenant/events.py
+ D backend/app/modules/tenant/model.py
+ M backend/app/modules/tenant/models.py
+ D backend/app/modules/tenant/permissions.py
+ D backend/app/modules/tenant/repository.py
+ M backend/app/modules/tenant/router.py
+ M backend/app/modules/tenant/schema.py
+ M backend/app/modules/tenant/service.py
+ D backend/app/modules/tenant/tasks.py
+ D backend/app/modules/tenant/tests.py
+ D backend/app/modules/thesis/domain.py
+ D backend/app/modules/thesis/enums.py
+ D backend/app/modules/thesis/events.py
+ D backend/app/modules/thesis/model.py
+ M backend/app/modules/thesis/models.py
+ D backend/app/modules/thesis/permissions.py
+ D backend/app/modules/thesis/repository.py
+ M backend/app/modules/thesis/router.py
+ D backend/app/modules/thesis/schema.py
+ M backend/app/modules/thesis/service.py
+ D backend/app/modules/thesis/tasks.py
+ D backend/app/modules/thesis/tests.py
+ D backend/app/modules/user/domain.py
+ D backend/app/modules/user/enums.py
+ D backend/app/modules/user/events.py
+ D backend/app/modules/user/model.py
+ M backend/app/modules/user/models.py
+ D backend/app/modules/user/permissions.py
+ D backend/app/modules/user/repository.py
+ M backend/app/modules/user/router.py
+ M backend/app/modules/user/schema.py
+ M backend/app/modules/user/service.py
+ D backend/app/modules/user/tasks.py
+ D backend/app/modules/user/tests.py
+ D backend/app/modules/workflow/domain.py
+ M backend/app/modules/workflow/models.py
+ M backend/app/seed.py
+ M backend/pyproject.toml
+ M backend/tests/conftest.py
+ M backend/tests/test_auth.py
+ M backend/tests/test_dispatch.py
+ M backend/tests/test_dispatch_result_integrity.py
+ M backend/tests/test_expert_workspace.py
+ M backend/tests/test_file_access.py
+ M backend/tests/test_file_concurrency.py
+ M backend/tests/test_file_lifecycle.py
+ M backend/tests/test_file_migration.py
+ M backend/tests/test_review.py
+ M backend/tests/test_supervisor_results.py
+ M docs/AGENT_HANDOFF.md
+ M docs/CURRENT.md
+ D docs/images/logo.png
+ M docs/superpowers/plans/2026-09-22-pilot-task-board.md
+ M docs/superpowers/specs/2026-09-22-pilot-delivery-scope.md
+ M frontend/components.d.ts
+ D frontend/public/favicon.ico
+ D frontend/public/logo.png
+ M frontend/src/api/dispatch.ts
+ M frontend/src/api/expertTasks.ts
+ M frontend/src/api/request.ts
+ M frontend/src/api/results.ts
+ M frontend/src/api/review.ts
+ M frontend/src/api/schoolReview.ts
+ M frontend/src/api/theses.ts
+ D frontend/src/assets/logo.png
+ M frontend/src/modules/dispatch/__tests__/realDispatch.wiring.spec.ts
+ M frontend/src/modules/dispatch/components/CandidateExpertTable.vue
+ M frontend/src/modules/dispatch/pages/DispatchWorkbenchPage.vue
+ M frontend/src/modules/expert-management/pages/CorrectionApprovalPage.vue
+ M frontend/src/modules/result/__tests__/realDispatchObjections.spec.ts
+ M frontend/src/modules/result/__tests__/realResultPages.spec.ts
+ M frontend/src/modules/result/pages/ResultProcessingPage.vue
+ M frontend/src/modules/result/pages/StudentResultPage.vue
+ M frontend/src/modules/result/pages/SupervisorResultPage.vue
+ M frontend/src/modules/review/__tests__/realWorkspace.spec.ts
+ M frontend/src/modules/review/components/ExpertTaskTable.vue
+ M frontend/src/modules/review/components/ReviewFormPane.vue
+ M frontend/src/modules/review/components/ScoreDimensionInput.vue
+ M frontend/src/modules/review/pages/ExpertTasksPage.vue
+ M frontend/src/modules/review/pages/InvitationPage.vue
+ M frontend/src/modules/review/pages/ReviewWorkspacePage.vue
+ M frontend/src/modules/school/__tests__/realPreparationCounts.spec.ts
+ M frontend/src/modules/school/__tests__/realProgress.wiring.spec.ts
+ M frontend/src/modules/school/__tests__/schoolManagement.spec.ts
+ M frontend/src/modules/school/components/SchoolThesisTable.vue
+ M frontend/src/modules/school/components/TaskProgressSummary.vue
+ M frontend/src/modules/school/pages/BatchRulesPage.vue
+ M frontend/src/modules/school/pages/ObjectionWorkbenchPage.vue
+ M frontend/src/modules/school/pages/PreparationListPage.vue
+ M frontend/src/modules/school/pages/ReviewProgressPage.vue
+ M frontend/src/modules/system/pages/TenantPermissionsPage.vue
+ M frontend/src/modules/thesis/components/DisciplineSelector.vue
+ M frontend/src/modules/thesis/components/ThesisMaterialEditor.vue
+ M frontend/src/modules/thesis/pages/StudentDashboardPage.vue
+ M frontend/src/modules/thesis/pages/ThesisEditPage.vue
+ M frontend/src/router/__tests__/routes.spec.ts
+ M frontend/src/router/menus.ts
+ M frontend/src/router/routes.ts
+?? .github/workflows/check.yml
+?? backend/alembic/versions/0008_identity_invariants.py
+?? backend/alembic/versions/0009_pilot_operations.py
+?? backend/alembic/versions/0010_auth_version.py
+?? backend/alembic/versions/0011_rls_identity.py
+?? backend/alembic/versions/0012_rls_metadata.py
+?? backend/alembic/versions/0013_rls_core.py
+?? backend/alembic/versions/0014_rls_workflow.py
+?? backend/alembic/versions/0015_rls_children.py
+?? backend/alembic/versions/0016_expert_operations.py
+?? backend/alembic/versions/0017_expert_management.py
+?? backend/alembic/versions/0018_round_rule_snapshot.py
+?? backend/alembic/versions/0019_school_task_cancellation.py
+?? backend/alembic/versions/0020_official_catalogs.py
+?? backend/alembic/versions/0021_publication_snapshots.py
+?? backend/alembic/versions/0022_review_corrections.py
+?? backend/alembic/versions/0023_review_check_summaries.py
+?? backend/alembic/versions/0024_expert_task_time_scope.py
+?? backend/app/db/rls_context.py
+?? backend/app/modules/dispatch/projection.py
+?? backend/app/modules/review/comment_checks.py
+?? backend/app/modules/review/comment_similarity.py
+?? backend/app/modules/review/correction_router.py
+?? backend/app/modules/review/correction_service.py
+?? backend/app/modules/review/rules.py
+?? backend/app/modules/statistics/dashboard_router.py
+?? backend/app/modules/tenant/catalog_data.py
+?? backend/app/modules/tenant/catalog_router.py
+?? backend/app/modules/tenant/catalog_service.py
+?? backend/app/shared/time_scope.py
+?? backend/data/official/disciplines-2022.csv
+?? backend/data/official/graduate-2022.pdf
+?? backend/data/official/institutions-adult-2026.csv
+?? backend/data/official/institutions-adult-2026.xls
+?? backend/data/official/institutions-regular-2026.csv
+?? backend/data/official/institutions-regular-2026.xls
+?? backend/data/official/manifest.json
+?? backend/data/review-checks-v1.json
+?? backend/scripts/acceptance_server.py
+?? backend/scripts/recovery_drill.py
+?? backend/scripts/verify_catalog_source.py
+?? backend/tests/legacy_rls_fixture.py
+?? backend/tests/test_acceptance_server.py
+?? backend/tests/test_access_logging.py
+?? backend/tests/test_auth_concurrency.py
+?? backend/tests/test_auth_version_migration.py
+?? backend/tests/test_batch_creation_concurrency.py
+?? backend/tests/test_batch_operations.py
+?? backend/tests/test_candidate_followup.py
+?? backend/tests/test_comment_checks.py
+?? backend/tests/test_comment_similarity.py
+?? backend/tests/test_dashboard_metrics.py
+?? backend/tests/test_eligibility_operations.py
+?? backend/tests/test_expert_migration.py
+?? backend/tests/test_expert_operations.py
+?? backend/tests/test_idempotency_service.py
+?? backend/tests/test_identity_migration.py
+?? backend/tests/test_official_catalog_api.py
+?? backend/tests/test_official_catalog_data.py
+?? backend/tests/test_official_catalog_migration.py
+?? backend/tests/test_operations_migration.py
+?? backend/tests/test_production_safety.py
+?? backend/tests/test_recovery_drill.py
+?? backend/tests/test_result_corrections.py
+?? backend/tests/test_review_rules.py
+?? backend/tests/test_rls_children.py
+?? backend/tests/test_rls_context.py
+?? backend/tests/test_rls_core.py
+?? backend/tests/test_rls_end_to_end.py
+?? backend/tests/test_rls_identity.py
+?? backend/tests/test_rls_metadata.py
+?? backend/tests/test_rls_roles.py
+?? backend/tests/test_rls_workflow.py
+?? backend/tests/test_rule_snapshot_api.py
+?? backend/tests/test_rule_snapshot_migration.py
+?? backend/tests/test_school_member_operations.py
+?? backend/tests/test_system_operations.py
+?? backend/tests/test_time_scope.py
+?? backend/tests/test_token_revocation.py
+?? backend/tests/test_user_operations.py
+?? docs/operations/official-catalogs.md
+?? docs/operations/pilot-recovery-runbook.md
+?? docs/reviews/2026-09-23-r02-concurrency-blocker.md
+?? docs/reviews/2026-09-23-r03-concurrency.md
+?? docs/reviews/2026-09-23-r04-validation.md
+?? docs/reviews/2026-09-23-r05-validation.md
+?? docs/reviews/2026-09-23-r06-validation.md
+?? docs/reviews/2026-09-23-r07-validation.md
+?? docs/reviews/2026-09-23-r08-validation.md
+?? docs/reviews/2026-09-23-t05-followup-review.md
+?? docs/reviews/2026-09-24-t06-1-validation.md
+?? docs/reviews/2026-09-24-t06-2-validation.md
+?? docs/reviews/2026-09-24-t06-3-validation.md
+?? docs/reviews/2026-09-24-t06-rls-design-rereview.md
+?? docs/reviews/2026-09-24-t06-rls-design-review.md
+?? docs/reviews/2026-09-24-t06-rls-design-revision.md
+?? docs/reviews/2026-09-28-hard-parts-worktree.txt
+?? docs/reviews/2026-09-28-local-pilot-release-candidate.md
+?? docs/reviews/2026-09-28-roadmap-review.md
+?? docs/reviews/2026-09-28-t06-4-validation.md
+?? docs/reviews/2026-09-28-t06-5-validation.md
+?? docs/reviews/2026-09-28-t06-6-validation.md
+?? docs/reviews/2026-09-28-t06-7-validation.md
+?? docs/reviews/2026-09-28-t06-8-validation.md
+?? docs/reviews/2026-09-28-t07-1-validation.md
+?? docs/reviews/2026-09-28-t07-2-rls-blocker.md
+?? docs/reviews/2026-09-28-t07-2-validation.md
+?? docs/reviews/2026-09-28-t07-validation.md
+?? docs/reviews/2026-09-28-t08-backend-validation.md
+?? docs/reviews/2026-09-28-t08-validation.md
+?? docs/reviews/2026-09-28-t09-a1-validation.md
+?? docs/reviews/2026-09-28-t09-a2-validation.md
+?? docs/reviews/2026-09-28-t10-a-validation.md
+?? docs/reviews/2026-09-28-t10-toolchain-blocker.md
+?? docs/reviews/2026-10-02-candidate-followup-review.md
+?? docs/reviews/2026-10-02-t11-a-browser-validation.md
+?? docs/reviews/2026-10-03-followup-fix-contract.md
+?? docs/reviews/2026-10-03-followup-fix-validation.md
+?? docs/reviews/2026-10-03-official-catalogs-validation.md
+?? docs/reviews/2026-10-12-e01-validation.md
+?? docs/reviews/2026-10-12-e02-validation.md
+?? docs/reviews/2026-10-12-e03-validation.md
+?? docs/reviews/2026-10-12-e04-validation.md
+?? docs/reviews/2026-10-12-e05-validation.md
+?? docs/reviews/2026-10-12-e06-validation.md
+?? docs/reviews/2026-10-13-e01-worktree-status.md
+?? docs/reviews/2026-10-26-e06-worktree-status.md
+?? docs/reviews/evidence/2026-10-02-t11-expert-anonymous-pdf.png
+?? docs/reviews/evidence/2026-10-13-e01/expert-activated.png
+?? docs/reviews/evidence/2026-10-13-e01/mentor-activated.png
+?? docs/reviews/evidence/2026-10-13-e01/school-comparison.png
+?? docs/reviews/evidence/2026-10-13-e01/student-activated.png
+?? docs/reviews/evidence/2026-10-13-e01/student-pending.png
+?? docs/reviews/evidence/2026-10-13-e02/browser-results.json
+?? docs/reviews/evidence/2026-10-13-e02/correction-checks.png
+?? docs/reviews/evidence/2026-10-13-e02/network-retry.png
+?? docs/reviews/evidence/2026-10-13-e02/original-checks.png
+?? docs/reviews/evidence/2026-10-13-e02/school-anonymous-receipt.png
+?? docs/reviews/evidence/2026-10-13-e02/school-correction-receipt.png
+?? docs/reviews/evidence/2026-10-13-e03/browser-results.json
+?? docs/reviews/evidence/2026-10-13-e03/correction-excludes-self.png
+?? docs/reviews/evidence/2026-10-13-e03/fresh-history-three-hits.png
+?? docs/reviews/evidence/2026-10-13-e03/own-history-two-hits.png
+?? docs/reviews/evidence/2026-10-13-e03/stale-corpus-rejected.png
+?? docs/reviews/evidence/2026-10-13-e04/browser-results.json
+?? docs/reviews/evidence/2026-10-13-e04/school-published-all.png
+?? docs/reviews/evidence/2026-10-13-e04/supervisor-past-year.png
+?? docs/reviews/evidence/2026-10-26-e05/browser-results.json
+?? docs/reviews/evidence/2026-10-26-e05/mobile-dashboard.png
+?? docs/reviews/evidence/2026-10-26-e05/platform-submitted.png
+?? docs/reviews/evidence/2026-10-26-e05/school-dashboard.png
+?? docs/reviews/evidence/2026-10-26-e05/school-updated-list.png
+?? docs/reviews/evidence/2026-10-26-e06/browser-results.json
+?? docs/reviews/evidence/2026-10-26-e06/candidate-mobile.png
+?? docs/reviews/evidence/2026-10-26-e06/candidate-settings.png
+?? docs/reviews/evidence/2026-10-26-e06/comment-checks.png
+?? docs/reviews/evidence/2026-10-26-e06/corrected-dashboard.png
+?? docs/reviews/evidence/2026-10-26-e06/expert-mobile.png
+?? docs/reviews/evidence/2026-10-26-e06/expert-settings.png
+?? docs/reviews/evidence/2026-10-26-e06/school-correction.png
+?? docs/reviews/evidence/2026-10-26-e06/school-mobile.png
+?? docs/reviews/evidence/2026-10-26-e06/school-scope.png
+?? docs/reviews/evidence/2026-10-26-e06/school-settings.png
+?? docs/reviews/evidence/2026-10-26-e06/student-corrected.png
+?? docs/reviews/pilot-acceptance-matrix.md
+?? docs/reviews/pilot-baseline.md
+?? docs/reviews/probes/t05_batch_race.py
+?? docs/reviews/probes/test_2026_10_02_candidate_review.py
+?? docs/reviews/t05b-backend-checkpoint.md
+?? docs/superpowers/plans/2026-09-22-t05-pilot-operations-implementation.md
+?? docs/superpowers/plans/2026-09-23-t05-review-fixes.md
+?? docs/superpowers/plans/2026-09-23-t06-rls-implementation.md
+?? docs/superpowers/plans/2026-09-28-cheaper-model-handoff.md
+?? docs/superpowers/plans/2026-09-28-hard-parts-first.md
+?? docs/superpowers/plans/2026-09-28-pilot-deployment-gates.md
+?? docs/superpowers/plans/2026-09-28-pilot-execution-pack.md
+?? docs/superpowers/plans/2026-09-28-pilot-next-wave.md
+?? docs/superpowers/plans/2026-09-28-t07-expert-operations.md
+?? docs/superpowers/plans/2026-09-28-t08-fixed-review-rules.md
+?? docs/superpowers/plans/2026-09-28-t09-local-security.md
+?? docs/superpowers/plans/2026-09-28-t10-local-recovery.md
+?? docs/superpowers/plans/2026-09-28-t11-local-acceptance.md
+?? docs/superpowers/plans/2026-10-03-official-catalogs.md
+?? docs/superpowers/plans/2026-10-12-e01-review-result-correction.md
+?? docs/superpowers/plans/2026-10-12-e02-review-comment-checks.md
+?? docs/superpowers/plans/2026-10-12-e03-review-comment-similarity.md
+?? docs/superpowers/plans/2026-10-12-e04-data-time-scope.md
+?? docs/superpowers/plans/2026-10-12-e05-review-operations-dashboard.md
+?? docs/superpowers/plans/2026-10-12-e06-table-column-preferences.md
+?? docs/superpowers/plans/2026-10-12-e07-thesis-sensitive-locations.md
+?? docs/superpowers/plans/2026-10-12-e08-pdf-material-transform.md
+?? docs/superpowers/plans/2026-10-12-e09-expert-profile-import.md
+?? docs/superpowers/plans/2026-10-12-e10-expert-candidate-ranking.md
+?? docs/superpowers/plans/2026-10-12-enhancement-roadmap.md
+?? docs/superpowers/specs/2026-09-22-pilot-scope-decisions.md
+?? docs/superpowers/specs/2026-09-22-slice-t05-pilot-operations-design.md
+?? docs/superpowers/specs/2026-09-23-t05-review-fixes-design.md
+?? docs/superpowers/specs/2026-09-23-t06-rls-design.md
+?? docs/superpowers/specs/2026-09-28-pilot-deployment-gates-design.md
+?? docs/superpowers/specs/2026-09-28-t07-expert-operations-design.md
+?? docs/superpowers/specs/2026-09-28-t08-fixed-review-rules-design.md
+?? docs/superpowers/specs/2026-09-28-t09-local-security-design.md
+?? docs/superpowers/specs/2026-09-28-t10-local-recovery-design.md
+?? docs/superpowers/specs/2026-09-28-t11-local-acceptance-design.md
+?? docs/superpowers/specs/2026-10-03-official-catalogs-design.md
+?? docs/superpowers/specs/2026-10-12-e01-review-result-correction-design.md
+?? docs/superpowers/specs/2026-10-12-e02-review-comment-checks-design.md
+?? docs/superpowers/specs/2026-10-12-e03-review-comment-similarity-design.md
+?? docs/superpowers/specs/2026-10-12-e04-data-time-scope-design.md
+?? docs/superpowers/specs/2026-10-12-e05-review-operations-dashboard-design.md
+?? docs/superpowers/specs/2026-10-12-e06-table-column-preferences-design.md
+?? docs/superpowers/specs/2026-10-12-e07-thesis-sensitive-locations-design.md
+?? docs/superpowers/specs/2026-10-12-e08-pdf-material-transform-design.md
+?? docs/superpowers/specs/2026-10-12-e09-expert-profile-import-design.md
+?? docs/superpowers/specs/2026-10-12-e10-expert-candidate-ranking-design.md
+?? frontend/src/api/__tests__/operations.spec.ts
+?? frontend/src/api/catalogs.ts
+?? frontend/src/api/corrections.ts
+?? frontend/src/api/dashboard.ts
+?? frontend/src/api/expertOperations.ts
+?? frontend/src/api/reviewChecks.ts
+?? frontend/src/api/schoolOperations.ts
+?? frontend/src/api/systemOperations.ts
+?? frontend/src/api/timeScope.ts
+?? frontend/src/components/app/CatalogMultiSelect.vue
+?? frontend/src/components/app/ColumnPreferences.vue
+?? frontend/src/components/app/InstitutionSelector.vue
+?? frontend/src/components/app/OfficialCatalogImport.vue
+?? frontend/src/components/app/ReviewCheckPanel.vue
+?? frontend/src/components/app/ReviewCheckSummary.vue
+?? frontend/src/components/app/TimeScopeSelect.vue
+?? frontend/src/components/app/__tests__/columnPreferences.spec.ts
+?? frontend/src/components/app/__tests__/timeScope.spec.ts
+?? frontend/src/components/app/__tests__/timeScopePages.spec.ts
+?? frontend/src/composables/useColumnPreferences.ts
+?? frontend/src/composables/useOperationsDashboard.ts
+?? frontend/src/composables/useTimeScope.ts
+?? frontend/src/modules/expert-management/__tests__/realExpertLibrary.spec.ts
+?? frontend/src/modules/expert-management/pages/RealExpertLibraryPage.vue
+?? frontend/src/modules/result/__tests__/realCorrections.spec.ts
+?? frontend/src/modules/result/components/RealCorrectionPanel.vue
+?? frontend/src/modules/result/components/ReviewOutcomeNotice.vue
+?? frontend/src/modules/review/__tests__/realReviewRules.spec.ts
+?? frontend/src/modules/review/__tests__/reviewChecks.spec.ts
+?? frontend/src/modules/review/__tests__/reviewSimilarity.spec.ts
+?? frontend/src/modules/school/__tests__/dashboardMetrics.spec.ts
+?? frontend/src/modules/school/__tests__/officialCatalogs.spec.ts
+?? frontend/src/modules/school/__tests__/realBatchRules.spec.ts
+?? frontend/src/modules/school/__tests__/realSchoolMembers.spec.ts
+?? frontend/src/modules/school/pages/SchoolDisciplinesPage.vue
+?? frontend/src/modules/school/pages/SchoolMembersPage.vue
+?? frontend/src/modules/system/__tests__/realTenantPermissions.spec.ts
+?? frontend/src/modules/thesis/__tests__/officialSelector.spec.ts
+?? frontend/src/modules/thesis/__tests__/realThesisIdentity.spec.ts
+?? scripts/check.sh
+?? scripts/tests/check_test.sh
+```

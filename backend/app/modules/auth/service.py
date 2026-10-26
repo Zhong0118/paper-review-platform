@@ -1,7 +1,9 @@
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, update
+from sqlalchemy.orm import load_only, undefer
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_settings
 from app.core.exceptions import AppError
@@ -16,34 +18,131 @@ from app.modules.tenant.models import Organization, ReviewBatch, Tenant
 from app.modules.user.models import Role, StudentEligibility, TenantUserMembership, User, UserRoleAssignment
 
 
-async def _load_assignment(session: AsyncSession, user: User) -> tuple[Role, UserRoleAssignment]:
+TENANT_ROLE_MEMBERSHIP_TYPES = {
+    "student": "STUDENT",
+    "supervisor": "SUPERVISOR",
+    "school_reviewer": "STAFF",
+}
+
+
+@dataclass(frozen=True)
+class ActiveIdentity:
+    user: User
+    role: Role
+    assignment: UserRoleAssignment
+    tenant: Tenant | None
+    membership: TenantUserMembership | None
+
+
+def _invalid_identity() -> AppError:
+    return AppError("AUTH_REQUIRED", 401, "未认证或会话失效")
+
+
+async def load_active_identity(
+    session: AsyncSession,
+    user_id: UUID,
+    *,
+    token_role: str | None = None,
+    token_tenant_id: UUID | None = None,
+    token_auth_version: object = None,
+) -> ActiveIdentity:
     stmt = (
-        select(Role, UserRoleAssignment)
-        .join(UserRoleAssignment, UserRoleAssignment.role_id == Role.id)
-        .where(UserRoleAssignment.user_id == user.id)
-        .order_by(UserRoleAssignment.created_at.asc())
+        select(User, Role, UserRoleAssignment)
+        .options(
+            load_only(User.id, User.username, User.display_name, User.status, User.auth_version),
+            load_only(Role.id, Role.code),
+            load_only(UserRoleAssignment.id, UserRoleAssignment.user_id,
+                      UserRoleAssignment.tenant_id, UserRoleAssignment.role_id,
+                      UserRoleAssignment.data_scope, UserRoleAssignment.effective_from,
+                      UserRoleAssignment.effective_until),
+        )
+        .join(UserRoleAssignment, UserRoleAssignment.user_id == User.id)
+        .join(Role, Role.id == UserRoleAssignment.role_id)
+        .where(User.id == user_id)
+        .execution_options(populate_existing=True)
     )
-    row = (await session.execute(stmt)).first()
+    row = (await session.execute(stmt)).one_or_none()
     if row is None:
-        raise AppError("ACCESS_DENIED", 403, "账号未分配角色")
-    return row[0], row[1]
+        raise _invalid_identity()
+    user, role, assignment = row
+    now = datetime.now(timezone.utc)
+    if (
+        user.status != "ACTIVE"
+        or assignment.effective_from > now
+        or (assignment.effective_until is not None and assignment.effective_until <= now)
+    ):
+        raise _invalid_identity()
+    if token_role is not None and (
+        token_role != role.code or token_tenant_id != assignment.tenant_id
+        or type(token_auth_version) is not int or token_auth_version < 1
+        or token_auth_version != user.auth_version
+    ):
+        raise _invalid_identity()
+
+    membership_type = TENANT_ROLE_MEMBERSHIP_TYPES.get(role.code)
+    if membership_type is None:
+        if assignment.tenant_id is not None:
+            raise _invalid_identity()
+        return ActiveIdentity(user, role, assignment, None, None)
+    if assignment.tenant_id is None:
+        raise _invalid_identity()
+
+    tenant = (
+        await session.execute(
+            select(Tenant).options(load_only(Tenant.id, Tenant.code, Tenant.status))
+            .where(Tenant.id == assignment.tenant_id)
+            .execution_options(populate_existing=True)
+        )
+    ).scalar_one_or_none()
+    membership = (
+        await session.execute(
+            select(TenantUserMembership).options(load_only(
+                TenantUserMembership.id, TenantUserMembership.user_id,
+                TenantUserMembership.tenant_id, TenantUserMembership.membership_type,
+                TenantUserMembership.is_active,
+            )).where(
+                TenantUserMembership.user_id == user.id,
+                TenantUserMembership.tenant_id == assignment.tenant_id,
+                TenantUserMembership.membership_type == membership_type,
+            ).execution_options(populate_existing=True)
+        )
+    ).scalar_one_or_none()
+    if tenant is None or tenant.status != "ACTIVE" or membership is None or not membership.is_active:
+        raise _invalid_identity()
+    return ActiveIdentity(user, role, assignment, tenant, membership)
 
 
-async def _tenant_code(session: AsyncSession, tenant_id: UUID | None) -> str | None:
-    if tenant_id is None:
-        return None
-    tenant = await session.get(Tenant, tenant_id)
-    return tenant.code if tenant else None
+async def revoke_user_sessions(
+    session: AsyncSession,
+    user_id: UUID,
+    *,
+    at: datetime | None = None,
+) -> int:
+    user = (await session.execute(
+        select(User).where(User.id == user_id).with_for_update().execution_options(populate_existing=True)
+    )).scalar_one_or_none()
+    if user is None:
+        return 0
+    user.auth_version += 1
+    result = await session.execute(
+        update(AuthSession)
+        .where(AuthSession.user_id == user_id, AuthSession.revoked_at.is_(None))
+        .values(revoked_at=at or datetime.now(timezone.utc))
+    )
+    return int(result.rowcount or 0)
 
 
-async def issue_tokens(session: AsyncSession, user: User) -> dict:
+async def issue_tokens(session: AsyncSession, identity: ActiveIdentity) -> dict:
     settings = get_settings()
-    role, assignment = await _load_assignment(session, user)
+    user = identity.user
+    role = identity.role
+    assignment = identity.assignment
     tenant_id = assignment.tenant_id
     access = create_access_token(
         user_id=user.id,
         role=role.code,
         tenant_id=tenant_id,
+        auth_version=user.auth_version,
         data_scope=assignment.data_scope or {},
     )
     refresh = new_refresh_token()
@@ -55,7 +154,6 @@ async def issue_tokens(session: AsyncSession, user: User) -> dict:
         )
     )
     user.last_login_at = datetime.now(timezone.utc)
-    code = await _tenant_code(session, tenant_id)
     return {
         "access_token": access,
         "refresh_token": refresh,
@@ -67,38 +165,57 @@ async def issue_tokens(session: AsyncSession, user: User) -> dict:
             "display_name": user.display_name,
             "role": role.code,
             "tenant_id": str(tenant_id) if tenant_id else None,
-            "tenant_code": code,
+            "tenant_code": identity.tenant.code if identity.tenant else None,
         },
     }
 
 
 async def login(session: AsyncSession, username: str, password: str) -> dict:
-    stmt = select(User).where(User.username == username)
+    stmt = (
+        select(User).options(load_only(User.id, User.username, User.password_hash),
+                             undefer(User.password_hash)).where(User.username == username)
+        .with_for_update().execution_options(populate_existing=True)
+    )
     user = (await session.execute(stmt)).scalar_one_or_none()
     if user is None or not user.password_hash or not verify_password(password, user.password_hash):
         raise AppError("AUTH_REQUIRED", 401, "用户名或密码错误")
-    if user.status != "ACTIVE":
-        raise AppError("AUTH_REQUIRED", 401, "账号不可用")
-    return await issue_tokens(session, user)
+    identity = await load_active_identity(session, user.id)
+    return await issue_tokens(session, identity)
 
 
 async def refresh_tokens(session: AsyncSession, refresh_token: str) -> dict:
     hashed = hash_token(refresh_token)
-    stmt = select(AuthSession).where(AuthSession.refresh_token_hash == hashed)
-    record = (await session.execute(stmt)).scalar_one_or_none()
+    user_id = (await session.execute(
+        select(AuthSession.user_id).where(AuthSession.refresh_token_hash == hashed)
+    )).scalar_one_or_none()
+    if user_id is None:
+        raise AppError("AUTH_REQUIRED", 401, "会话已失效")
+    user = (await session.execute(
+        select(User).options(load_only(User.id)).where(User.id == user_id)
+        .with_for_update().execution_options(populate_existing=True)
+    )).scalar_one_or_none()
+    if user is None:
+        raise AppError("AUTH_REQUIRED", 401, "会话已失效")
+    record = (await session.execute(
+        select(AuthSession).options(load_only(
+            AuthSession.id, AuthSession.user_id, AuthSession.refresh_token_hash,
+            AuthSession.expires_at, AuthSession.revoked_at,
+        )).where(AuthSession.refresh_token_hash == hashed)
+        .with_for_update().execution_options(populate_existing=True)
+    )).scalar_one_or_none()
     now = datetime.now(timezone.utc)
     if record is None or record.revoked_at is not None or record.expires_at <= now:
         raise AppError("AUTH_REQUIRED", 401, "会话已失效")
-    user = await session.get(User, record.user_id)
-    if user is None:
-        raise AppError("AUTH_REQUIRED", 401, "会话已失效")
+    identity = await load_active_identity(session, record.user_id)
     record.revoked_at = now
-    return await issue_tokens(session, user)
+    return await issue_tokens(session, identity)
 
 
 async def logout(session: AsyncSession, refresh_token: str) -> None:
     hashed = hash_token(refresh_token)
-    stmt = select(AuthSession).where(AuthSession.refresh_token_hash == hashed)
+    stmt = select(AuthSession).options(load_only(
+        AuthSession.id, AuthSession.revoked_at,
+    )).where(AuthSession.refresh_token_hash == hashed)
     record = (await session.execute(stmt)).scalar_one_or_none()
     if record and record.revoked_at is None:
         record.revoked_at = datetime.now(timezone.utc)
@@ -121,6 +238,8 @@ async def me_payload(session: AsyncSession, user_id: UUID, role: str, tenant_id:
 
 
 async def eligibility_payload(session: AsyncSession, user_id: UUID, tenant_id: UUID | None) -> dict:
+    from app.modules.tenant import service as tenant_service
+
     if tenant_id is None:
         raise AppError("ACCESS_DENIED", 403, "无权执行该操作")
     membership = (
@@ -134,18 +253,11 @@ async def eligibility_payload(session: AsyncSession, user_id: UUID, tenant_id: U
     ).scalar_one_or_none()
     if membership is None:
         raise AppError("ACCESS_DENIED", 403, "无权执行该操作")
-    elig = (
-        await session.execute(
-            select(StudentEligibility).where(StudentEligibility.student_membership_id == membership.id)
-        )
-    ).scalar_one_or_none()
-    if elig is None:
-        raise AppError("ACCESS_DENIED", 403, "当前没有有效送审资格")
+    elig, batch = await tenant_service.current_student_eligibility(session, user_id, tenant_id)
     tenant = await session.get(Tenant, tenant_id)
     org = await session.get(Organization, membership.organization_id)
-    batch = await session.get(ReviewBatch, elig.review_batch_id)
     return {
-        "eligible": elig.status == "ELIGIBLE",
+        "eligible": elig.status == "ELIGIBLE" and batch.status == "OPEN",
         "status": elig.status,
         "student_no": elig.student_no,
         "student_name": elig.student_name,

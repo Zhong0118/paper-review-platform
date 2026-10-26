@@ -6,7 +6,7 @@ from sqlalchemy import select
 
 from app.core.security import create_access_token
 from app.modules.thesis.models import Thesis
-from app.modules.user.models import StudentEligibility, TenantUserMembership
+from app.modules.user.models import StudentEligibility, TenantUserMembership, User
 from tests.helpers import accepted_task, published_thesis, login, auth
 from tests.test_review import VALID_DRAFT
 
@@ -24,7 +24,13 @@ async def test_only_published_results_are_listed_and_non_supervisor_denied(clien
     assert response.json()["data"] == []
     assert (await client.get(LIST, headers=auth(student))).status_code == 403
     assert (await client.get(f"/api/v1/my/theses/{thesis['id']}/published-result", headers=auth(supervisor))).status_code == 404
-    await client.post(f"/api/v1/expert/tasks/{task_id}:submit-final", headers=auth(expert), json={**VALID_DRAFT, "recommendation": "不通过"})
+    final = {**VALID_DRAFT, "recommendation": "不通过"}
+    preview = await client.post(f"/api/v1/expert-tasks/{task_id}/review-checks", headers=auth(expert), json={"payload": final})
+    assert preview.status_code == 200
+    report = preview.json()["data"]
+    ack = {key: report[key] for key in ("payload_hash", "rule_version")}
+    ack["codes"] = sorted({item["code"] for item in report["findings"]})
+    assert (await client.post(f"/api/v1/expert/tasks/{task_id}:submit-final", headers=auth(expert), json={**final, "check_ack": ack})).status_code == 200
     assert (await client.get(LIST, headers=auth(supervisor))).json()["data"] == []
     thesis = (await client.get("/api/v1/theses", headers=auth(student))).json()["data"][0]
     assert (await client.post(f"/api/v1/school-review/theses/{thesis['id']}:publish", headers=auth(school), json={"version": thesis["version"]})).status_code == 200
@@ -50,11 +56,18 @@ async def test_revoked_supervisor_relation_hides_list_and_detail(client, seed, d
         membership.is_active = False
     else:
         eligibility.supervisor_membership_id = None
-    await db_session.flush()
+    # Rejected identity requests roll back their own transaction; keep this setup in the outer test transaction.
+    await db_session.commit()
     detail = await client.get(f"/api/v1/my/theses/{thesis_id}/published-result", headers=auth(supervisor))
-    assert detail.status_code == 404
     listed = await client.get(LIST, headers=auth(supervisor))
-    assert listed.status_code == 200 and listed.json()["data"] == []
+    if loss == "inactive":
+        assert detail.status_code == 401
+        assert detail.json()["code"] == "AUTH_REQUIRED"
+        assert listed.status_code == 401
+        assert listed.json()["code"] == "AUTH_REQUIRED"
+    else:
+        assert detail.status_code == 404
+        assert listed.status_code == 200 and listed.json()["data"] == []
 
 
 @pytest.mark.asyncio
@@ -97,7 +110,10 @@ async def test_multiple_tenant_memberships_do_not_leak_results(client, seed, db_
     ))
     await db_session.flush()
     assert (await client.get(f"/api/v1/my/theses/{thesis_id}/published-result", headers=auth(supervisor))).status_code == 200
-    token = create_access_token(user_id=supervisor_id, role="supervisor", tenant_id=other_membership.tenant_id, data_scope={})
+    supervisor_user = await db_session.get(User, supervisor_id)
+    token = create_access_token(user_id=supervisor_id, role="supervisor", tenant_id=other_membership.tenant_id, auth_version=supervisor_user.auth_version, data_scope={})
     headers = auth({"access_token": token})
-    assert (await client.get(f"/api/v1/my/theses/{thesis_id}/published-result", headers=headers)).status_code == 404
-    assert (await client.get(LIST, headers=headers)).json()["data"] == []
+    detail = await client.get(f"/api/v1/my/theses/{thesis_id}/published-result", headers=headers)
+    listed = await client.get(LIST, headers=headers)
+    assert detail.status_code == 401 and detail.json()["code"] == "AUTH_REQUIRED"
+    assert listed.status_code == 401 and listed.json()["code"] == "AUTH_REQUIRED"

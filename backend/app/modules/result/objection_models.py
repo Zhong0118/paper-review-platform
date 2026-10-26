@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from sqlalchemy import ForeignKey, Index, Integer, String, Text, text
+from sqlalchemy import ForeignKey, ForeignKeyConstraint, Index, Integer, String, Text, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.mixins import BaseModel
@@ -9,6 +9,11 @@ from app.db.mixins import BaseModel
 class Objection(BaseModel):
     __tablename__ = "objections"
     __table_args__ = (
+        ForeignKeyConstraint(["thesis_id", "tenant_id"], ["theses.id", "theses.tenant_id"],
+                             name="fk_objections_thesis_tenant"),
+        ForeignKeyConstraint(["student_membership_id", "tenant_id"],
+                             ["tenant_user_memberships.id", "tenant_user_memberships.tenant_id"],
+                             name="fk_objections_member_tenant"),
         Index(
             "uq_objections_open_per_thesis",
             "thesis_id",

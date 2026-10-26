@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AppError
 from app.core.security import create_download_token
+from app.modules.auth import service as auth_service
 from app.modules.auth.deps import CurrentUser
 from app.modules.files import storage
 from app.modules.files.models import FileObject
@@ -64,7 +65,8 @@ async def prepare_upload(
     file_id = uuid4()
     path = storage.storage_path(thesis.tenant_id, thesis.id, file_id, purpose)
     obj = FileObject(
-        id=file_id, tenant_id=thesis.tenant_id, upload_version_id=thesis.current_version_id,
+        id=file_id, tenant_id=thesis.tenant_id, thesis_id=thesis.id,
+        upload_version_id=thesis.current_version_id,
         purpose=purpose, storage_key=str(path), original_filename=filename,
         content_type=content_type or "application/octet-stream", size_bytes=0,
         scan_status=FileScanStatus.PENDING, uploaded_by=user.id,
@@ -128,6 +130,7 @@ async def complete_upload(session: AsyncSession, user: CurrentUser, file_id: UUI
         existing.file_id = obj.id
     else:
         session.add(ThesisVersionFile(thesis_version_id=obj.upload_version_id,
+                                     thesis_id=obj.thesis_id, tenant_id=obj.tenant_id,
                                      file_id=obj.id, purpose=obj.purpose))
     await session.flush()
     return obj
@@ -169,6 +172,10 @@ async def can_access_file(session: AsyncSession, user: CurrentUser, obj: FileObj
 
 
 async def authorize_download(session: AsyncSession, user: CurrentUser, file_id: UUID) -> dict:
+    identity = await auth_service.load_active_identity(
+        session, user.id, token_role=user.role, token_tenant_id=user.tenant_id,
+        token_auth_version=user.auth_version,
+    )
     obj = await session.get(FileObject, file_id)
     if obj is None or not await can_access_file(session, user, obj):
         raise _hidden()
@@ -177,6 +184,7 @@ async def authorize_download(session: AsyncSession, user: CurrentUser, file_id: 
         role=user.role,
         tenant_id=user.tenant_id,
         file_id=file_id,
+        auth_version=identity.user.auth_version,
     )
     return {
         "url": f"/api/v1/files/{file_id}/content?token={token}",

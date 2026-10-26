@@ -9,6 +9,7 @@ const props = defineProps<{
   max: number
   guide: string
   modelValue: number
+  evaluation?: string
   locked: boolean
 }>()
 const emit = defineEmits<{
@@ -55,6 +56,8 @@ const errorMessage = computed(() => `分值应在 0–${props.max} 之间（满�
       <span>可选评价</span>
       <textarea
         rows="2"
+        :name="`evaluations.${dimensionKey}`"
+        :value="evaluation ?? ''"
         :disabled="locked"
         placeholder="（选填）针对该维度的具体评语"
         @input="

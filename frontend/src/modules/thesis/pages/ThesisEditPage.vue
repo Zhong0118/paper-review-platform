@@ -1,15 +1,16 @@
 <script setup lang="ts">
-import { nextTick, ref } from 'vue'
+import { nextTick, ref, watch, onBeforeUnmount } from 'vue'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 
 import BlindRail from '@/components/app/BlindRail.vue'
 import PageHeader from '@/components/app/PageHeader.vue'
 import { useScenarioService } from '@/demo/serviceProvider'
-import { createThesis, getThesis, patchThesis, submitThesis } from '@/api/theses'
+import { createThesis, getThesis, patchThesis, submitThesis, type ThesisDetail } from '@/api/theses'
+import SensitiveFindingPanel from '@/components/app/SensitiveFindingPanel.vue'
+import { checkSensitiveThesis } from '@/api/sensitiveChecks'
 import { uploadThesisFile } from '@/api/files'
-import { fetchEligibility } from '@/api/auth'
 import { toStudentThesisDetail } from '@/api/adapters'
-import type { StudentDraftInput, ThesisFileMeta } from '@/demo/types'
+import type { StudentDraftInput, StudentThesisDetail, ThesisFileMeta } from '@/demo/types'
 import PortalLayout from '@/layouts/PortalLayout.vue'
 import { portalMenus } from '@/router/menus'
 import { useAuthStore } from '@/stores/auth'
@@ -18,6 +19,8 @@ import StudentIdentityPanel, {
   type StudentIdentityView,
 } from '../components/StudentIdentityPanel.vue'
 import StudentDemoScenarioController from '../components/StudentDemoScenarioController.vue'
+import { getMyDisciplines, type CatalogOption } from '@/api/catalogs'
+import DisciplineSelector from '../components/DisciplineSelector.vue'
 import ThesisMaterialEditor from '../components/ThesisMaterialEditor.vue'
 
 type ValidationField = 'title' | 'abstract' | 'discipline' | 'keywords' | 'original' | 'anonymous'
@@ -29,6 +32,10 @@ const demoEnabled = import.meta.env.VITE_DEMO_MODE === 'true'
 const service = demoEnabled ? useScenarioService() : null
 const pendingUploads = ref<Partial<Record<'SCHOOL_ARCHIVE' | 'EXPERT_REVIEW', File>>>({})
 const liveVersion = ref(1)
+const realDetail = ref<ThesisDetail | null>(null)
+const checking = ref(false)
+const checkError = ref('')
+let checkGeneration = 0
 const editor = ref<InstanceType<typeof ThesisMaterialEditor>>()
 const submitOpener = ref<HTMLButtonElement>()
 const confirmDialog = ref<HTMLElement>()
@@ -37,6 +44,8 @@ const thesisId = ref('')
 const anonymousId = ref('')
 const loading = ref(true)
 const loadError = ref('')
+const disciplineOptions = ref<CatalogOption[]>([])
+const newDiscipline = ref<{code:string;name:string}>()
 const dirty = ref(false)
 const saving = ref(false)
 const saveFailed = ref(false)
@@ -75,22 +84,19 @@ async function loadDraft() {
   loadError.value = ''
   try {
     const requestedId = String(route.query.thesisId ?? (demoEnabled ? 'thesis-main' : 'new'))
-    const thesis =
-      demoEnabled && service
-        ? requestedId === 'new'
-          ? await service.createStudentDraft()
-          : await service.getStudentThesis(requestedId)
-        : toStudentThesisDetail(
-            requestedId === 'new'
-              ? await createThesis({
-                  title: '未命名论文',
-                  abstract: '待补充摘要',
-                  discipline_code: '0812',
-                  discipline_name: '计算机科学与技术',
-                  keywords: ['盲审'],
-                })
-              : await getThesis(requestedId),
-          )
+    let liveDetail: ThesisDetail | null = null
+    let thesis: StudentThesisDetail
+    if (demoEnabled && service) {
+      thesis = requestedId === 'new'
+        ? await service.createStudentDraft()
+        : await service.getStudentThesis(requestedId)
+    } else {
+      disciplineOptions.value = await getMyDisciplines()
+      if (requestedId === 'new') { thesisId.value = ''; return }
+      liveDetail = await getThesis(requestedId)
+      realDetail.value = liveDetail
+      thesis = toStudentThesisDetail(liveDetail)
+    }
     liveVersion.value = Number((thesis as { version?: number }).version ?? 1)
     thesisId.value = thesis.id
     anonymousId.value = thesis.anonymousId
@@ -101,32 +107,22 @@ async function loadDraft() {
       keywords: [...thesis.form.keywords],
       files: copyFiles(thesis.files),
     }
-    identity.value = {
+    identity.value = liveDetail ? {
+      school: liveDetail.student?.tenant_name || '未提供',
+      college: liveDetail.student?.college_name || '未提供',
+      studentId: liveDetail.student?.student_no || '未提供',
+      studentName: liveDetail.student?.name || '未提供',
+      trainingLevel: '未提供',
+      degreeType: liveDetail.student?.degree_type || '未提供',
+      supervisor: liveDetail.student?.supervisor_name || '未提供',
+      batch: liveDetail.review_batch?.name || liveDetail.batch_name || '未提供',
+      deadline: liveDetail.review_batch?.end_at || '未设置',
+    } : {
       ...identity.value,
       school: thesis.student.tenantName || identity.value.school,
-      college: identity.value.college,
       studentId: thesis.studentId || thesis.student.id,
       studentName: thesis.studentName || thesis.student.name,
-      supervisor: identity.value.supervisor,
       batch: thesis.batchName || identity.value.batch,
-    }
-    if (!demoEnabled) {
-      try {
-        const elig = await fetchEligibility()
-        identity.value = {
-          school: elig.tenant_name || identity.value.school,
-          college: elig.college_name || identity.value.college,
-          studentId: elig.student_no,
-          studentName: elig.student_name,
-          trainingLevel: identity.value.trainingLevel,
-          degreeType: elig.degree_type || identity.value.degreeType,
-          supervisor: elig.supervisor_name ? `${elig.supervisor_name}教授` : identity.value.supervisor,
-          batch: elig.batch_name || identity.value.batch,
-          deadline: elig.deadline || identity.value.deadline,
-        }
-      } catch {
-        /* keep thesis projection */
-      }
     }
     if (requestedId === 'new') {
       await router.replace({ query: { ...route.query, thesisId: thesis.id } })
@@ -139,8 +135,24 @@ async function loadDraft() {
   }
 }
 
+async function startDraft() {
+  if (!newDiscipline.value || saving.value) return
+  saving.value = true
+  loadError.value = ''
+  try {
+    const draft = await createThesis({title:'未命名论文',abstract:'',discipline_code:newDiscipline.value.code,
+      discipline_name:newDiscipline.value.name,keywords:['盲审']})
+    await router.replace({query:{...route.query,thesisId:draft.id}})
+    await loadDraft()
+  } catch (error) { loadError.value = error instanceof Error ? error.message : '创建草稿失败，请重试。' }
+  finally { saving.value=false }
+}
+
 function updateForm(value: StudentDraftInput) {
   form.value = value
+  for (const purpose of ['SCHOOL_ARCHIVE', 'EXPERT_REVIEW'] as const) {
+    if (!value.files.some(file => file.purpose === purpose)) delete pendingUploads.value[purpose]
+  }
   formRevision.value += 1
   dirty.value = true
   saveFailed.value = false
@@ -192,6 +204,39 @@ async function persistDraft(snapshot: StudentDraftInput, revision: number) {
     saving.value = false
   }
 }
+
+async function checkDraft() {
+  if (checking.value || saving.value || submitting.value || !thesisId.value) return
+  if (!form.value.files.some(file => file.purpose === 'EXPERT_REVIEW')) {
+    checkError.value = '请先选择匿名 PDF 材料'; return
+  }
+  const request = ++checkGeneration
+  const revision = formRevision.value
+  checking.value = true; checkError.value = ''
+  try {
+    if (!await persistDraft(draftSnapshot(), revision)) return
+    if (request !== checkGeneration || revision !== formRevision.value) return
+    const raw = pendingUploads.value.EXPERT_REVIEW
+    if (raw && authStore.accessToken) {
+      await uploadThesisFile({thesisId:thesisId.value,purpose:'anonymous',file:raw,token:authStore.accessToken})
+      if (request !== checkGeneration) return
+      if (pendingUploads.value.EXPERT_REVIEW === raw) delete pendingUploads.value.EXPERT_REVIEW
+    }
+    const detail = await getThesis(thesisId.value)
+    if (request !== checkGeneration || revision !== formRevision.value) return
+    realDetail.value = detail
+    const anonymous = detail.current_version?.files.find(f=>f.purpose === 'anonymous')
+    if (!anonymous) { checkError.value = '请先选择匿名 PDF 材料'; return }
+    const report = await checkSensitiveThesis(detail.id,{expected_version:detail.version,file_id:anonymous.file_id})
+    if (request !== checkGeneration || revision !== formRevision.value) return
+    realDetail.value = {...detail,anonymization:report}
+  } catch(e) { if (request === checkGeneration) checkError.value = e instanceof Error ? e.message : '检测失败，请重试' }
+  finally { if (request === checkGeneration) checking.value = false }
+}
+watch(() => [authStore.user?.id,authStore.user?.tenantId,authStore.user?.role], () => {
+  checkGeneration++;realDetail.value=null;checking.value=false;checkError.value=''
+})
+onBeforeUnmount(()=>{checkGeneration++})
 
 async function saveDraft() {
   await persistDraft(draftSnapshot(), formRevision.value)
@@ -267,7 +312,7 @@ function handleConfirmationKeydown(event: KeyboardEvent) {
 }
 
 async function confirmSubmit() {
-  if (submitting.value || !thesisId.value) return
+  if (submitting.value || checking.value || !thesisId.value) return
   submitting.value = true
   submitError.value = ''
   try {
@@ -319,7 +364,7 @@ void loadDraft()
   <PortalLayout
     :menu-items="portalMenus('student', demoEnabled)"
     active-path="/student/dashboard"
-    context-label="学生端 · 海岳大学"
+    :context-label="demoEnabled ? '学生端 · 海岳大学' : '学生端 · ' + (authStore.user?.tenantCode ?? '本校')"
     :user-name="authStore.user?.displayName ?? '林知远'"
     :background-locked="showConfirmation || demoDialogOpen"
   >
@@ -347,18 +392,28 @@ void loadDraft()
       />
 
       <p v-if="loading" class="page-state">正在加载论文草稿…</p>
-      <p v-else-if="loadError" class="page-state page-state--error" role="alert">{{ loadError }}</p>
+      <p v-else-if="loadError" class="page-state page-state--error" role="alert">{{ loadError }} <button type="button" @click="loadDraft">重试加载</button></p>
 
+      <section v-else-if="!demoEnabled && !thesisId" class="paper-form">
+        <h2>选择送审学科后创建论文</h2>
+        <DisciplineSelector v-model="newDiscipline" :options="disciplineOptions" />
+        <p v-if="!disciplineOptions.length">本校暂无可选学科，请联系学校审核员。</p>
+        <button type="button" data-action="create-selected-draft" :disabled="!newDiscipline || saving" @click="startDraft">创建论文草稿</button>
+      </section>
       <form v-else class="paper-form" @submit.prevent>
         <StudentIdentityPanel :identity="identity" />
         <ThesisMaterialEditor
           ref="editor"
           :model-value="form"
+          :discipline-options="demoEnabled ? undefined : disciplineOptions"
           :identity-tokens="[identity.studentName, identity.studentId]"
           @update:model-value="updateForm"
           @native-file="onNativeFile"
         />
 
+        <SensitiveFindingPanel v-if="!demoEnabled && realDetail" :detail="realDetail" :busy="checking"
+          :disabled="saving || submitting" :invalidated="dirty || !!pendingUploads.EXPERT_REVIEW || !form.files.some(file => file.purpose === 'EXPERT_REVIEW')" @check="checkDraft" />
+        <p v-if="checkError" role="alert">{{checkError}}</p>
         <p v-if="validationError" class="validation-error" data-validation-error role="alert">
           {{ validationError }}
         </p>

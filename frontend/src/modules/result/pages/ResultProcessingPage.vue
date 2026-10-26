@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import TimeScopeSelect from '@/components/app/TimeScopeSelect.vue'
+import { useTimeScope } from '@/composables/useTimeScope'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import BlindRail from '@/components/app/BlindRail.vue'
 import PageHeader from '@/components/app/PageHeader.vue'
 import { useScenarioService } from '@/demo/serviceProvider'
-import { getSchoolResults, publishThesis } from '@/api/results'
+import { getSchoolResults, publishThesis, type ReviewOutcome } from '@/api/results'
 import { listSchoolTheses } from '@/api/schoolReview'
 import { selectSchoolResultQueue } from '@/api/adapters'
 import type { ThesisDetail } from '@/api/theses'
@@ -12,8 +14,13 @@ import PortalLayout from '@/layouts/PortalLayout.vue'
 import { portalMenus } from '@/router/menus'
 import { useAuthStore } from '@/stores/auth'
 import AnonymousResultTable from '../components/AnonymousResultTable.vue'
+import ReviewCheckSummary from '@/components/app/ReviewCheckSummary.vue'
+import type { CheckSummary } from '@/api/reviewChecks'
 import ResultSummaryPanel from '../components/ResultSummaryPanel.vue'
+import RealCorrectionPanel from '../components/RealCorrectionPanel.vue'
+import ReviewOutcomeNotice from '../components/ReviewOutcomeNotice.vue'
 
+const timeScope = useTimeScope()
 const demoEnabled = import.meta.env.VITE_DEMO_MODE === 'true'
 const service = demoEnabled ? useScenarioService() : null
 const queue = ref<ThesisDetail[]>([])
@@ -22,6 +29,9 @@ const published = ref(false)
 const thesisId = ref('')
 const version = ref<number | null>(null)
 const summaryTotal = ref<number | null>(null)
+const checkSummaries = ref<Array<{ alias: string; summary?: CheckSummary | null }>>([])
+const outcome = ref<ReviewOutcome | null>(null)
+const ruleVersion = ref('')
 const loading = ref(true)
 const error = ref('')
 let generation = 0
@@ -54,6 +64,9 @@ async function loadThesis(id: string) {
   thesisId.value = id
   rows.value = []
   summaryTotal.value = null
+  checkSummaries.value = []
+  outcome.value = null
+  ruleVersion.value = ''
   version.value = null
   published.value = false
   loading.value = true
@@ -63,7 +76,10 @@ async function loadThesis(id: string) {
     if (request !== generation) return
     version.value = results.version
     summaryTotal.value = results.summary_total
+    outcome.value = results.outcome
+    ruleVersion.value = results.rule_snapshot?.version ?? ''
     rows.value = mapItems(results.items)
+    checkSummaries.value = results.items.map(item => ({ alias: item.alias, summary: item.check_summary }))
     published.value = results.published
   } catch (err) {
     if (request === generation) error.value = err instanceof Error ? err.message : '结果加载失败，请重试。'
@@ -77,6 +93,8 @@ async function load() {
   loading.value = true
   error.value = ''
   rows.value = []
+  outcome.value = null
+  ruleVersion.value = ''
   thesisId.value = ''
   queue.value = []
   try {
@@ -88,7 +106,7 @@ async function load() {
       published.value = snapshot.thesis.stage === 'COMPLETED'
       return
     }
-    const items = selectSchoolResultQueue(await listSchoolTheses())
+    const items = selectSchoolResultQueue(await listSchoolTheses(...timeScope.request()))
     if (request !== generation) return
     queue.value = items
     const current = items.find(item => item.stage === 'RESULT_PROCESSING') ?? items[0]
@@ -116,7 +134,7 @@ async function publish() {
       return
     }
     await publishThesis(id, expectedVersion!, { idempotencyKey: crypto.randomUUID() })
-    const items = selectSchoolResultQueue(await listSchoolTheses())
+    const items = selectSchoolResultQueue(await listSchoolTheses(...timeScope.request()))
     if (request !== generation) return
     queue.value = items
     await loadThesis(id)
@@ -133,9 +151,10 @@ function retry() {
 }
 onMounted(load)
 onBeforeUnmount(() => { generation++ })
+watch([timeScope.scope, timeScope.identity], () => { if (!demoEnabled && useAuthStore().user) void load() })
 </script>
 <template>
-  <PortalLayout :menu-items="portalMenus('school_reviewer', demoEnabled)" active-path="/school/results" context-label="学校端 · 海岳大学" :user-name="useAuthStore().user?.displayName ?? '王老师'">
+  <PortalLayout :menu-items="portalMenus('school_reviewer', demoEnabled)" active-path="/school/results" :context-label="demoEnabled ? '学校端 · 海岳大学' : '学校端 · ' + (useAuthStore().user?.tenantCode ?? '本校')" :user-name="useAuthStore().user?.displayName ?? '王老师'">
     <div class="result-page">
       <PageHeader eyebrow="PAGE-011 · RESULT PROCESSING" title="结果处理" description="核对匿名评阅意见和汇总结论后统一发布；学校侧只显示任务化名，不显示专家身份。">
         <template #actions>
@@ -144,6 +163,7 @@ onBeforeUnmount(() => { generation++ })
           </button>
         </template>
       </PageHeader>
+      <TimeScopeSelect v-if="!demoEnabled" :model-value="timeScope.scope.value" :meta="timeScope.meta.value" @update:model-value="timeScope.setScope" />
       <BlindRail audience="本校论文、匿名任务序号与评阅汇总" hidden-from="专家姓名、联系方式和专家库档案" stage="单专家结果核对与发布" />
       <label v-if="!demoEnabled && queue.length" class="result-queue">
         待处理论文
@@ -161,8 +181,11 @@ onBeforeUnmount(() => { generation++ })
         <button data-action="retry-results" type="button" @click="retry">重新加载</button>
       </section>
       <template v-else-if="rows.length">
+        <ReviewOutcomeNotice v-if="!demoEnabled && outcome" :outcome="outcome" :rule-version="ruleVersion" />
         <ResultSummaryPanel :average="score" :conclusion="conclusion" :published="published" />
         <AnonymousResultTable :rows="rows" />
+        <section v-if="!demoEnabled" aria-label="匿名评语检查摘要"><div v-for="item in checkSummaries" :key="item.alias"><strong>{{ item.alias }}</strong><ReviewCheckSummary :summary="item.summary" /></div></section>
+        <RealCorrectionPanel v-if="!demoEnabled && thesisId" :key="thesisId" mode="school" :thesis-id="thesisId" @changed="loadThesis(thesisId)" />
       </template>
       <p v-else-if="demoEnabled || thesisId">尚未收到有效评阅意见，暂不能发布结果。</p>
     </div>

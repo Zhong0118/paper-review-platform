@@ -1,5 +1,9 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import TimeScopeSelect from '@/components/app/TimeScopeSelect.vue'
+import { useTimeScope } from '@/composables/useTimeScope'
+import { useOperationsDashboard } from '@/composables/useOperationsDashboard'
+import type { StatusFilter } from '@/api/dashboard'
+import { onMounted, ref, watch, onBeforeUnmount } from 'vue'
 
 import BlindRail from '@/components/app/BlindRail.vue'
 import PageHeader from '@/components/app/PageHeader.vue'
@@ -17,6 +21,8 @@ import TaskProgressSummary from '../components/TaskProgressSummary.vue'
 type GateStatus = 'PASS' | 'REVIEW_REQUIRED' | 'FAIL'
 interface GateRow { id: string; title: string; anonymousId: string; status: GateStatus; finding: string }
 
+const timeScope = useTimeScope()
+const dashboard = useOperationsDashboard(false, timeScope)
 const demoEnabled = import.meta.env.VITE_DEMO_MODE === 'true'
 const service = demoEnabled ? useScenarioService() : null
 const authStore = useAuthStore()
@@ -30,7 +36,7 @@ const gateRows: GateRow[] = [
   { id: 'thesis-0053', title: '区域数字治理能力评价研究', anonymousId: 'HY-2026-0053', status: 'FAIL', finding: '致谢页包含导师姓名，必须替换匿名版' },
 ]
 const gateLabels: Record<GateStatus, string> = { PASS: '检测通过', REVIEW_REQUIRED: '待人工复核', FAIL: '检测失败' }
-const totals = computed(() => live.value?.totals ?? { waiting: 0, reviewing: 0, completed: 0, overdue: 0 })
+const filterLabels = { ALL: '全部送出论文', WAITING: '待派论文', INVITED: '邀请中任务', IN_REVIEW: '评阅中任务', SUBMITTED: '已提交任务' }
 
 function taskLabel(status: string) {
   if (status === 'IN_REVIEW') return '评阅中'
@@ -45,8 +51,25 @@ onMounted(async () => {
     snapshot.value = await service.loginAs('school_reviewer')
     return
   }
-  live.value = await schoolProgressList()
+  void dashboard.load()
+  await loadProgress()
 })
+
+let listGeneration = 0
+const listError = ref('')
+async function loadProgress() {
+  const request = ++listGeneration
+  live.value = null; listError.value = ''; dashboard.resetList()
+  try {
+    const data = await schoolProgressList(...timeScope.request(), dashboard.status.value)
+    if (request === listGeneration) {
+      live.value = data
+      dashboard.receiveList(data.filtered_count ?? data.items.length, data.as_of ?? timeScope.meta.value?.asOf ?? '')
+    }
+  } catch (err) {
+    if (request === listGeneration) listError.value = err instanceof Error ? err.message : '进度加载失败，请重试'
+  }
+}
 
 async function dispatch(row: GateRow) {
   if (!demoEnabled || !service || row.status !== 'PASS') return
@@ -61,20 +84,25 @@ async function dispatch(row: GateRow) {
 function rowTitle(row: SchoolProgressRow) {
   return row.title || row.thesis_id.slice(0, 8)
 }
+watch([timeScope.scope, timeScope.identity], () => { if (!demoEnabled && authStore.user) { void dashboard.load(); void loadProgress() } })
+function showStatus(status: StatusFilter) {
+  if (status === dashboard.status.value) void loadProgress()
+  else void dashboard.drill(status)
+}
+watch(dashboard.status, () => { if (!demoEnabled) void loadProgress() })
+onBeforeUnmount(() => { listGeneration++ })
 </script>
 
 <template>
-  <PortalLayout :menu-items="portalMenus('school_reviewer', demoEnabled)" active-path="/school/progress" context-label="学校端 · 海岳大学" :user-name="authStore.user?.displayName ?? '王老师'">
+  <PortalLayout :menu-items="portalMenus('school_reviewer', demoEnabled)" active-path="/school/progress" :context-label="demoEnabled ? '学校端 · 海岳大学' : '学校端 · ' + (authStore.user?.tenantCode ?? '本校')" :user-name="authStore.user?.displayName ?? '王老师'">
     <div class="progress-page">
       <PageHeader eyebrow="PAGE-005 · REVIEW PROGRESS" title="评审进度" description="查看已送出论文的任务化名与状态计数；学校侧不展示专家身份。" />
+      <TimeScopeSelect v-if="!demoEnabled" :model-value="timeScope.scope.value" :meta="timeScope.meta.value" @update:model-value="timeScope.setScope" />
+      <p v-if="listError" role="alert">{{ listError }} <button type="button" @click="loadProgress">重新加载</button></p>
       <BlindRail audience="本校论文、任务化名与进度数量" hidden-from="不展示专家姓名、手机号、邮箱和专家库详情" stage="学校确认送出" />
       <ScenarioStageRibbon v-if="demoEnabled && snapshot" :stage="snapshot.thesis.stage" :task-status="snapshot.thesis.taskStatus" :bill-status="snapshot.thesis.billStatus" />
-      <TaskProgressSummary
-        :waiting="demoEnabled ? 6 : totals.waiting"
-        :reviewing="demoEnabled ? 12 : totals.reviewing"
-        :completed="demoEnabled ? 28 : totals.completed"
-        :overdue="demoEnabled ? 2 : totals.overdue"
-      />
+      <TaskProgressSummary v-if="demoEnabled" :waiting="6" :reviewing="12" :completed="28" :overdue="2" />
+      <TaskProgressSummary v-else live :data="dashboard.data.value" :loading="dashboard.loading.value" :error="dashboard.error.value" @filter="showStatus" @retry="dashboard.load" />
       <p v-if="notice" class="dispatch-notice" role="status">{{ notice }}</p>
       <section v-if="demoEnabled" class="gate-list" aria-labelledby="gate-title">
         <header><div><span>ANONYMIZATION GATE</span><h2 id="gate-title">匿名化门禁</h2></div><small>通过也需学校最终确认后送出</small></header>
@@ -95,7 +123,10 @@ function rowTitle(row: SchoolProgressRow) {
           <div><code>任务 A-031-02</code><span>已完成 · 等待结果汇总</span><button type="button">查看进度</button></div>
         </template>
         <template v-else>
-          <p v-if="!live?.items.length" class="empty">暂无已送出论文。</p>
+          <div class="list-filter"><strong>{{ filterLabels[dashboard.status.value] }}</strong> <button type="button" @click="showStatus('ALL')">查看全部状态</button> <button type="button" @click="dashboard.load(); loadProgress()">刷新</button></div>
+          <p v-if="dashboard.listCount.value !== null" role="status">{{ dashboard.changed.value ? '数据已更新 · ' : '' }}当前 {{ dashboard.listCount.value }} {{ ['ALL', 'WAITING'].includes(dashboard.status.value) ? '篇论文' : '个任务' }} <small v-if="dashboard.listAsOf.value">· 列表更新于 {{ new Date(dashboard.listAsOf.value).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }) }} 北京时间</small></p>
+          <p v-if="!live && !listError" role="status">正在加载任务列表…</p>
+          <p v-else-if="live && !live.items.length" class="empty">当前范围暂无符合条件的论文或任务</p>
           <article v-for="row in live?.items ?? []" :key="row.thesis_id" data-progress-row>
             <div class="gate-list__paper">
               <strong>{{ rowTitle(row) }}</strong>
@@ -113,6 +144,16 @@ function rowTitle(row: SchoolProgressRow) {
 </template>
 
 <style scoped>
+.task-aliases > .list-filter { display: flex; flex-wrap: wrap; gap: .65rem; padding: .8rem 1rem; }
+.list-filter > strong { margin-right: auto; }
+.list-filter button { flex: none; padding: .4rem .7rem; transition: transform .15s, background .15s; }
+.list-filter button:hover { background: #edf4fb; transform: translateY(-1px); }
+.list-filter button:active { transform: scale(.98); }
+.task-aliases > p[role="status"] { padding: 0 1rem; color: #687682; font-size: .8rem; }
+[data-progress-row] { animation: row-appear .18s ease; }
+@keyframes row-appear { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) { [data-progress-row] { animation: none; } .list-filter button { transition: none; } }
+
 .progress-page { display: grid; gap: 1rem; }
 .dispatch-notice { margin: 0; padding: 0.7rem 0.85rem; border-left: 3px solid #2e7d32; background: #edf7ee; color: #26612b; font-size: 0.75rem; }
 .gate-list, .task-aliases { border: 1px solid #dce3e9; background: white; }

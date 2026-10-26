@@ -1,6 +1,12 @@
+import { scopeOptions, type TimeScope, type TimeScopeReporter } from './timeScope'
 import { httpApi, type RequestOptions } from './request'
+import type { CheckSummary } from './reviewChecks'
+import type { ReviewRule } from './review'
+
+export interface ReviewOutcome { code: 'FAIL' | 'REVISION_REQUIRED' | 'PASS'; label: string }
 
 export interface PublishedItem {
+  check_summary?: CheckSummary | null
   alias: string
   total: number
   scores: Record<string, number>
@@ -13,9 +19,13 @@ export interface SchoolResults {
   thesis_id: string
   stage: string
   version: number
+  base_result_id: string | null
+  effective_revision_id: string | null
   summary_total: number | null
   items: PublishedItem[]
   published: boolean
+  rule_snapshot: ReviewRule | null
+  outcome: ReviewOutcome | null
 }
 
 export function getSchoolResults(thesisId: string) {
@@ -27,7 +37,7 @@ export function publishThesis(thesisId: string, version: number, options?: Reque
 }
 
 export function getPublishedResult(thesisId: string) {
-  return httpApi.get<{ thesis_id: string; total: number; items: PublishedItem[] }>(
+  return httpApi.get<{ thesis_id: string; base_result_id: string; effective_revision_id: string | null; total: number; correction_pending: boolean; items: PublishedItem[]; rule_snapshot: ReviewRule; outcome: ReviewOutcome }>(
     `/my/theses/${thesisId}/published-result`,
   )
 }
@@ -39,6 +49,6 @@ export interface SupervisedPublishedThesis {
   student_name: string
 }
 
-export function listSupervisedPublishedTheses() {
-  return httpApi.get<SupervisedPublishedThesis[]>('/supervisor/theses/published')
+export function listSupervisedPublishedTheses(scope?: TimeScope, report?: TimeScopeReporter) {
+  return scope === undefined ? httpApi.get<SupervisedPublishedThesis[]>('/supervisor/theses/published') : httpApi.get<SupervisedPublishedThesis[]>('/supervisor/theses/published', scopeOptions(scope, report))
 }
