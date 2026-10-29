@@ -1,6 +1,8 @@
 """Run a single conversion in an owned, disposable, networkless Docker sandbox."""
 import json
+import logging
 import subprocess
+import sys
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from uuid import uuid4
@@ -55,8 +57,14 @@ def convert(inputs: list[bytes], operation: str, pages: list[list[int]], max_byt
         except OSError as exc:
             raise AppError('PDF_RUNTIME_UNAVAILABLE', 503, 'PDF转换环境不可用') from exc
         finally:
+            active_error = sys.exception()
             if container:
-                check = subprocess.run(['docker', 'inspect', '--format', '{{index .Config.Labels "paper-review.transform"}}', container],
-                                       capture_output=True, text=True, timeout=10)
-                if check.returncode == 0 and check.stdout.strip() == owner:
-                    subprocess.run(['docker', 'rm', '-f', container], capture_output=True, timeout=10, check=True)
+                try:
+                    check = subprocess.run(['docker', 'inspect', '--format', '{{index .Config.Labels "paper-review.transform"}}', container],
+                                           capture_output=True, text=True, timeout=10)
+                    if check.returncode == 0 and check.stdout.strip() == owner:
+                        subprocess.run(['docker', 'rm', '-f', container], capture_output=True, timeout=10, check=True)
+                except (OSError, subprocess.SubprocessError) as exc:
+                    logging.getLogger(__name__).warning('PDF worker cleanup failed for %s (%s)', container, type(exc).__name__)
+                    if active_error is None:
+                        raise AppError('PDF_RUNTIME_UNAVAILABLE', 503, 'PDF转换环境清理失败，请稍后重试') from exc

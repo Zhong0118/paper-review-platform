@@ -1,0 +1,11 @@
+{
+  "python": "3.12.7",
+  "node": "v24.19.0",
+  "docker_image": "sha256:b6bbca155d16cca1cad96a1cc3037d4d8eae7699c9a9abfb6b55b6cb8266e491",
+  "packages": {
+    "fastapi": "0.141.1",
+    "sqlalchemy": "2.0.52",
+    "pypdf": "6.19.0",
+    "pytest": "9.1.1"
+  }
+}

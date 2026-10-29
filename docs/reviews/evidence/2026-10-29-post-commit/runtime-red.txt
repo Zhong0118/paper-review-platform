@@ -1,0 +1,77 @@
+FFFF                                                                     [100%]
+=================================== FAILURES ===================================
+_______________ test_missing_docker_returns_runtime_unavailable ________________
+backend/app/modules/files/transform_runtime.py:31: in convert
+    created = subprocess.run(['docker', 'create', '--name', container, '--pull=never', '--label', f'paper-review.transform={owner}',
+/opt/homebrew/anaconda3/lib/python3.12/subprocess.py:548: in run
+    with Popen(*popenargs, **kwargs) as process:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/homebrew/anaconda3/lib/python3.12/subprocess.py:1026: in __init__
+    self._execute_child(args, executable, preexec_fn, close_fds,
+/opt/homebrew/anaconda3/lib/python3.12/subprocess.py:1955: in _execute_child
+    raise child_exception_type(errno_num, err_msg, err_filename)
+E   FileNotFoundError: [Errno 2] No such file or directory: 'docker'
+
+The above exception was the direct cause of the following exception:
+backend/app/modules/files/transform_runtime.py:56: in convert
+    raise AppError('PDF_RUNTIME_UNAVAILABLE', 503, 'PDF转换环境不可用') from exc
+E   app.core.exceptions.AppError: PDF转换环境不可用
+
+During handling of the above exception, another exception occurred:
+.superpowers/sdd/2026-10-29-post-commit-acceptance/test_pdf_runtime_errors.py:12: in test_missing_docker_returns_runtime_unavailable
+    transform_runtime.convert([b"%PDF-synthetic"], "EXTRACT", [[1]], 1024)
+backend/app/modules/files/transform_runtime.py:59: in convert
+    check = subprocess.run(['docker', 'inspect', '--format', '{{index .Config.Labels "paper-review.transform"}}', container],
+/opt/homebrew/anaconda3/lib/python3.12/subprocess.py:548: in run
+    with Popen(*popenargs, **kwargs) as process:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/homebrew/anaconda3/lib/python3.12/subprocess.py:1026: in __init__
+    self._execute_child(args, executable, preexec_fn, close_fds,
+/opt/homebrew/anaconda3/lib/python3.12/subprocess.py:1955: in _execute_child
+    raise child_exception_type(errno_num, err_msg, err_filename)
+E   FileNotFoundError: [Errno 2] No such file or directory: 'docker'
+________ test_runtime_failure_survives_cleanup_failure[cleanup_timeout] ________
+backend/app/modules/files/transform_runtime.py:39: in convert
+    raise AppError('PDF_RUNTIME_UNAVAILABLE', 503, 'PDF转换环境不可用，请检查本机Docker与转换镜像')
+E   app.core.exceptions.AppError: PDF转换环境不可用，请检查本机Docker与转换镜像
+
+During handling of the above exception, another exception occurred:
+.superpowers/sdd/2026-10-29-post-commit-acceptance/test_pdf_runtime_errors.py:27: in test_runtime_failure_survives_cleanup_failure
+    transform_runtime.convert([b"%PDF-synthetic"], "EXTRACT", [[1]], 1024)
+backend/app/modules/files/transform_runtime.py:59: in convert
+    check = subprocess.run(['docker', 'inspect', '--format', '{{index .Config.Labels "paper-review.transform"}}', container],
+.superpowers/sdd/2026-10-29-post-commit-acceptance/test_pdf_runtime_errors.py:23: in run
+    raise subprocess.TimeoutExpired(command, kwargs["timeout"])
+E   subprocess.TimeoutExpired: Command '['docker', 'inspect', '--format', '{{index .Config.Labels "paper-review.transform"}}', 'paper-review-transform-994a04bd-732f-41d2-be8e-e65c98ab3a7e']' timed out after 10 seconds
+________ test_runtime_failure_survives_cleanup_failure[worker_timeout] _________
+.superpowers/sdd/2026-10-29-post-commit-acceptance/test_pdf_runtime_errors.py:23: in run
+    raise subprocess.TimeoutExpired(command, kwargs["timeout"])
+E   subprocess.TimeoutExpired: Command '['docker', 'start', '-a', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa']' timed out after 60 seconds
+
+The above exception was the direct cause of the following exception:
+backend/app/modules/files/transform_runtime.py:54: in convert
+    raise AppError('VALIDATION_ERROR', 422, 'PDF转换超时，请减少页数后重试') from exc
+E   app.core.exceptions.AppError: PDF转换超时，请减少页数后重试
+
+During handling of the above exception, another exception occurred:
+.superpowers/sdd/2026-10-29-post-commit-acceptance/test_pdf_runtime_errors.py:27: in test_runtime_failure_survives_cleanup_failure
+    transform_runtime.convert([b"%PDF-synthetic"], "EXTRACT", [[1]], 1024)
+backend/app/modules/files/transform_runtime.py:59: in convert
+    check = subprocess.run(['docker', 'inspect', '--format', '{{index .Config.Labels "paper-review.transform"}}', container],
+.superpowers/sdd/2026-10-29-post-commit-acceptance/test_pdf_runtime_errors.py:23: in run
+    raise subprocess.TimeoutExpired(command, kwargs["timeout"])
+E   subprocess.TimeoutExpired: Command '['docker', 'inspect', '--format', '{{index .Config.Labels "paper-review.transform"}}', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa']' timed out after 10 seconds
+___________ test_successful_conversion_does_not_hide_cleanup_failure ___________
+.superpowers/sdd/2026-10-29-post-commit-acceptance/test_pdf_runtime_errors.py:57: in test_successful_conversion_does_not_hide_cleanup_failure
+    transform_runtime.convert([b"%PDF-synthetic"], "EXTRACT", [[1]], 1024)
+backend/app/modules/files/transform_runtime.py:62: in convert
+    subprocess.run(['docker', 'rm', '-f', container], capture_output=True, timeout=10, check=True)
+.superpowers/sdd/2026-10-29-post-commit-acceptance/test_pdf_runtime_errors.py:52: in run
+    raise subprocess.CalledProcessError(1, command)
+E   subprocess.CalledProcessError: Command '['docker', 'rm', '-f', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa']' returned non-zero exit status 1.
+=========================== short test summary info ============================
+FAILED backend::test_missing_docker_returns_runtime_unavailable - FileNotFoun...
+FAILED backend::test_runtime_failure_survives_cleanup_failure[cleanup_timeout]
+FAILED backend::test_runtime_failure_survives_cleanup_failure[worker_timeout]
+FAILED backend::test_successful_conversion_does_not_hide_cleanup_failure - su...
+4 failed in 0.07s

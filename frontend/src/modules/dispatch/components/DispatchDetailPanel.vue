@@ -10,26 +10,26 @@ defineProps<{ thesis: DispatchThesisSeed | null }>()
       <header>
         <span>DISPATCH DETAIL</span>
         <h2>派单详情</h2>
-        <code>{{ thesis.anonymousId }}</code>
+        <code v-if="thesis.anonymousId">{{ thesis.anonymousId }}</code>
       </header>
       <dl class="dispatch-detail__grid">
         <div>
           <dt>专业目录</dt>
-          <dd>{{ thesis.discipline.code }} · {{ thesis.discipline.name }}</dd>
+          <dd>{{ thesis.discipline.code }}<template v-if="thesis.discipline.name && thesis.discipline.name !== thesis.discipline.code"> · {{ thesis.discipline.name }}</template></dd>
         </div>
-        <div>
+        <div v-if="thesis.thesisType">
           <dt>论文类型</dt>
           <dd>{{ thesis.thesisType }}</dd>
         </div>
-        <div>
+        <div v-if="thesis.tenantName">
           <dt>送审学校</dt>
           <dd>{{ thesis.tenantName }}</dd>
         </div>
-        <div>
+        <div v-if="thesis.round">
           <dt>送审轮次</dt>
           <dd>第 {{ thesis.round }} 轮</dd>
         </div>
-        <div class="span-2">
+        <div v-if="thesis.keywords?.length" class="span-2">
           <dt>关键词</dt>
           <dd class="keywords">
             <span v-for="keyword in thesis.keywords" :key="keyword" class="tag">
@@ -37,11 +37,11 @@ defineProps<{ thesis: DispatchThesisSeed | null }>()
             </span>
           </dd>
         </div>
-        <div class="span-2">
+        <div v-if="thesis.avoidRule" class="span-2">
           <dt>回避规则</dt>
           <dd>{{ thesis.avoidRule }}</dd>
         </div>
-        <div class="span-2">
+        <div v-if="thesis.schoolRequirement" class="span-2">
           <dt>学校要求</dt>
           <dd>{{ thesis.schoolRequirement }}</dd>
         </div>

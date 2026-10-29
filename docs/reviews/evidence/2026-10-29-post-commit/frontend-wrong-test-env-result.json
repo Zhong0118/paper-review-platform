@@ -1,0 +1,8 @@
+[
+  {
+    "command": "node_modules/.bin/vitest run --maxWorkers=4",
+    "VITE_DEMO_MODE": "false",
+    "exit_code": 1,
+    "duration_seconds": 18.57
+  }
+]

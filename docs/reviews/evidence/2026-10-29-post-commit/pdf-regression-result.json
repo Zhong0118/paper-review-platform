@@ -1,0 +1,5 @@
+{
+  "command": "backend/.venv/bin/pytest backend/tests/test_pdf_runtime_errors.py backend/tests/test_pdf_transforms.py -c backend/pyproject.toml -q --tb=short --show-capture=no",
+  "exit_code": 0,
+  "duration_seconds": 22.61
+}

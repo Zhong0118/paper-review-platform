@@ -32,6 +32,12 @@ it('refreshes on 409 and requires selection and confirmation again',async()=>{
  expect(api.dispatchCandidates).toHaveBeenCalledTimes(2);expect(api.assignExpert).toHaveBeenCalledTimes(1)
  expect(w.text()).toContain('重新选择');expect(w.get('[data-action="assign-experts"]').attributes('disabled')).toBeDefined()
 })
+it('shows only supplied real dispatch details without empty demo fields or duplicate discipline codes',async()=>{
+ const w=await page();const detail=w.get('[data-dispatch-detail]')
+ expect(detail.findAll('dt').map(row=>row.text())).toEqual(['专业目录'])
+ expect(detail.get('dd').text()).toBe('0812')
+ expect(detail.text()).not.toContain('第 轮')
+})
 it('folds ineligible rows by default and keeps high scoring conflicts disabled',async()=>{
  const base:ExpertCandidate={id:'zero',alias:'E-01',rowType:'eligible',name:'零分',unit:'',title:'',discipline:{code:'0812',name:'计算机'},fields:[],keywordHits:[],conflictHit:false,activeTasks:0,acceptanceRate:'—',onTimeRate:'—',avgCompletionDays:0,feeStandard:0,matchReason:'可派'}
  const w=mount(CandidateExpertTable,{props:{rows:[{...base,matchScore:0},{...base,id:'blocked',name:'高分回避',conflictHit:true,conflictReason:'回避',rowType:'conflicted',matchScore:25,matchReasons:[{kind:'keyword',tag:'机器学习',points:2}]}],modelValue:[],showRanking:true}})
