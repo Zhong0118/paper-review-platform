@@ -75,7 +75,7 @@ function excerpt(finding: CheckFinding) {
 </template>
 
 <style scoped>
-.review-checks { display: grid; gap: .7rem; border: 1px solid #c8d7e4; background: #f7fafc; padding: 1rem; }
+.review-checks { display: grid; min-width: 0; overflow-wrap: anywhere; gap: .7rem; border: 1px solid #c8d7e4; background: #f7fafc; padding: 1rem; }
 h3, h4, p { margin: 0; } .similarity-coverage { display: grid; gap: .5rem; } p { font-size: .85rem; line-height: 1.6; } button { justify-self: start; padding: .4rem .7rem; }
 .check-category { display: grid; gap: .6rem; padding: .7rem; border-left: 3px solid #b38a38; background: #fff; }
 .check-category > div { display: grid; gap: .35rem; } .excerpt { white-space: pre-wrap; overflow-wrap: anywhere; }

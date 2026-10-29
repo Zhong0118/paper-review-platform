@@ -6,6 +6,7 @@ import BlindRail from '@/components/app/BlindRail.vue'
 import PageHeader from '@/components/app/PageHeader.vue'
 import { useScenarioService } from '@/demo/serviceProvider'
 import { createThesis, getThesis, patchThesis, submitThesis, type ThesisDetail } from '@/api/theses'
+import PdfTransformDialog from '@/components/app/PdfTransformDialog.vue'
 import SensitiveFindingPanel from '@/components/app/SensitiveFindingPanel.vue'
 import { checkSensitiveThesis } from '@/api/sensitiveChecks'
 import { uploadThesisFile } from '@/api/files'
@@ -34,6 +35,8 @@ const pendingUploads = ref<Partial<Record<'SCHOOL_ARCHIVE' | 'EXPERT_REVIEW', Fi
 const liveVersion = ref(1)
 const realDetail = ref<ThesisDetail | null>(null)
 const checking = ref(false)
+const transformOpen = ref(false)
+const preparingTransform = ref(false)
 const checkError = ref('')
 let checkGeneration = 0
 const editor = ref<InstanceType<typeof ThesisMaterialEditor>>()
@@ -234,9 +237,31 @@ async function checkDraft() {
   finally { if (request === checkGeneration) checking.value = false }
 }
 watch(() => [authStore.user?.id,authStore.user?.tenantId,authStore.user?.role], () => {
-  checkGeneration++;realDetail.value=null;checking.value=false;checkError.value=''
+  checkGeneration++;realDetail.value=null;checking.value=false;checkError.value='';transformOpen.value=false
 })
 onBeforeUnmount(()=>{checkGeneration++})
+
+async function openTransform() {
+  if (saving.value || submitting.value || checking.value || preparingTransform.value) return
+  preparingTransform.value = true; checkError.value = ''
+  const revision = formRevision.value
+  const identity = authStore.user?.id
+  try {
+    if (!await persistDraft(draftSnapshot(), revision)) return
+    for (const [local, purpose] of [['SCHOOL_ARCHIVE','original'],['EXPERT_REVIEW','anonymous']] as const) {
+      const file = pendingUploads.value[local]
+      if (file && authStore.accessToken) {
+        await uploadThesisFile({thesisId:thesisId.value,purpose,file,token:authStore.accessToken})
+        if (pendingUploads.value[local] === file) delete pendingUploads.value[local]
+      }
+    }
+    if (revision !== formRevision.value || identity !== authStore.user?.id) return
+    await loadDraft()
+    if (!loadError.value && realDetail.value?.stage === 'DRAFT') transformOpen.value = true
+  } catch(e) { checkError.value = e instanceof Error ? e.message : 'PDF 材料准备失败' }
+  finally { preparingTransform.value = false }
+}
+async function appliedTransform() { transformOpen.value = false; await loadDraft() }
 
 async function saveDraft() {
   await persistDraft(draftSnapshot(), formRevision.value)
@@ -411,6 +436,10 @@ void loadDraft()
           @native-file="onNativeFile"
         />
 
+        <button v-if="!demoEnabled && realDetail?.stage === 'DRAFT'" type="button" data-open-pdf-transform
+          :disabled="saving || submitting || checking || preparingTransform" @click="openTransform">{{preparingTransform ? '正在保存材料…' : '保存并处理 PDF 材料'}}</button>
+        <Transition name="confirmation"><PdfTransformDialog v-if="transformOpen && realDetail" :thesis-id="realDetail.id" :version="realDetail.version"
+          :files="realDetail.current_version?.files ?? []" @close="transformOpen=false" @applied="appliedTransform" /></Transition>
         <SensitiveFindingPanel v-if="!demoEnabled && realDetail" :detail="realDetail" :busy="checking"
           :disabled="saving || submitting" :invalidated="dirty || !!pendingUploads.EXPERT_REVIEW || !form.files.some(file => file.purpose === 'EXPERT_REVIEW')" @check="checkDraft" />
         <p v-if="checkError" role="alert">{{checkError}}</p>

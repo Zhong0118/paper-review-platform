@@ -19,7 +19,10 @@ from app.modules.statistics.dashboard_router import router as dashboard_router
 
 from app.modules.thesis.sensitive_terms import router as sensitive_router
 
+from app.modules.files.transform_router import router as transform_router
+
 router = APIRouter()
+router.include_router(transform_router)
 router.include_router(sensitive_router)
 router.include_router(dashboard_router)
 router.include_router(correction_router)

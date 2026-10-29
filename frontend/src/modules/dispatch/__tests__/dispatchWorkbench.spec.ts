@@ -22,6 +22,7 @@ async function mountDispatch(service = createScenarioService()) {
   const wrapper = mount(DispatchWorkbenchPage, {
     global: {
       plugins: [createPinia(), router],
+      stubs: { TransitionGroup: false },
       provide: { [scenarioServiceKey as symbol]: service },
     },
   })
@@ -46,6 +47,7 @@ describe('dispatch workbench', () => {
     const wrapper = mount(DispatchWorkbenchPage, {
       global: {
         plugins: [createPinia(), router],
+        stubs: { TransitionGroup: false },
         provide: { [scenarioServiceKey as symbol]: service },
       },
     })

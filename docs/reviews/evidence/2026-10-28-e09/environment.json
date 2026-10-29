@@ -1,0 +1,15 @@
+{
+  "branch": "codex/slice-7a1-file-integrity",
+  "head": "80ce25c92485a5e1d2ffc59d2cbe57bb712ecf0a",
+  "python": "3.12.7",
+  "node": "24.19.0",
+  "postgres": "16.15",
+  "docker": "28.1.1",
+  "chrome": "156.0.8078.49",
+  "database": "127.0.0.1:5433/paper_review_test (owned independent schemas)",
+  "migration": "0027_expert_profiles",
+  "force_rls_tables": 36,
+  "committed": false,
+  "pushed": false,
+  "deployed": false
+}

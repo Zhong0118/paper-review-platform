@@ -147,12 +147,41 @@ async def test_preview_ack_submission_and_private_summary_with_real_rls():
                         conn.execute(text("UPDATE review_result_versions SET check_summary='{}' WHERE id=:id"), {'id': result_id})
                 from tests.test_rule_snapshot_migration import migrate
                 down = migrate(runtime.schema, 'downgrade', '0022_review_corrections')
-                assert down.returncode != 0 and 'would discard check receipts' in down.stderr
+                # Later bound-report data blocks before the receipt migration.
+                assert down.returncode != 0 and 'would discard sensitive terms or bound reports' in down.stderr
                 with engine.connect() as conn:
-                    assert conn.scalar(text('SELECT version_num FROM alembic_version')) == '0024_expert_task_time_scope'
+                    assert conn.scalar(text('SELECT version_num FROM alembic_version')) == '0027_expert_profiles'
                     assert conn.scalar(text("SELECT bool_and(relforcerowsecurity) FROM pg_class WHERE relnamespace=to_regnamespace(current_schema()) AND relname IN ('review_result_versions','review_result_revisions')")) is True
             finally:
                 engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_receipts_block_their_own_migration_downgrade():
+    from sqlalchemy import create_engine, text
+    from tests.conftest import _test_url
+    from tests.legacy_rls_fixture import legacy_accepted_0015
+    from tests.test_rule_snapshot_migration import migrate
+
+    async with legacy_accepted_0015() as fixture:
+        upgraded = migrate(fixture.schema, 'upgrade', '0023_review_check_summaries', fixture.roles)
+        assert upgraded.returncode == 0, upgraded.stderr
+        engine = create_engine(_test_url().replace('+asyncpg', '+psycopg'),
+            connect_args={'options': f'-c search_path={fixture.schema}'})
+        try:
+            with engine.begin() as conn:
+                conn.execute(text("""INSERT INTO review_result_versions
+                    (id,task_id,round_id,tenant_id,version_no,scores,total,comments,is_current,check_summary)
+                    SELECT gen_random_uuid(),id,round_id,tenant_id,1,'{}',0,'{}',true,'{}'
+                    FROM expert_tasks WHERE id=:id"""), {'id': fixture.task_id})
+            down = migrate(fixture.schema, 'downgrade', '0022_review_corrections', fixture.roles)
+            assert down.returncode != 0 and 'would discard check receipts' in down.stderr
+            with engine.connect() as conn:
+                assert conn.scalar(text('SELECT version_num FROM alembic_version')) == '0023_review_check_summaries'
+                assert conn.scalar(text('SELECT check_summary FROM review_result_versions')) == {}
+                assert conn.scalar(text("SELECT bool_and(relforcerowsecurity) FROM pg_class WHERE relnamespace=to_regnamespace(current_schema()) AND relname IN ('review_result_versions','review_result_revisions')")) is True
+        finally:
+            engine.dispose()
 
 
 @pytest.mark.asyncio

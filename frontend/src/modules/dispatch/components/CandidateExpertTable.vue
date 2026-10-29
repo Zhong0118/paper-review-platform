@@ -1,9 +1,14 @@
 <script setup lang="ts">
+import { computed, ref } from 'vue'
+import type { MatchReason } from '@/api/dispatch'
 import ColumnPreferences from '@/components/app/ColumnPreferences.vue'
 import { useColumnPreferences, type ColumnIdentity } from '@/composables/useColumnPreferences'
 import ConflictReason from './ConflictReason.vue'
 
 export interface ExpertCandidate {
+  matchScore?: number
+  matchReasons?: MatchReason[]
+  matchRuleVersion?: string
   id: string
   rowType: 'eligible' | 'conflicted' | 'secondary'
   alias: string
@@ -27,15 +32,20 @@ const props = defineProps<{
   rows: ExpertCandidate[]
   modelValue: string[]
   showDemoMetrics?: boolean
+  showRanking?: boolean
   /** 移动断点由页面传入；真实模式保留横向表格，演示模式使用卡片。 */
   mobile?: boolean
   preferenceIdentity?: ColumnIdentity | null
 }>()
+const showUnavailable = ref(false)
+const blockedCount = computed(() => props.rows.filter(row => row.conflictHit).length)
+const visibleRows = computed(() => props.showRanking && !showUnavailable.value ? props.rows.filter(row => !row.conflictHit) : props.rows)
 const preferences = useColumnPreferences('dispatch-candidates', 1, () => [
   ...(!props.preferenceIdentity ? [{ id: 'selection', label: '选择', required: true, defaultVisible: true }] : []),
   { id: 'expert', label: '专家', required: true, defaultVisible: true },
   { id: 'unit', label: '单位 / 职称', required: false, defaultVisible: true },
   { id: 'discipline', label: '专业匹配', required: false, defaultVisible: true },
+  ...(props.showRanking ? [{ id: 'ranking', label: '规则排序分', required: false, defaultVisible: true }] : []),
   { id: 'fields', label: '擅长领域', required: false, defaultVisible: true },
   { id: 'keywords', label: '关键词命中', required: false, defaultVisible: true },
   ...(props.showDemoMetrics ? [
@@ -52,11 +62,18 @@ const { visibleColumns } = preferences
 const emit = defineEmits<{ 'update:modelValue': [ids: string[]] }>()
 
 function toggle(id: string, checked: boolean) {
+  if (checked && props.rows.find(row => row.id === id)?.conflictHit) return
   emit('update:modelValue', checked ? [id] : [])
 }
 </script>
 
 <template>
+  <section v-if="showRanking" class="ranking-note" aria-label="候选推荐规则">
+    <p>规则排序分 · {{ rows[0]?.matchRuleVersion ?? '待刷新' }} · 方向每项3分（最多15）关键词每项2分（最多10）</p>
+    <p>0分表示缺少匹配线索 不代表不合格 分数不是准确率或概率 最终由平台人工确认</p>
+    <button v-if="blockedCount" type="button" data-toggle-unavailable :aria-expanded="showUnavailable" @click="showUnavailable = !showUnavailable">{{ showUnavailable ? '收起' : '查看' }}不可派候选（{{ blockedCount }}）</button>
+    <p v-if="!visibleRows.length">当前没有可选候选</p>
+  </section>
   <ColumnPreferences v-if="preferenceIdentity" :preferences="preferences" label="候选专家" />
   <div v-if="!mobile || preferenceIdentity" class="candidate-table-wrap">
     <table class="candidate-table">
@@ -65,9 +82,9 @@ function toggle(id: string, checked: boolean) {
           <th v-for="column in visibleColumns" :key="column.id" :data-column-header="column.id">{{ column.label }}</th>
         </TransitionGroup>
       </thead>
-      <tbody>
+      <TransitionGroup name="ranking-rows" tag="tbody">
         <TransitionGroup name="table-columns" tag="tr"
-          v-for="row in rows"
+          v-for="row in visibleRows"
           :key="row.id"
           :data-expert="row.rowType"
           :data-expert-id="row.id"
@@ -77,6 +94,7 @@ function toggle(id: string, checked: boolean) {
             <template v-else-if="column.id === 'expert'"><strong>{{ row.name }}</strong><small>{{ row.alias }} · 仅平台可见</small></template>
             <template v-else-if="column.id === 'unit'"><strong>{{ row.unit }}</strong><small>{{ row.title }}</small></template>
             <template v-else-if="column.id === 'discipline'"><code>{{ row.discipline.code }}</code><span>{{ row.discipline.name }}</span></template>
+            <template v-else-if="column.id === 'ranking'"><strong>{{ row.matchScore ?? '待刷新' }}</strong><small v-if="row.matchScore === 0">缺少匹配线索</small></template>
             <template v-else-if="column.id === 'fields'"><span v-for="field in row.fields" :key="field" class="tag">{{ field }}</span></template>
             <template v-else-if="column.id === 'keywords'">
               <span v-if="row.keywordHits.length > 0"><span v-for="keyword in row.keywordHits" :key="keyword" class="tag hit">{{ keyword }}</span></span><small v-else>无直接命中</small>
@@ -89,20 +107,21 @@ function toggle(id: string, checked: boolean) {
             <ConflictReason v-else-if="column.id === 'conflict'" :hit="row.conflictHit" :reason="row.conflictReason" />
           </td>
         </TransitionGroup>
-      </tbody>
+      </TransitionGroup>
     </table>
-    <ul class="match-reasons" aria-label="候选匹配原因">
-      <li v-for="row in rows" :key="`reason-${row.id}`" :data-match-reason="row.id">
+    <TransitionGroup name="ranking-rows" tag="ul" class="match-reasons" aria-label="候选匹配原因">
+      <li v-for="row in visibleRows" :key="`reason-${row.id}`" :data-match-reason="row.id">
         <strong>{{ row.name }}</strong>
         <span>{{ row.matchReason }}</span>
+        <span v-if="showRanking" class="scored-tags"><span v-for="hit in row.matchReasons" :key="hit.kind + hit.tag" class="tag hit">{{ hit.kind === 'research_direction' ? '方向' : '关键词' }} · {{ hit.tag }} +{{ hit.points }}</span></span>
       </li>
-    </ul>
+    </TransitionGroup>
   </div>
 
   <!-- 演示模式移动卡片；真实模式保留可配置表格 -->
   <ul v-else class="candidate-cards" aria-label="候选专家">
     <li
-      v-for="row in rows"
+      v-for="row in visibleRows"
       :key="`card-${row.id}`"
       class="candidate-card"
       :data-candidate-card="row.id"
@@ -170,6 +189,16 @@ function toggle(id: string, checked: boolean) {
 </template>
 
 <style scoped>
+.ranking-note { padding: .8rem; background: #f1f6fd; color: #334155; font-size: .75rem; line-height: 1.7; animation: rank-in .18s ease; }
+.ranking-note button { margin-top: .4rem; padding: .35rem .7rem; border: 1px solid #cbd5e1; border-radius: .3rem; background: white; transition: background .18s, transform .18s; cursor: pointer; }
+.ranking-note button:hover { background: #dbeafe; transform: translateY(-1px); }
+.ranking-note button:active { transform: scale(.98); }
+.scored-tags { display: flex; gap: .25rem; flex-wrap: wrap; }
+.ranking-rows-enter-active, .ranking-rows-leave-active, .ranking-rows-move { transition: opacity .18s ease, transform .18s ease; }
+.ranking-rows-enter-from, .ranking-rows-leave-to { opacity: 0; transform: translateY(4px); }
+@keyframes rank-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .ranking-note, .ranking-note button, .ranking-rows-enter-active, .ranking-rows-leave-active, .ranking-rows-move { animation: none; transition: none; } }
+
 .candidate-table-wrap {
   overflow-x: auto;
   border: 1px solid #dce3e9;

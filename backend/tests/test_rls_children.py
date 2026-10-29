@@ -58,7 +58,8 @@ async def test_published_children_follow_role_and_school_scope_without_task_read
                 (supervisor, (0, 0, 0, 1, 1, 0)),
                 (student_b, (0, 0, 0, 0, 0, 0)),
                 (school_b, (0, 0, 0, 0, 0, 0)),
-                (platform, (1, 1, 0, 0, 0, 1)),
+                # E07 identity findings are visible only to the student/school.
+                (platform, (1, 0, 0, 0, 0, 1)),
                 (expert, (0, 0, 0, 1, 0, 1)),
                 (system, (0, 0, 0, 0, 0, 0)),
             ):

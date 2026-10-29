@@ -7,6 +7,7 @@ from sqlalchemy import select, text
 
 from app.core.config import get_settings
 from app.core.exceptions import AppError
+from app.db.rls_context import bind_candidate_identity, verified_access_claims
 from app.modules.auth.deps import CurrentUser
 from app.modules.thesis import service as theses
 from app.modules.thesis.models import Thesis, ThesisVersion, ThesisVersionFile
@@ -38,8 +39,10 @@ async def draft_with_files(client):
 @pytest.mark.asyncio
 async def test_stale_patch_cannot_mutate_frozen_version(independent_sessions):
     sessions, client = independent_sessions
-    _, draft = await draft_with_files(client)
+    student, draft = await draft_with_files(client)
     async with sessions() as first, sessions() as second:
+        await bind_candidate_identity(first, verified_access_claims(student['access_token']))
+        await bind_candidate_identity(second, verified_access_claims(student['access_token']))
         user = await actor(first, 'student.lin', 'student')
         stale = await second.get(Thesis, UUID(draft['id']))
         version = await second.get(ThesisVersion, stale.current_version_id)
@@ -58,8 +61,10 @@ async def test_stale_patch_cannot_mutate_frozen_version(independent_sessions):
 @pytest.mark.asyncio
 async def test_submit_freezes_latest_metadata_after_patch(independent_sessions):
     sessions, client = independent_sessions
-    _, draft = await draft_with_files(client)
+    student, draft = await draft_with_files(client)
     async with sessions() as first, sessions() as second:
+        await bind_candidate_identity(first, verified_access_claims(student['access_token']))
+        await bind_candidate_identity(second, verified_access_claims(student['access_token']))
         user = await actor(first, 'student.lin', 'student')
         stale = await second.get(Thesis, UUID(draft['id']))
         version = await second.get(ThesisVersion, stale.current_version_id)
@@ -149,8 +154,10 @@ async def test_withdraw_retires_old_round_and_resubmission_uses_new_version(inde
 @pytest.mark.parametrize('winner', ['submit', 'delete', 'patch'])
 async def test_thesis_writes_serialize_on_same_row(independent_sessions, winner):
     sessions, client = independent_sessions
-    _, draft = await draft_with_files(client)
+    student, draft = await draft_with_files(client)
     async with sessions() as first, sessions() as second:
+        await bind_candidate_identity(first, verified_access_claims(student['access_token']))
+        await bind_candidate_identity(second, verified_access_claims(student['access_token']))
         user = await actor(first, 'student.lin', 'student')
         stale = await second.get(Thesis, UUID(draft['id']))
         version = await second.get(ThesisVersion, stale.current_version_id)

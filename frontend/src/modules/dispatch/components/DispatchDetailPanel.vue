@@ -47,7 +47,7 @@ defineProps<{ thesis: DispatchThesisSeed | null }>()
         </div>
       </dl>
       <p class="dispatch-detail__note">
-        匹配依据来自专家档案（研究方向、历史质量与回避声明），仅用于人工派单参考。
+        候选仅用于人工派单参考，资格、学科与回避规则均需通过校验。
       </p>
     </template>
     <p v-else class="dispatch-detail__empty">请先在待派列表中选择一篇论文查看派单详情。</p>

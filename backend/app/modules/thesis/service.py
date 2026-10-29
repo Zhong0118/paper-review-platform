@@ -172,7 +172,9 @@ async def serialize_thesis(session: AsyncSession, user: CurrentUser, thesis: The
             {"file_id": str(f.id), "purpose": link.purpose, "filename": f.original_filename}
             for link, f in rows
         ]
-    check = await _latest_check(session, thesis)
+    # Identity findings belong only to the student/school inspection workflow.
+    # Keep the response boundary explicit as well as protected by RLS.
+    check = await _latest_check(session, thesis) if user.role in {RoleCode.STUDENT, RoleCode.SCHOOL_REVIEWER} else None
     stale_check = await sensitive_terms.is_stale(session, thesis, check)
     events = await _events(session, thesis.id)
     submitted_before = any(e.action == "submit" for e in events)

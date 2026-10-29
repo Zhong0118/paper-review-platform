@@ -13,7 +13,20 @@ export interface DispatchQueueItem {
   discipline_code: string
 }
 
+export interface MatchReason { kind: 'research_direction' | 'keyword'; tag: string; points: number }
+
 export interface DispatchCandidate {
+  match_score?: number
+  match_rule_version?: string
+  match_reasons?: MatchReason[]
+  candidate_version?: number
+  thesis_version?: number
+  hard_allowed?: boolean
+  allowed_actions?: string[]
+  unavailable_reasons?: string[]
+  unit?: string
+  title?: string
+  research_directions?: string[]
   expert_id: string
   username: string | null
   display_name: string | null
@@ -25,6 +38,7 @@ export interface DispatchCandidate {
 }
 
 export function candidateUnavailableReason(row: DispatchCandidate): string {
+  if (row.hard_allowed === false) return row.unavailable_reasons?.join('、') || '当前不可派'
   if (row.avoided) return '回避'
   if (row.direction_mismatch) return '方向不符'
   if (row.qualification_status !== 'APPROVED') return '资格未通过'
@@ -77,10 +91,10 @@ export function dispatchCandidates(thesisId: string) {
   return httpApi.get<DispatchCandidate[]>(`/platform-review/dispatch-candidates?thesis_id=${thesisId}`)
 }
 
-export function assignExpert(thesisId: string, expertId: string, options?: RequestOptions) {
-  return httpApi.post(`/platform-review/theses/${thesisId}:assign`, { expert_id: expertId }, options)
+export function assignExpert(thesisId: string, expertId: string, options?: RequestOptions, expectedExpertVersion?: number) {
+  return httpApi.post(`/platform-review/theses/${thesisId}:assign`, { expert_id: expertId, ...(expectedExpertVersion === undefined ? {} : { expected_expert_version: expectedExpertVersion }) }, options)
 }
 
-export function reassignExpert(taskId: string, expertId: string, options?: RequestOptions) {
-  return httpApi.post(`/expert-tasks/${taskId}:reassign`, { expert_id: expertId }, options)
+export function reassignExpert(taskId: string, expertId: string, options?: RequestOptions, expectedExpertVersion?: number) {
+  return httpApi.post(`/expert-tasks/${taskId}:reassign`, { expert_id: expertId, ...(expectedExpertVersion === undefined ? {} : { expected_expert_version: expectedExpertVersion }) }, options)
 }

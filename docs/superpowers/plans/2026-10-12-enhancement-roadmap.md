@@ -1,6 +1,6 @@
 # 两期增强路线图与执行入口
 
-日期：2026-10-12。状态：**APPROVED / E01–E07已本地验收，一期已封板、二期完成1/4，共7/10模块（2026-10-26）**。
+日期：2026-10-12。状态：**APPROVED / E01–E10已本地验收，两期封板：一期6/6、二期4/4，共10/10模块（2026-10-29）**。
 
 用户已认可一期与二期范围，并明确将B2列配置、B4时间筛选纳入一期；本轮一次性提供两期spec/plan供复核，不等一期结束才设计二期。用户已认可文档，并于2026-10-13授权按顺序开始；实施需遵循已确认规格。
 
@@ -25,9 +25,9 @@
 | E05（一期） | 真实评审运营看板 | E04，E01生效版本读取 | [spec](../specs/2026-10-12-e05-review-operations-dashboard-design.md) | [plan](2026-10-12-e05-review-operations-dashboard.md) | [已本地验证](../../reviews/2026-10-12-e05-validation.md) |
 | E06（一期） | 列表列显示与顺序偏好 | E05；一期最后收口 | [spec](../specs/2026-10-12-e06-table-column-preferences-design.md) | [plan](2026-10-12-e06-table-column-preferences.md) | [已本地验证，一期封板](../../reviews/2026-10-12-e06-validation.md) |
 | E07（二期） | 论文敏感信息逐页定位 | 一期E06验收记录 | [spec](../specs/2026-10-12-e07-thesis-sensitive-locations-design.md) | [plan](2026-10-12-e07-thesis-sensitive-locations.md) | [已本地验证](../../reviews/2026-10-12-e07-validation.md) |
-| E08（二期） | PDF材料合并拆分与删页 | E07 | [spec](../specs/2026-10-12-e08-pdf-material-transform-design.md) | [plan](2026-10-12-e08-pdf-material-transform.md) | 已认可，待执行 |
-| E09（二期） | 专家档案增强与受控导入 | E08；沿用官方目录D01–D04 | [spec](../specs/2026-10-12-e09-expert-profile-import-design.md) | [plan](2026-10-12-e09-expert-profile-import.md) | 已认可，待执行 |
-| E10（二期） | 可解释专家候选推荐 | E09，E07；二期最后收口 | [spec](../specs/2026-10-12-e10-expert-candidate-ranking-design.md) | [plan](2026-10-12-e10-expert-candidate-ranking.md) | 已认可，待执行 |
+| E08（二期） | PDF材料合并拆分与删页 | E07 | [spec](../specs/2026-10-12-e08-pdf-material-transform-design.md) | [plan](2026-10-12-e08-pdf-material-transform.md) | [已本地验收](../../reviews/2026-10-12-e08-validation.md) |
+| E09（二期） | 专家档案增强与受控导入 | E08；沿用官方目录D01–D04 | [spec](../specs/2026-10-12-e09-expert-profile-import-design.md) | [plan](2026-10-12-e09-expert-profile-import.md) | [已本地验收](../../reviews/2026-10-12-e09-validation.md) |
+| E10（二期） | 可解释专家候选推荐 | E09，E07；二期最后收口 | [spec](../specs/2026-10-12-e10-expert-candidate-ranking-design.md) | [plan](2026-10-12-e10-expert-candidate-ranking.md) | [已本地验收](../../reviews/2026-10-12-e10-validation.md) |
 
 顺序为E01→E02→E03→E04→E05→E06（一期验收）→E07→E08→E09→E10（二期验收）。串行安排不代表独立功能存在额外技术依赖；例如专家档案并不依赖PDF转换算法，但本执行包仍按顺序进行，避免同工作树/迁移并行。
 

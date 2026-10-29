@@ -1,0 +1,17 @@
+........................................................................ [ 90%]
+........                                                                 [100%]
+=============================== warnings summary ===============================
+backend/.venv/lib/python3.12/site-packages/passlib/utils/__init__.py:854
+  /Users/zhongxu/Desktop/0-Inbox/paper-review-platform/backend/.venv/lib/python3.12/site-packages/passlib/utils/__init__.py:854: DeprecationWarning: 'crypt' is deprecated and slated for removal in Python 3.13
+    from crypt import crypt as _crypt
+
+tests/test_pdf_transforms.py::test_active_content_encrypted_and_size_limits_rejected
+  /Users/zhongxu/Desktop/0-Inbox/paper-review-platform/backend/tests/test_pdf_transforms.py:43: DeprecationWarning: add_js is deprecated and will be removed in pypdf 7.0.0. Use add_open_action instead.
+    writer.add_js('app.alert("unsafe")')
+
+tests/test_pdf_transforms.py::test_two_phase_permissions_idempotency_and_stale_apply
+  /Users/zhongxu/Desktop/0-Inbox/paper-review-platform/backend/.venv/lib/python3.12/site-packages/passlib/handlers/argon2.py:716: DeprecationWarning: Accessing argon2.__version__ is deprecated and will be removed in a future release. Use importlib.metadata directly to query for argon2-cffi's packaging metadata.
+    _argon2_cffi.__version__, max_version)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+80 passed, 3 warnings in 138.32s (0:02:18)

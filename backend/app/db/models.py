@@ -27,3 +27,7 @@ from app.modules.result.objection_models import Objection  # noqa: F401
 from app.modules.review.models import ReviewCorrectionRequest, ReviewCorrectionNote, ReviewResultRevision  # noqa: F401
 
 from app.modules.thesis.models import TenantSensitiveTerms  # noqa: F401
+
+from app.modules.files.transform_models import PdfTransformOperation  # noqa: F401
+
+from app.modules.expert.import_models import ExpertImportPreview  # noqa: F401

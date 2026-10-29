@@ -90,7 +90,7 @@ def inspect_pdf(data: bytes) -> tuple[str, str, bool]:
     return "\n".join(page["text"] for page in result["pages"]), result["metadata"], result["uncertain"]
 
 
-def validated_bytes(obj) -> bytes:
+def validated_bytes(obj, *, parse_pdf=True) -> bytes:
     path = Path(obj.storage_key)
     try:
         check_size(path.stat().st_size)
@@ -104,5 +104,6 @@ def validated_bytes(obj) -> bytes:
     if obj.purpose in ("original", "anonymous") or obj.content_type == "application/pdf":
         if obj.content_type != "application/pdf":
             raise AppError("VALIDATION_FAILED", 422, "论文必须为 PDF")
-        inspect_pdf(data)
+        if parse_pdf:
+            inspect_pdf(data)
     return data

@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.main import create_app
 from app.db.session import get_auth_session, get_session
+from app.db.rls_context import bind_candidate_identity, verified_access_claims
 from app.modules.auth.deps import CurrentUser
 from app.modules.files import service as files
 from app.modules.thesis import service as theses
@@ -62,6 +63,8 @@ async def test_late_upload_rechecks_state_after_waiting(independent_sessions, ac
     if action == 'withdraw':
         thesis = await submit(client, tokens, thesis)
     async with sessions() as first, sessions() as second:
+        await bind_candidate_identity(first, verified_access_claims(tokens['access_token']))
+        await bind_candidate_identity(second, verified_access_claims(tokens['access_token']))
         # Deliberately preload an identity-map object before the other transaction changes it.
         stale = await second.get(Thesis, UUID(thesis['id']))
         student_id = (await first.execute(select(User.id).where(User.username == 'student.lin'))).scalar_one()
@@ -94,6 +97,8 @@ async def test_submit_waits_for_completed_upload(independent_sessions):
     await attach_files(client, tokens, thesis['id'])
     file_id = UUID(await pending(client, tokens, thesis['id']))
     async with sessions() as first, sessions() as second:
+        await bind_candidate_identity(first, verified_access_claims(tokens['access_token']))
+        await bind_candidate_identity(second, verified_access_claims(tokens['access_token']))
         row = await second.get(Thesis, UUID(thesis['id']))
         student_id = (await first.execute(select(User.id).where(User.username == 'student.lin'))).scalar_one()
         user = CurrentUser(id=student_id, tenant_id=row.tenant_id, role='student', data_scope={})

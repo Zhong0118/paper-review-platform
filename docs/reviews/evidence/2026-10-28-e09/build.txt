@@ -1,0 +1,135 @@
+vite v8.1.3 building client environment for production...
+
+transforming...✓ 1959 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                                              0.42 kB │ gzip:   0.30 kB
+dist/assets/SchoolDisciplinesPage-D_DBYvyK.css               0.15 kB │ gzip:   0.13 kB
+dist/assets/useTimeScope-BzbOcU8P.css                        0.30 kB │ gzip:   0.20 kB
+dist/assets/SupervisorResultPage-BtVqFbAA.css                0.37 kB │ gzip:   0.21 kB
+dist/assets/CatalogMultiSelect-BcZxNC6x.css                  0.44 kB │ gzip:   0.23 kB
+dist/assets/PageHeader-BoyQXgGt.css                          0.63 kB │ gzip:   0.34 kB
+dist/assets/ResultSummaryPanel-CXhgldwZ.css                  0.66 kB │ gzip:   0.29 kB
+dist/assets/BrandMark-BM6cv1ko.css                           0.67 kB │ gzip:   0.32 kB
+dist/assets/ResultProcessingPage-Da98CiCZ.css                0.68 kB │ gzip:   0.32 kB
+dist/assets/BlindRail-vkm-B5YX.css                           0.77 kB │ gzip:   0.36 kB
+dist/assets/StatusTag-S_VyXwq4.css                           0.98 kB │ gzip:   0.40 kB
+dist/assets/ReviewOutcomeNotice-Bg9MDq3M.css                 1.09 kB │ gzip:   0.45 kB
+dist/assets/PortalLayout-BVPdc85o.css                        1.34 kB │ gzip:   0.53 kB
+dist/assets/AuditQueryPage-B2Q-MBXi.css                      1.62 kB │ gzip:   0.53 kB
+dist/assets/StudentProgressTimeline-DHzhge1j.css             1.64 kB │ gzip:   0.62 kB
+dist/assets/useColumnPreferences-BC_VjPXU.css                1.68 kB │ gzip:   0.60 kB
+dist/assets/SensitiveTermsPage-C4rmjJLk.css                  1.74 kB │ gzip:   0.64 kB
+dist/assets/ObjectionWorkbenchPage-Dbc9ECho.css              1.95 kB │ gzip:   0.68 kB
+dist/assets/TaskProgressSummary-CiY0TQ2G.css                 2.05 kB │ gzip:   0.71 kB
+dist/assets/ExportCenterPage-BCkNV_yS.css                    2.05 kB │ gzip:   0.66 kB
+dist/assets/BatchRulesPage-DLNLZQDY.css                      2.47 kB │ gzip:   0.78 kB
+dist/assets/SchoolMembersPage-vyKaBwtp.css                   2.49 kB │ gzip:   0.83 kB
+dist/assets/DisciplineSelector-QC6hh77O.css                  2.49 kB │ gzip:   0.74 kB
+dist/assets/SchoolAccountPage-7tfZcDOo.css                   2.75 kB │ gzip:   0.90 kB
+dist/assets/ExpertDemoScenarioController-Ddm4ENYz.css        2.84 kB │ gzip:   0.80 kB
+dist/assets/KeywordTagInput-CpC3uwbD.css                     2.84 kB │ gzip:   0.95 kB
+dist/assets/StudentDemoScenarioController-BIiJ1M6y.css       2.86 kB │ gzip:   0.80 kB
+dist/assets/PlatformDemoScenarioController-iOrj8m3O.css      2.89 kB │ gzip:   0.80 kB
+dist/assets/NotificationCenterPage-s9dfunm5.css              2.93 kB │ gzip:   0.75 kB
+dist/assets/TenantPermissionsPage-aCPLOHcp.css               3.36 kB │ gzip:   1.02 kB
+dist/assets/ReviewWorkspacePage-Cj2cdm7H.css                 3.43 kB │ gzip:   1.06 kB
+dist/assets/ReviewProgressPage-BktXc3mG.css                  3.69 kB │ gzip:   1.08 kB
+dist/assets/InvitationPage-B7zHxlum.css                      4.09 kB │ gzip:   1.05 kB
+dist/assets/RealExpertLibraryPage-BiJJDPFe.css               4.36 kB │ gzip:   1.14 kB
+dist/assets/RealCorrectionPanel-D4jISugW.css                 4.61 kB │ gzip:   1.27 kB
+dist/assets/ExpertFinancePage-EDFTD12h.css                   5.34 kB │ gzip:   1.31 kB
+dist/assets/ExpertTasksPage-B30omDZQ.css                     5.34 kB │ gzip:   1.39 kB
+dist/assets/PreparationListPage-PIdcKukz.css                 7.18 kB │ gzip:   1.78 kB
+dist/assets/ExpertProfilePage-BodQTM_7.css                   7.28 kB │ gzip:   1.59 kB
+dist/assets/LoginPage-CyLsiufB.css                           7.39 kB │ gzip:   1.70 kB
+dist/assets/CorrectionApprovalPage-BSvnB8HF.css              8.20 kB │ gzip:   1.76 kB
+dist/assets/ThesisEditPage-Jbg7xaHU.css                      9.28 kB │ gzip:   2.31 kB
+dist/assets/StudentResultPage-V92V70CD.css                   9.57 kB │ gzip:   1.68 kB
+dist/assets/SettlementWorkbenchPage-CZb4Mq4g.css             9.71 kB │ gzip:   1.95 kB
+dist/assets/index-BvQpXRFP.css                              10.41 kB │ gzip:   2.94 kB
+dist/assets/StudentDashboardPage-BDHaVjuN.css               12.45 kB │ gzip:   2.35 kB
+dist/assets/DispatchWorkbenchPage-S96TR_1_.css              12.45 kB │ gzip:   2.58 kB
+dist/assets/timeScope-BwljiTRk.js                            0.23 kB │ gzip:   0.18 kB
+dist/assets/sensitiveChecks-BjElp4WJ.js                      0.24 kB │ gzip:   0.18 kB
+dist/assets/schoolReview-CmnhSNBb.js                         0.37 kB │ gzip:   0.21 kB
+dist/assets/objections-BpFgW_VA.js                           0.39 kB │ gzip:   0.20 kB
+dist/assets/expertTasks-DXTHnFfQ.js                          0.45 kB │ gzip:   0.23 kB
+dist/assets/catalogs-BsMLp6dg.js                             0.47 kB │ gzip:   0.27 kB
+dist/assets/files-X9GHm-PJ.js                                0.63 kB │ gzip:   0.37 kB
+dist/assets/ResultSummaryPanel-BZEPNE7j.js                   0.67 kB │ gzip:   0.45 kB
+dist/assets/BrandMark-DgWCZTXb.js                            0.68 kB │ gzip:   0.50 kB
+dist/assets/PageHeader-7QfG0t12.js                           0.69 kB │ gzip:   0.40 kB
+dist/assets/BlindRail-Cd2BFLP8.js                            0.74 kB │ gzip:   0.48 kB
+dist/assets/dispatch-SW311rDc.js                             0.97 kB │ gzip:   0.49 kB
+dist/assets/StatusTag-CfgLePOk.js                            1.32 kB │ gzip:   0.83 kB
+dist/assets/schoolOperations-D4Gct6K-.js                     1.42 kB │ gzip:   0.41 kB
+dist/assets/CatalogMultiSelect-BQYPoI_s.js                   1.59 kB │ gzip:   0.97 kB
+dist/assets/ReviewOutcomeNotice-DX2WAoXF.js                  1.74 kB │ gzip:   0.95 kB
+dist/assets/PortalLayout-Vo5IjdPC.js                         2.01 kB │ gzip:   1.04 kB
+dist/assets/ExportCenterPage-BkBa1X6T.js                     2.07 kB │ gzip:   1.10 kB
+dist/assets/AuditQueryPage-Be0iLMae.js                       2.10 kB │ gzip:   1.20 kB
+dist/assets/adapters-DWlHwJ4V.js                             2.15 kB │ gzip:   0.87 kB
+dist/assets/useTimeScope-MraII06u.js                         2.17 kB │ gzip:   1.24 kB
+dist/assets/StudentProgressTimeline-DVwqSN5t.js              2.38 kB │ gzip:   1.24 kB
+dist/assets/SchoolDisciplinesPage-CLxY1dA-.js                2.74 kB │ gzip:   1.56 kB
+dist/assets/ObjectionWorkbenchPage-jPlz_4Ym.js               2.87 kB │ gzip:   1.63 kB
+dist/assets/SupervisorResultPage-rB8PSMKG.js                 3.67 kB │ gzip:   2.04 kB
+dist/assets/SchoolAccountPage-BX3Lul-f.js                    3.95 kB │ gzip:   1.99 kB
+dist/assets/DisciplineSelector-DAcVQvHc.js                   3.99 kB │ gzip:   2.01 kB
+dist/assets/SensitiveTermsPage-B5hOLWcw.js                   4.24 kB │ gzip:   2.19 kB
+dist/assets/ReviewProgressPage-CkyyVFp1.js                   4.28 kB │ gzip:   2.35 kB
+dist/assets/TaskProgressSummary-DDfSaNT5.js                  4.29 kB │ gzip:   2.13 kB
+dist/assets/ExpertDemoScenarioController-ZRalOy-7.js         4.78 kB │ gzip:   2.16 kB
+dist/assets/PlatformDemoScenarioController-DVPsfcpO.js       4.96 kB │ gzip:   2.21 kB
+dist/assets/useColumnPreferences-B5EEwnXy.js                 5.18 kB │ gzip:   2.33 kB
+dist/assets/ResultProcessingPage-C_VCn-XM.js                 5.33 kB │ gzip:   2.67 kB
+dist/assets/StudentDemoScenarioController-3wEUlnx2.js        5.36 kB │ gzip:   2.34 kB
+dist/assets/KeywordTagInput-CLv4bEyD.js                      6.44 kB │ gzip:   3.27 kB
+dist/assets/NotificationCenterPage-D9VvISzU.js               7.03 kB │ gzip:   3.03 kB
+dist/assets/BatchRulesPage-DjlSZZts.js                       7.12 kB │ gzip:   3.02 kB
+dist/assets/LoginPage-CmdZvX9H.js                            7.82 kB │ gzip:   3.31 kB
+dist/assets/InvitationPage-D68D6kxA.js                       7.89 kB │ gzip:   3.40 kB
+dist/assets/ExpertFinancePage-BT78OjfU.js                    7.95 kB │ gzip:   3.75 kB
+dist/assets/CorrectionApprovalPage-CeHOQ_Ik.js               7.95 kB │ gzip:   3.46 kB
+dist/assets/ExpertTasksPage-DkR_r_8N.js                      9.84 kB │ gzip:   4.41 kB
+dist/assets/ReviewWorkspacePage-C7fhhaF5.js                 11.87 kB │ gzip:   5.13 kB
+dist/assets/ExpertProfilePage-Cz8t5NTB.js                   11.97 kB │ gzip:   4.89 kB
+dist/assets/SchoolMembersPage-LEqe5DGP.js                   12.18 kB │ gzip:   3.97 kB
+dist/assets/SettlementWorkbenchPage-Cjrq83Li.js             13.58 kB │ gzip:   5.14 kB
+dist/assets/TenantPermissionsPage-Bpe7Ba3G.js               13.99 kB │ gzip:   4.81 kB
+dist/assets/StudentResultPage-BtXXSYY8.js                   14.54 kB │ gzip:   6.02 kB
+dist/assets/PreparationListPage-B8Jao6Ko.js                 14.62 kB │ gzip:   5.88 kB
+dist/assets/StudentDashboardPage-_TCWYRyv.js                19.59 kB │ gzip:   7.31 kB
+dist/assets/RealExpertLibraryPage-DLqtzBHs.js               20.42 kB │ gzip:   7.00 kB
+dist/assets/RealCorrectionPanel-RBpG9Taw.js                 20.86 kB │ gzip:   8.08 kB
+dist/assets/DispatchWorkbenchPage-fj0jekk3.js               25.17 kB │ gzip:   9.07 kB
+dist/assets/ThesisEditPage-DagvLFb-.js                      26.54 kB │ gzip:   9.90 kB
+dist/assets/index-D-g3A1UM.js                            1,165.75 kB │ gzip: 373.82 kB
+
+[INVALID_ANNOTATION] A comment "/* #__PURE__ */" in "node_modules/.pnpm/@vueuse+core@14.3.0_vue@3.5.39_typescript@5.9.3_/node_modules/@vueuse/core/dist/index.js" contains an annotation that Rolldown cannot interpret due to the position of the comment.
+      ╭─[ node_modules/.pnpm/@vueuse+core@14.3.0_vue@3.5.39_typescript@5.9.3_/node_modules/@vueuse/core/dist/index.js:3362:1 ]
+      │
+ 3362 │ /* #__PURE__ */
+      │ ───────┬───────
+      │        ╰───────── comment ignored due to position
+      │
+      │ Help: For more information on how to use pure annotations correctly, check the documentation: https://rolldown.rs/in-depth/dead-code-elimination#pure
+──────╯
+
+[plugin builtin:vite-reporter]
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+[INVALID_ANNOTATION] A comment "/* #__PURE__ */" in "node_modules/.pnpm/@vueuse+core@14.3.0_vue@3.5.39_typescript@5.9.3_/node_modules/@vueuse/core/dist/index.js" contains an annotation that Rolldown cannot interpret due to the position of the comment.
+      ╭─[ node_modules/.pnpm/@vueuse+core@14.3.0_vue@3.5.39_typescript@5.9.3_/node_modules/@vueuse/core/dist/index.js:5780:23 ]
+      │
+ 5780 │ const defaultState = (/* #__PURE__ */ {
+      │                       ───────┬───────
+      │                              ╰───────── comment ignored due to position
+      │
+      │ Help: For more information on how to use pure annotations correctly, check the documentation: https://rolldown.rs/in-depth/dead-code-elimination#pure
+──────╯
+
+✓ built in 1.08s

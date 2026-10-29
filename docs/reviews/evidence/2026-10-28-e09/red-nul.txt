@@ -1,0 +1,4 @@
+Traceback (most recent call last):
+  File "/Users/zhongxu/Desktop/0-Inbox/paper-review-platform/.superpowers/sdd/2026-10-12-e09-expert-profile-import/check_nul.py", line 8, in <module>
+    raise AssertionError('NUL must be rejected before PostgreSQL')
+AssertionError: NUL must be rejected before PostgreSQL

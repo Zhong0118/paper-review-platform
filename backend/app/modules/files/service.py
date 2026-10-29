@@ -109,7 +109,7 @@ async def put_content(session: AsyncSession, user: CurrentUser, file_id: UUID, d
     await session.flush()
 
 
-async def complete_upload(session: AsyncSession, user: CurrentUser, file_id: UUID) -> FileObject:
+async def complete_upload(session: AsyncSession, user: CurrentUser, file_id: UUID, *, bind: bool = True, parse_pdf: bool = True) -> FileObject:
     obj, thesis = await _lock_upload(session, user, file_id)
     if obj.completed_at is not None:
         return obj
@@ -119,9 +119,12 @@ async def complete_upload(session: AsyncSession, user: CurrentUser, file_id: UUI
         raise AppError("FILE_NOT_READY", 409, "文件尚未上传完成")
     if obj.content_type not in ALLOWED_TYPES:
         raise AppError("VALIDATION_FAILED", 422, "不支持的文件类型")
-    await run_in_threadpool(validated_bytes, obj)
+    await run_in_threadpool(validated_bytes, obj, parse_pdf=parse_pdf)
     obj.scan_status = FileScanStatus.CLEAN
     obj.completed_at = datetime.now(timezone.utc)
+    if not bind:
+        await session.flush()
+        return obj
     existing = (await session.execute(select(ThesisVersionFile).where(
         ThesisVersionFile.thesis_version_id == obj.upload_version_id,
         ThesisVersionFile.purpose == obj.purpose,
@@ -139,6 +142,16 @@ async def complete_upload(session: AsyncSession, user: CurrentUser, file_id: UUI
 async def can_access_file(session: AsyncSession, user: CurrentUser, obj: FileObject) -> bool:
     if obj.completed_at is None or user.role == RoleCode.SYSTEM_ADMIN:
         return False
+    bound = await session.scalar(select(ThesisVersionFile.id).where(ThesisVersionFile.file_id == obj.id).limit(1))
+    if bound is None:
+        from app.modules.files.transform_models import PdfTransformOperation
+        ready = await session.scalar(select(PdfTransformOperation.id)
+            .join(Thesis, Thesis.id == PdfTransformOperation.thesis_id)
+            .join(ThesisVersion, ThesisVersion.id == Thesis.current_version_id)
+            .where(PdfTransformOperation.new_file_id == obj.id, PdfTransformOperation.status == 'READY',
+                   PdfTransformOperation.created_by == user.id, Thesis.stage == 'DRAFT', ThesisVersion.is_editable,
+                   Thesis.current_version_id == PdfTransformOperation.source_version))
+        return user.role == RoleCode.STUDENT and obj.uploaded_by == user.id and ready is not None
     if obj.purpose == FilePurpose.ORIGINAL:
         if user.role == RoleCode.STUDENT and obj.uploaded_by == user.id and obj.tenant_id == user.tenant_id:
             return True

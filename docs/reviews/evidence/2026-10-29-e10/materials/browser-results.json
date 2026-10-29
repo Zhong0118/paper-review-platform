@@ -1,0 +1,29 @@
+{
+  "browser": "156.0.8078.49",
+  "results": [
+    {
+      "scenario": "MERGE真实浏览器生成、预览、确认前旧绑定、确认后新绑定、旧检测失效",
+      "page_count": 3,
+      "status": "PASS"
+    },
+    {
+      "scenario": "EXTRACT真实浏览器生成、预览、确认前旧绑定、确认后新绑定、旧检测失效",
+      "page_count": 2,
+      "status": "PASS"
+    },
+    {
+      "scenario": "DELETE_PAGES真实浏览器生成、预览、确认前旧绑定、确认后新绑定、旧检测失效",
+      "page_count": 1,
+      "status": "PASS"
+    },
+    {
+      "scenario": "应用后真实重检绑定新文件",
+      "status": "PASS"
+    },
+    {
+      "scenario": "取消待确认成品保留当前材料；390px对话框无横溢",
+      "status": "PASS"
+    }
+  ],
+  "page_errors": []
+}

@@ -47,6 +47,8 @@ pnpm install
 VITE_DEMO_MODE=false pnpm dev
 ```
 
+PDF材料转换额外需要本机Docker Linux工作进程。先按[转换环境说明](backend/pdf-worker/README.md)构建镜像；转换限512MiB/60秒，环境不可用时明确报错。
+
 ## 开发检查
 
 安装上述后端开发依赖和前端依赖，并确认本项目 Postgres 正在宿主机 5433 运行后，在仓库根执行：

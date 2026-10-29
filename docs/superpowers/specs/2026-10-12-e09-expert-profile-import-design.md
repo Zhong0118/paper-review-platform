@@ -1,6 +1,6 @@
 # E09 专家档案增强与受控导入设计规格
 
-日期：2026-10-12。状态：**APPROVED / 未实施**。阶段：二期。
+日期：2026-10-12。状态：**APPROVED / 已本地验收（2026-10-28）**。阶段：二期。
 
 原需求：A4的真实资料导入基础；B10多维档案部分；不是B11实名认证。依赖：E08；沿用官方目录D01–D04。
 
@@ -43,3 +43,11 @@ POST `/experts/import:apply` `{preview_id}`+Idempotency-Key：锁专家UUID升�
 仅更新已有专家的CSV；来源链接不自动抓取；一级学科/专业学位类别，不含无来源二级学科。
 
 实施计划：[E09 plan](../plans/2026-10-12-e09-expert-profile-import.md)。需求总表：[两期路线图](../plans/2026-10-12-enhancement-roadmap.md)。
+
+## 2026-10-28 实施记录
+
+迁移头0027_expert_profiles、36张业务表FORCE RLS；只在5433/paper_review_test自有schema验证。`source_checked_at`由服务端记录人工维护/导入确认时间，不表示外部核验；URL最长2048字符且限无账号密码的HTTP/HTTPS，说明最长1000字符。旧PATCH不提供新字段时保留，CSV空白按规格清空。模板下载为`GET /api/v1/platform-review/experts/import-template`，筛选采用同名字段及`discipline_code`、`research_direction`、`keyword`，导师筛选值true/false/unknown。
+
+预览表记录规范差异与内部资格/状态快照，READY/INVALID/APPLIED；终态不可修改。确认顺序为既有幂等锁→本人的预览锁→UUID升序专家锁；不参与论文/任务锁，不改变既有权限。原始CSV使用UploadFile自身临时文件并在finally关闭，无长期CSV保存或自定义通配清理。过期不返回差异；没有新增GET预览接口。
+
+[实际验收记录](../../reviews/2026-10-12-e09-validation.md)包含定向测试、迁移、RLS、恢复与Chrome结果。E10未执行；无提交、推送、部署或开发库迁移。

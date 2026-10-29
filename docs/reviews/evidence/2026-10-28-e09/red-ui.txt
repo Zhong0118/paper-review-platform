@@ -1,0 +1,205 @@
+
+ RUN  v4.1.10 /Users/zhongxu/Desktop/0-Inbox/paper-review-platform/frontend
+
+stderr | src/modules/expert-management/__tests__/expertImport.spec.ts > offers controlled import and distinguishes unknown from false
+[Vue warn]: injection "Symbol(router)" not found.
+  at <RealExpertLibraryPage ref="VTU_COMPONENT" >
+  at <VTUROOT>
+
+stderr | src/modules/expert-management/__tests__/expertImport.spec.ts > shows exact diff and explicit clearing, applies then refreshes
+[Vue warn]: injection "Symbol(router)" not found.
+  at <RealExpertLibraryPage ref="VTU_COMPONENT" >
+  at <VTUROOT>
+
+stderr | src/modules/expert-management/__tests__/expertImport.spec.ts > blocks a preview with row errors
+[Vue warn]: injection "Symbol(router)" not found.
+  at <RealExpertLibraryPage ref="VTU_COMPONENT" >
+  at <VTUROOT>
+
+stderr | src/modules/expert-management/__tests__/expertImport.spec.ts > retains the idempotency key after timeout and invalidates preview on 409
+[Vue warn]: injection "Symbol(router)" not found.
+  at <RealExpertLibraryPage ref="VTU_COMPONENT" >
+  at <VTUROOT>
+
+stderr | src/modules/expert-management/__tests__/expertImport.spec.ts > sends exact three-state filters and retains null in manual editing
+[Vue warn]: injection "Symbol(router)" not found.
+  at <RealExpertLibraryPage ref="VTU_COMPONENT" >
+  at <VTUROOT>
+
+ ❯ src/modules/expert-management/__tests__/expertImport.spec.ts (5 tests | 5 failed) 36ms
+   × offers controlled import and distinguishes unknown from false 15ms
+   × shows exact diff and explicit clearing, applies then refreshes 9ms
+   × blocks a preview with row errors 3ms
+   × retains the idempotency key after timeout and invalidates preview on 409 2ms
+   × sends exact three-state filters and retains null in manual editing 7ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/modules/expert-management/__tests__/expertImport.spec.ts > offers controlled import and distinguishes unknown from false
+AssertionError: expected 'PLATFORM · EXPERT DIRECTORY专家库维护专家资格、…' to contain '人工维护'
+
+Expected: "人工维护"
+Received: "PLATFORM · EXPERT DIRECTORY专家库维护专家资格、服务状态与回避；变更仅影响新派单。新增专家虚构专家expert.one原大学 · 教授学科：计算机账号：正常 · 资格：已通过 · 服务：可接单回避学校：无回避导师：无编辑资料编辑回避通过资格驳回资格暂停接单前往派单"
+
+ ❯ src/modules/expert-management/__tests__/expertImport.spec.ts:20:20
+     18| it('offers controlled import and distinguishes unknown from false', as…
+     19|   const w = await page()
+     20|   expect(w.text()).toContain('人工维护'); expect(w.text()).toContain('博导：未…
+       |                    ^
+     21|   await w.get('[data-action="import-experts"]').trigger('click'); expe…
+     22| })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/5]⎯
+
+ FAIL  src/modules/expert-management/__tests__/expertImport.spec.ts > shows exact diff and explicit clearing, applies then refreshes
+Error: Unable to get [data-action="import-experts"] within: <div data-v-9697a9d6="" menu-items="[object Object],[object Object],[object Object]" active-path="/platform/experts" context-label="百杰运营端 · 专家库" user-name="" background-locked="false">
+  <main data-v-9697a9d6="" class="real-experts">
+    <header data-v-9697a9d6="" class="real-experts__header">
+      <div data-v-9697a9d6="">
+        <p data-v-9697a9d6="">PLATFORM · EXPERT DIRECTORY</p>
+        <h1 data-v-9697a9d6="">专家库</h1>
+        <p data-v-9697a9d6="">维护专家资格、服务状态与回避；变更仅影响新派单。</p>
+      </div><button data-v-9697a9d6="" type="button" data-action="create-expert">新增专家</button>
+    </header>
+    <!--v-if-->
+    <!--v-if-->
+    <div data-v-9697a9d6="" class="real-experts__list">
+      <article data-v-9697a9d6="" class="real-experts__card" data-expert-id="expert-1">
+        <div data-v-9697a9d6="" class="real-experts__identity"><strong data-v-9697a9d6="">虚构专家</strong><span data-v-9697a9d6="">expert.one</span></div>
+        <p data-v-9697a9d6="">原大学 · 教授</p>
+        <p data-v-9697a9d6="">学科：计算机</p>
+        <p data-v-9697a9d6="">账号：正常 · 资格：已通过 · 服务：可接单</p>
+        <p data-v-9697a9d6="">回避学校：无</p>
+        <p data-v-9697a9d6="">回避导师：无</p>
+        <div data-v-9697a9d6="" class="real-experts__actions"><button data-v-9697a9d6="" type="button">编辑资料</button><button data-v-9697a9d6="" type="button">编辑回避</button><button data-v-9697a9d6="" type="button">通过资格</button><button data-v-9697a9d6="" type="button">驳回资格</button><button data-v-9697a9d6="" type="button" data-action="pause-expert">暂停接单</button><button data-v-9697a9d6="" type="button">前往派单</button></div>
+      </article>
+    </div>
+  </main>
+</div>
+ ❯ VueWrapper.get node_modules/.pnpm/@vue+test-utils@2.4.11_@vue+compiler-dom@3.5.39_@vue+server-renderer@3.5.39_vue@3.5.39__d182b8854cd1b813565f6c61ede2fc35/node_modules/@vue/test-utils/dist/vue-test-utils.cjs.js:7182:15
+ ❯ upload src/modules/expert-management/__tests__/expertImport.spec.ts:24:11
+     22| })
+     23| async function upload(w: Awaited<ReturnType<typeof page>>) {
+     24|   await w.get('[data-action="import-experts"]').trigger('click')
+       |           ^
+     25|   const input = w.get('input[type="file"]')
+     26|   Object.defineProperty(input.element, 'files', { value: [new File(['s…
+ ❯ src/modules/expert-management/__tests__/expertImport.spec.ts:30:33
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/5]⎯
+
+ FAIL  src/modules/expert-management/__tests__/expertImport.spec.ts > blocks a preview with row errors
+Error: Unable to get [data-action="import-experts"] within: <div data-v-9697a9d6="" menu-items="[object Object],[object Object],[object Object]" active-path="/platform/experts" context-label="百杰运营端 · 专家库" user-name="" background-locked="false">
+  <main data-v-9697a9d6="" class="real-experts">
+    <header data-v-9697a9d6="" class="real-experts__header">
+      <div data-v-9697a9d6="">
+        <p data-v-9697a9d6="">PLATFORM · EXPERT DIRECTORY</p>
+        <h1 data-v-9697a9d6="">专家库</h1>
+        <p data-v-9697a9d6="">维护专家资格、服务状态与回避；变更仅影响新派单。</p>
+      </div><button data-v-9697a9d6="" type="button" data-action="create-expert">新增专家</button>
+    </header>
+    <!--v-if-->
+    <!--v-if-->
+    <div data-v-9697a9d6="" class="real-experts__list">
+      <article data-v-9697a9d6="" class="real-experts__card" data-expert-id="expert-1">
+        <div data-v-9697a9d6="" class="real-experts__identity"><strong data-v-9697a9d6="">虚构专家</strong><span data-v-9697a9d6="">expert.one</span></div>
+        <p data-v-9697a9d6="">原大学 · 教授</p>
+        <p data-v-9697a9d6="">学科：计算机</p>
+        <p data-v-9697a9d6="">账号：正常 · 资格：已通过 · 服务：可接单</p>
+        <p data-v-9697a9d6="">回避学校：无</p>
+        <p data-v-9697a9d6="">回避导师：无</p>
+        <div data-v-9697a9d6="" class="real-experts__actions"><button data-v-9697a9d6="" type="button">编辑资料</button><button data-v-9697a9d6="" type="button">编辑回避</button><button data-v-9697a9d6="" type="button">通过资格</button><button data-v-9697a9d6="" type="button">驳回资格</button><button data-v-9697a9d6="" type="button" data-action="pause-expert">暂停接单</button><button data-v-9697a9d6="" type="button">前往派单</button></div>
+      </article>
+    </div>
+  </main>
+</div>
+ ❯ VueWrapper.get node_modules/.pnpm/@vue+test-utils@2.4.11_@vue+compiler-dom@3.5.39_@vue+server-renderer@3.5.39_vue@3.5.39__d182b8854cd1b813565f6c61ede2fc35/node_modules/@vue/test-utils/dist/vue-test-utils.cjs.js:7182:15
+ ❯ upload src/modules/expert-management/__tests__/expertImport.spec.ts:24:11
+     22| })
+     23| async function upload(w: Awaited<ReturnType<typeof page>>) {
+     24|   await w.get('[data-action="import-experts"]').trigger('click')
+       |           ^
+     25|   const input = w.get('input[type="file"]')
+     26|   Object.defineProperty(input.element, 'files', { value: [new File(['s…
+ ❯ src/modules/expert-management/__tests__/expertImport.spec.ts:38:33
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/5]⎯
+
+ FAIL  src/modules/expert-management/__tests__/expertImport.spec.ts > retains the idempotency key after timeout and invalidates preview on 409
+Error: Unable to get [data-action="import-experts"] within: <div data-v-9697a9d6="" menu-items="[object Object],[object Object],[object Object]" active-path="/platform/experts" context-label="百杰运营端 · 专家库" user-name="" background-locked="false">
+  <main data-v-9697a9d6="" class="real-experts">
+    <header data-v-9697a9d6="" class="real-experts__header">
+      <div data-v-9697a9d6="">
+        <p data-v-9697a9d6="">PLATFORM · EXPERT DIRECTORY</p>
+        <h1 data-v-9697a9d6="">专家库</h1>
+        <p data-v-9697a9d6="">维护专家资格、服务状态与回避；变更仅影响新派单。</p>
+      </div><button data-v-9697a9d6="" type="button" data-action="create-expert">新增专家</button>
+    </header>
+    <!--v-if-->
+    <!--v-if-->
+    <div data-v-9697a9d6="" class="real-experts__list">
+      <article data-v-9697a9d6="" class="real-experts__card" data-expert-id="expert-1">
+        <div data-v-9697a9d6="" class="real-experts__identity"><strong data-v-9697a9d6="">虚构专家</strong><span data-v-9697a9d6="">expert.one</span></div>
+        <p data-v-9697a9d6="">原大学 · 教授</p>
+        <p data-v-9697a9d6="">学科：计算机</p>
+        <p data-v-9697a9d6="">账号：正常 · 资格：已通过 · 服务：可接单</p>
+        <p data-v-9697a9d6="">回避学校：无</p>
+        <p data-v-9697a9d6="">回避导师：无</p>
+        <div data-v-9697a9d6="" class="real-experts__actions"><button data-v-9697a9d6="" type="button">编辑资料</button><button data-v-9697a9d6="" type="button">编辑回避</button><button data-v-9697a9d6="" type="button">通过资格</button><button data-v-9697a9d6="" type="button">驳回资格</button><button data-v-9697a9d6="" type="button" data-action="pause-expert">暂停接单</button><button data-v-9697a9d6="" type="button">前往派单</button></div>
+      </article>
+    </div>
+  </main>
+</div>
+ ❯ VueWrapper.get node_modules/.pnpm/@vue+test-utils@2.4.11_@vue+compiler-dom@3.5.39_@vue+server-renderer@3.5.39_vue@3.5.39__d182b8854cd1b813565f6c61ede2fc35/node_modules/@vue/test-utils/dist/vue-test-utils.cjs.js:7182:15
+ ❯ upload src/modules/expert-management/__tests__/expertImport.spec.ts:24:11
+     22| })
+     23| async function upload(w: Awaited<ReturnType<typeof page>>) {
+     24|   await w.get('[data-action="import-experts"]').trigger('click')
+       |           ^
+     25|   const input = w.get('input[type="file"]')
+     26|   Object.defineProperty(input.element, 'files', { value: [new File(['s…
+ ❯ src/modules/expert-management/__tests__/expertImport.spec.ts:43:33
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/5]⎯
+
+ FAIL  src/modules/expert-management/__tests__/expertImport.spec.ts > sends exact three-state filters and retains null in manual editing
+Error: Unable to get [data-filter="doctoral_supervisor"] within: <div data-v-9697a9d6="" menu-items="[object Object],[object Object],[object Object]" active-path="/platform/experts" context-label="百杰运营端 · 专家库" user-name="" background-locked="false">
+  <main data-v-9697a9d6="" class="real-experts">
+    <header data-v-9697a9d6="" class="real-experts__header">
+      <div data-v-9697a9d6="">
+        <p data-v-9697a9d6="">PLATFORM · EXPERT DIRECTORY</p>
+        <h1 data-v-9697a9d6="">专家库</h1>
+        <p data-v-9697a9d6="">维护专家资格、服务状态与回避；变更仅影响新派单。</p>
+      </div><button data-v-9697a9d6="" type="button" data-action="create-expert">新增专家</button>
+    </header>
+    <!--v-if-->
+    <!--v-if-->
+    <div data-v-9697a9d6="" class="real-experts__list">
+      <article data-v-9697a9d6="" class="real-experts__card" data-expert-id="expert-1">
+        <div data-v-9697a9d6="" class="real-experts__identity"><strong data-v-9697a9d6="">虚构专家</strong><span data-v-9697a9d6="">expert.one</span></div>
+        <p data-v-9697a9d6="">原大学 · 教授</p>
+        <p data-v-9697a9d6="">学科：计算机</p>
+        <p data-v-9697a9d6="">账号：正常 · 资格：已通过 · 服务：可接单</p>
+        <p data-v-9697a9d6="">回避学校：无</p>
+        <p data-v-9697a9d6="">回避导师：无</p>
+        <div data-v-9697a9d6="" class="real-experts__actions"><button data-v-9697a9d6="" type="button">编辑资料</button><button data-v-9697a9d6="" type="button">编辑回避</button><button data-v-9697a9d6="" type="button">通过资格</button><button data-v-9697a9d6="" type="button">驳回资格</button><button data-v-9697a9d6="" type="button" data-action="pause-expert">暂停接单</button><button data-v-9697a9d6="" type="button">前往派单</button></div>
+      </article>
+    </div>
+  </main>
+</div>
+ ❯ VueWrapper.get node_modules/.pnpm/@vue+test-utils@2.4.11_@vue+compiler-dom@3.5.39_@vue+server-renderer@3.5.39_vue@3.5.39__d182b8854cd1b813565f6c61ede2fc35/node_modules/@vue/test-utils/dist/vue-test-utils.cjs.js:7182:15
+ ❯ src/modules/expert-management/__tests__/expertImport.spec.ts:49:35
+     47| })
+     48| it('sends exact three-state filters and retains null in manual editing…
+     49|   const w = await page(); await w.get('[data-filter="doctoral_supervis…
+       |                                   ^
+     50|   await w.get('[data-action="filter-experts"]').trigger('click'); awai…
+     51|   expect(api.listExperts).toHaveBeenLastCalledWith(expect.objectContai…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/5]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  5 failed (5)
+   Start at  23:23:21
+   Duration  1.23s (transform 158ms, setup 0ms, import 730ms, tests 36ms, environment 379ms)

@@ -3,7 +3,7 @@ import json
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.response import ok
@@ -21,7 +21,9 @@ task_router = APIRouter(prefix="/api/v1", tags=["expert-tasks"])
 
 
 class AssignBody(BaseModel):
+    model_config = ConfigDict(extra='forbid')
     expert_id: UUID
+    expected_expert_version: int | None = Field(default=None,strict=True,ge=1)
 
 
 class RejectBody(BaseModel):
@@ -60,18 +62,20 @@ async def assign(
     session: AsyncSession = Depends(get_session),
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
 ):
+    payload = {"id":str(thesis_id),**body.model_dump(mode="json",exclude_none=True)}
     cached = await thesis_service.remember_idempotent(
-        session, current, idempotency_key, "assign", {"id": str(thesis_id), "expert_id": str(body.expert_id)}
+        session, current, idempotency_key, "assign", payload
     )
     if cached:
         return ok(cached, request_id=getattr(request.state, "request_id", None))
     thesis, task = await dispatch_service.assign(
-        session, current, thesis_id, body.expert_id, getattr(request.state, "request_id", None)
+        session, current, thesis_id, body.expert_id, getattr(request.state, "request_id", None),
+        expected_expert_version=body.expected_expert_version
     )
     data = await thesis_service.serialize_thesis(session, current, thesis)
     data["task"] = {"id": str(task.id), "status": task.status, "expert_id": str(task.expert_id)}
     await thesis_service.store_idempotent(
-        session, current, idempotency_key, "assign", {"id": str(thesis_id), "expert_id": str(body.expert_id)}, data
+        session, current, idempotency_key, "assign", payload, data
     )
     await session.commit()
     return ok(data, request_id=getattr(request.state, "request_id", None))
@@ -204,12 +208,13 @@ async def reassign_task(
     session: AsyncSession = Depends(get_session),
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
 ):
-    payload = {"id": str(task_id), "expert_id": str(body.expert_id)}
+    payload = {"id":str(task_id),**body.model_dump(mode="json",exclude_none=True)}
     cached = await thesis_service.remember_idempotent(session, current, idempotency_key, "reassign", payload)
     if cached:
         return ok(cached, request_id=getattr(request.state, "request_id", None))
     await dispatch_service.lock_task_thesis(session, task_id)
-    thesis, task = await dispatch_service.reassign(session, current, task_id, body.expert_id, getattr(request.state, "request_id", None))
+    thesis, task = await dispatch_service.reassign(session, current, task_id, body.expert_id, getattr(request.state, "request_id", None),
+                                                   expected_expert_version=body.expected_expert_version)
     data = await thesis_service.serialize_thesis(session, current, thesis)
     data["task"] = {"id": str(task.id), "status": task.status, "replaces_task_id": str(task.replaces_task_id)}
     await thesis_service.store_idempotent(session, current, idempotency_key, "reassign", payload, data)

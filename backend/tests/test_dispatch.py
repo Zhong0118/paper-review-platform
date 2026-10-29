@@ -56,6 +56,8 @@ async def test_first_assign_moves_under_review_and_accept_acl(client: AsyncClien
     )
     assert assigned.status_code == 200, assigned.text
     assert assigned.json()["data"]["stage"] == "UNDER_REVIEW"
+    assert assigned.json()["data"]["anonymization"]["findings"] == []
+    assert assigned.json()["data"]["anonymization"]["source_metadata"] is None
     task_id = assigned.json()["data"]["task"]["id"]
     accepted = await client.post(f"/api/v1/expert/tasks/{task_id}:accept", headers=auth(expert_user, idempotency="ac-1"))
     assert accepted.status_code == 200

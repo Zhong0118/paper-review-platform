@@ -1,0 +1,7 @@
+**
+!app/
+!app/modules/
+!app/modules/files/
+!app/modules/files/transform_worker.py
+!pdf-worker/
+!pdf-worker/Dockerfile

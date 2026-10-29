@@ -1,0 +1,8 @@
+
+ RUN  v4.1.10 /Users/zhongxu/Desktop/0-Inbox/paper-review-platform/frontend
+
+
+ Test Files  7 passed (7)
+      Tests  57 passed (57)
+   Start at  22:54:25
+   Duration  2.35s (transform 2.02s, setup 0ms, import 5.63s, tests 1.41s, environment 5.13s)

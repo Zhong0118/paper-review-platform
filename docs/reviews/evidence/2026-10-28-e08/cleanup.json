@@ -1,0 +1,9 @@
+{
+  "postgres_version": "16.15",
+  "owned_schema_remaining": 0,
+  "owned_roles_remaining": 0,
+  "owned_storage_exists": false,
+  "temporary_password_exists": false,
+  "port_8013_listening": false,
+  "port_5177_listening": false
+}

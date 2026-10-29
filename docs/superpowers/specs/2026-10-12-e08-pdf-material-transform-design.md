@@ -43,3 +43,14 @@ POST `/pdf-transforms/{operation_id}:apply` `{expected_version}`仅绑定该成�
 仅本人可编辑草稿；拆分一次一个片段；需要先预览再应用；不支持学校代传。
 
 实施计划：[E08 plan](../plans/2026-10-12-e08-pdf-material-transform.md)。需求总表：[两期路线图](../plans/2026-10-12-enhancement-roadmap.md)。
+
+## 已确认的运行方式补充（2026-10-28）
+
+用户已明确同意使用本机Docker的Linux工作进程：转换容器限制512MiB内存、禁网、仅开放本次临时目录，父进程执行60秒超时并只终止本次拥有的容器。后端/前端仍在原环境；不引入常驻队列。容器根文件系统只读、非root、移除capabilities，内存与交换总额均为512MiB。运行方式不可用时明确报不支持，不回退无界执行。此决定解决[macOS资源限制阻断](../../reviews/2026-10-28-e08-runtime-blocker.md)，原权限、两阶段确认与锁序不变。
+
+
+## 实施契约补充（2026-10-28）
+
+同用途追加源使用现有prepare/put，再调用 `POST /api/v1/files/{id}:complete-transform-source`；完成校验但不绑定，普通complete重放也不绑定。取消路由为 `POST /api/v1/pdf-transforms/{id}:cancel`，请求含expected_version；取消仅将READY标记为CANCELLED，保留记录及文件。操作记录额外保存生成时的用途绑定，apply据此拒绝同一草稿版本内的替换竞态。状态与来源表在0026迁移落地，既有下载token语义不变。
+
+[本地验收](../../reviews/2026-10-12-e08-validation.md)；[转换环境构建](../../../backend/pdf-worker/README.md)。

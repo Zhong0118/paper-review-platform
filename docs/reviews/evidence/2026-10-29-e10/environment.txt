@@ -1,0 +1,9 @@
+Python 3.12.7
+fastapi 0.141.1
+sqlalchemy 2.0.52
+pypdf 6.19.0
+pytest 9.1.1
+v24.19.0
+28.1.1
+codex/slice-7a1-file-integrity
+80ce25c92485a5e1d2ffc59d2cbe57bb712ecf0a

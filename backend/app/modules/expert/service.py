@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from uuid import UUID
 from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
@@ -10,16 +11,40 @@ from app.modules.auth.deps import CurrentUser
 from app.modules.expert.models import Expert, ExpertConflict
 from app.modules.expert.schema import ExpertView, CreateExpertInput
 from app.modules.tenant.models import DisciplineCatalog, Tenant
+from app.modules.tenant.catalog_data import official_bundle
 from app.modules.user.models import User, Role, UserRoleAssignment
 
 
-async def views(session: AsyncSession, expert_id: UUID | None = None) -> list[dict]:
+PROFILE_FIELDS = ('unit','title','discipline_codes','province_name','doctoral_supervisor',
+                  'masters_supervisor','research_directions','keywords','source_url','source_note')
+
+
+def provinces():
+    return sorted({item['province'] for item in official_bundle()['institutions']})
+
+
+async def validate_profile(session, body):
+    await validate_codes(session,body.discipline_codes)
+    if body.province_name is not None and body.province_name not in provinces():
+        raise AppError('VALIDATION_FAILED',422,'省份必须选自官方院校目录')
+
+
+async def views(session: AsyncSession, expert_id: UUID | None = None, **filters) -> list[dict]:
     stmt=select(Expert,User.username,User.display_name,User.status).join(User,User.id==Expert.user_id)
     if expert_id: stmt=stmt.where(Expert.id==expert_id)
+    for name,value in filters.items():
+        if value is None: continue
+        if '\x00' in value: raise AppError('VALIDATION_FAILED',422,'筛选条件不能包含空字符')
+        if name in ('doctoral_supervisor','masters_supervisor'):
+            stmt=stmt.where(getattr(Expert,name).is_(None if value=='unknown' else value=='true'))
+        elif name in ('keyword','research_direction','discipline_code'):
+            field={'keyword':'keywords','research_direction':'research_directions','discipline_code':'discipline_codes'}[name]
+            stmt=stmt.where(getattr(Expert,field).contains([value]))
+        else: stmt=stmt.where(getattr(Expert,name)==value)
     rows=(await session.execute(stmt.order_by(User.username))).all()
     conflicts=(await session.execute(select(ExpertConflict).order_by(ExpertConflict.kind,ExpertConflict.value))).scalars().all()
     return [ExpertView(id=e.id,user_id=e.user_id,username=username,display_name=name,account_status=status,
-        unit=e.unit,title=e.title,discipline_codes=e.discipline_codes,qualification_status=e.qualification_status,
+        **{name:getattr(e,name) for name in PROFILE_FIELDS},source_checked_at=e.source_checked_at,qualification_status=e.qualification_status,
         service_status=e.service_status,version=e.version,
         conflicts=[{'kind':c.kind,'value':c.value} for c in conflicts if c.expert_id==e.id]).model_dump(mode='json')
         for e,username,name,status in rows]
@@ -32,7 +57,7 @@ async def validate_codes(session, codes):
 
 
 async def create(session: AsyncSession, actor: CurrentUser, body: CreateExpertInput, request_id):
-    await validate_codes(session,body.discipline_codes)
+    await validate_profile(session,body)
     role=(await session.execute(select(Role).where(Role.code=='expert'))).scalar_one()
     try:
         async with session.begin_nested():
@@ -41,8 +66,8 @@ async def create(session: AsyncSession, actor: CurrentUser, body: CreateExpertIn
                 provisioned_by=actor.id,provisioned_tenant_id=None)
             session.add(user)
             await session.flush()
-            expert=Expert(user_id=user.id,unit=body.unit,title=body.title,
-                          discipline_codes=body.discipline_codes,qualification_status='PENDING')
+            expert=Expert(user_id=user.id,**{name:getattr(body,name) for name in PROFILE_FIELDS},
+                          source_checked_at=datetime.now(timezone.utc),qualification_status='PENDING')
             session.add(expert)
             await session.flush()
             session.add(UserRoleAssignment(user_id=user.id,tenant_id=None,role_id=role.id,data_scope={}))
@@ -62,10 +87,11 @@ async def change(session,actor,expert_id,body,action,request_id):
     if body.version!=expert.version: raise AppError('VERSION_CONFLICT',409,'数据已变更，请刷新后重试')
     detail = {}
     if action=='profile':
-        await validate_codes(session,body.discipline_codes)
-        detail['changed_fields'] = [name for name in ('unit', 'title', 'discipline_codes')
-                                    if getattr(expert, name) != getattr(body, name)]
-        expert.unit,expert.title,expert.discipline_codes=body.unit,body.title,body.discipline_codes
+        await validate_profile(session,body)
+        fields=[name for name in PROFILE_FIELDS if name in body.model_fields_set]
+        detail['changed_fields'] = [name for name in fields if getattr(expert,name)!=getattr(body,name)]
+        for name in fields: setattr(expert,name,getattr(body,name))
+        if detail['changed_fields']: expert.source_checked_at=datetime.now(timezone.utc)
     elif action in {'qualification', 'status'}:
         field = 'qualification_status' if action == 'qualification' else 'service_status'
         detail.update(before=getattr(expert, field), after=body.status, reason_provided=bool(body.reason.strip()))

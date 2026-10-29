@@ -11,6 +11,7 @@ from app.modules.audit import service as audit_service
 from app.modules.auth.deps import CurrentUser
 from app.modules.auth.service import load_active_identity
 from app.modules.dispatch.models import ExpertTask, ReviewRound
+from app.modules.dispatch.candidate_ranking import rank_candidate
 from app.modules.expert.models import Expert, ExpertConflict
 from app.modules.files.models import FileObject
 from app.modules.thesis.models import Thesis, ThesisVersion, ThesisVersionFile
@@ -119,6 +120,13 @@ async def list_candidates(session: AsyncSession, user: CurrentUser, thesis_id: U
         )
     ).scalar_one_or_none()
     supervisor_name = (elig.supervisor_name if elig else "") or ""
+    round_ = await _round_for(session,thesis.id)
+    round_ready = bool(version and round_ and round_.thesis_version_id == thesis.current_version_id
+                       and round_.status in {RoundStatus.CREATED,RoundStatus.ACTIVE}
+                       and thesis.stage in {ThesisStage.READY_FOR_DISPATCH,ThesisStage.UNDER_REVIEW})
+    live = (await session.scalars(select(ExpertTask).where(ExpertTask.round_id==round_.id,
+        ExpertTask.status.in_([ExpertTaskStatus.INVITED,ExpertTaskStatus.IN_REVIEW,ExpertTaskStatus.SUBMITTED])))).first() if round_ else None
+    metadata={field:getattr(version,field) for field in ('title','abstract','keywords')} if version else {}
     experts = (await session.execute(select(Expert, User).join(User, User.id == Expert.user_id))).all()
     items = []
     for expert, usr in experts:
@@ -127,8 +135,27 @@ async def list_candidates(session: AsyncSession, user: CurrentUser, thesis_id: U
         codes = expert.discipline_codes or []
         mismatch = version is not None and version.discipline_code not in codes
         avoided = await _avoided(session, expert.id, usr.display_name, supervisor_name, thesis.tenant_id)
+        reasons=[]
+        if avoided: reasons.append('回避')
+        if mismatch: reasons.append('方向不符')
+        if expert.qualification_status!='APPROVED': reasons.append('资格未通过')
+        if expert.service_status!='AVAILABLE': reasons.append('暂停服务')
+        actions=[]
+        if not round_ready:
+            reasons.append('当前论文或轮次不可派单')
+        elif live is None:
+            if not reasons: actions=['ASSIGN_EXPERT']
+        elif (thesis.stage==ThesisStage.UNDER_REVIEW and round_.status==RoundStatus.ACTIVE
+              and live.status in {ExpertTaskStatus.INVITED,ExpertTaskStatus.IN_REVIEW} and live.expert_id!=expert.id):
+            if not reasons: actions=['REASSIGN_EXPERT']
+        else:
+            reasons.append('当前任务专家' if live.expert_id==expert.id else '当前轮次席位不可替换')
         items.append(
             {
+                **rank_candidate(metadata,{'research_directions':expert.research_directions,'keywords':expert.keywords}),
+                'candidate_version':expert.version,'thesis_version':thesis.version,
+                'hard_allowed':bool(actions),'allowed_actions':actions,'unavailable_reasons':reasons,
+                'unit':expert.unit,'title':expert.title,'research_directions':expert.research_directions,
                 "expert_id": str(expert.id),
                 "username": usr.username,
                 "display_name": usr.display_name,
@@ -139,10 +166,10 @@ async def list_candidates(session: AsyncSession, user: CurrentUser, thesis_id: U
                 "qualification_status": expert.qualification_status,
             }
         )
-    return items
+    return sorted(items,key=lambda item:(not item['hard_allowed'],-item['match_score'],item['expert_id']))
 
 
-async def assign(session: AsyncSession, user: CurrentUser, thesis_id: UUID, expert_id: UUID, request_id: str | None) -> tuple[Thesis, ExpertTask]:
+async def assign(session: AsyncSession, user: CurrentUser, thesis_id: UUID, expert_id: UUID, request_id: str | None, *, expected_expert_version: int | None = None) -> tuple[Thesis, ExpertTask]:
     if user.role != RoleCode.PLATFORM_REVIEWER:
         raise AppError("ACCESS_DENIED", 403, "无权执行该操作")
     thesis = (await session.execute(select(Thesis).where(Thesis.id == thesis_id).with_for_update()
@@ -157,6 +184,8 @@ async def assign(session: AsyncSession, user: CurrentUser, thesis_id: UUID, expe
         raise AppError("STATE_TRANSITION_DENIED", 409, "请先由学校确认送出")
     expert = (await session.execute(select(Expert).where(Expert.id == expert_id).with_for_update()
                                     .execution_options(populate_existing=True))).scalar_one_or_none()
+    if expert is not None and expected_expert_version is not None and expert.version!=expected_expert_version:
+        raise AppError('VERSION_CONFLICT',409,'专家档案已变更，请刷新候选后重新确认')
     if (expert is None or expert.service_status != "AVAILABLE" or expert.qualification_status != "APPROVED"
             or not await _active_expert_user(session, expert.user_id)):
         raise _hidden()
@@ -216,7 +245,7 @@ async def lock_task_thesis(session: AsyncSession, task_id: UUID) -> Thesis:
     return thesis
 
 
-async def reassign(session: AsyncSession, user: CurrentUser, task_id: UUID, expert_id: UUID, request_id: str | None) -> tuple[Thesis, ExpertTask]:
+async def reassign(session: AsyncSession, user: CurrentUser, task_id: UUID, expert_id: UUID, request_id: str | None, *, expected_expert_version: int | None = None) -> tuple[Thesis, ExpertTask]:
     if user.role != RoleCode.PLATFORM_REVIEWER:
         raise AppError("ACCESS_DENIED", 403, "无权执行该操作")
     thesis = await lock_task_thesis(session, task_id)
@@ -233,7 +262,7 @@ async def reassign(session: AsyncSession, user: CurrentUser, task_id: UUID, expe
         old.status = ExpertTaskStatus.CANCELLED
         old.version += 1
         await session.flush()
-        thesis, new = await assign(session, user, thesis.id, expert_id, request_id)
+        thesis, new = await assign(session, user, thesis.id, expert_id, request_id, expected_expert_version=expected_expert_version)
         new.replaces_task_id = old.id
         await audit_service.record(session, user=user, action="reassign", object_type="expert_task",
             object_id=str(old.id), request_id=request_id, detail={"replacement_task_id": str(new.id)})

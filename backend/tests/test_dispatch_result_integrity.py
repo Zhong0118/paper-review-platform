@@ -9,7 +9,7 @@ from app.modules.expert.models import Expert, ExpertConflict
 from app.modules.result.models import ResultSummary
 from app.modules.review.models import ReviewResultVersion
 from app.modules.user.models import User, StudentEligibility
-from tests.test_file_concurrency import independent_sessions
+from tests.test_file_access import independent_sessions
 from tests.test_thesis_integrity import confirmed_round
 from tests.helpers import auth, login
 from tests.test_review import VALID_DRAFT

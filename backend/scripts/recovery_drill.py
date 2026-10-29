@@ -312,7 +312,7 @@ def _database_snapshot(owned: OwnedResources) -> dict:
                         """), {"role": role, "relation": relation}).scalar_one()
                 tables[name] = {"count": count, "owner": owner, "rls": rls,
                                 "force_rls": force, "grants": grants}
-            for name in ('review_result_versions', 'result_publications', 'review_correction_requests', 'review_correction_notes', 'review_result_revisions', 'tenant_sensitive_terms', 'anonymization_checks'):
+            for name in ('review_result_versions', 'result_publications', 'review_correction_requests', 'review_correction_notes', 'review_result_revisions', 'tenant_sensitive_terms', 'anonymization_checks', 'pdf_transform_operations', 'experts', 'expert_import_previews'):
                 rows = conn.execute(text(f'SELECT to_jsonb(t) FROM "{owned.schema}"."{name}" t ORDER BY id')).scalars().all()
                 tables[name]['content_sha256'] = hashlib.sha256(
                     json.dumps(rows, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
@@ -336,10 +336,10 @@ def _database_snapshot(owned: OwnedResources) -> dict:
                             ))]
     finally:
         engine.dispose()
-    if ("alembic_version" not in tables or len(tables) - 1 != 34 or
+    if ("alembic_version" not in tables or len(tables) - 1 != 36 or
             any(not value["rls"] or not value["force_rls"] or value["owner"] != owned.owner_role
                 for name, value in tables.items() if name != "alembic_version")):
-        raise ValueError("expected 34 FORCE RLS business tables")
+        raise ValueError("expected 36 FORCE RLS business tables")
     if tables["users"]["grants"][owned.business_role]["password_hash_select"]:
         raise ValueError("business role can read password hashes")
     return {"tables": tables, "revision": revision, "file_rows": file_rows,

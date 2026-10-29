@@ -28,7 +28,9 @@ def register_exception_handlers(app: FastAPI) -> None:
             message="请求校验失败",
             http_status=422,
             request_id=request_id_from(request),
-            details={"errors": exc.errors()},
+            # Validator ctx may contain non-JSON exceptions; inputs can contain secrets.
+            details={"errors": [{key: item[key] for key in ("type", "loc", "msg")}
+                                for item in exc.errors()]},
         )
 
     @app.exception_handler(StarletteHTTPException)

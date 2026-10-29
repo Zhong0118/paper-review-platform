@@ -9,6 +9,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch, onBeforeUnmount
 import BlindRail from '@/components/app/BlindRail.vue'
 import PageHeader from '@/components/app/PageHeader.vue'
 import { useScenarioService } from '@/demo/serviceProvider'
+import type { DispatchCandidate } from '@/api/dispatch'
 import { assignExpert, candidateUnavailableReason, dispatchCandidates, dispatchQueue, reassignExpert } from '@/api/dispatch'
 import type { DispatchThesisSeed, ExpertTaskSummary, OperationsQueue } from '@/demo/types'
 import { isDueSoon } from '@/modules/expert-management/services/platformOperationService'
@@ -37,9 +38,10 @@ const activeQueue = ref<OperationsQueue>('PENDING_ASSIGNMENT')
 const dispatchTheses = ref<DispatchThesisSeed[]>([])
 const selectedThesisId = ref('')
 const matches = ref<ExpertMatchCandidate[]>([])
+const candidateDetails = ref<Record<string, DispatchCandidate>>({})
 const reassignableTasks = ref<Record<string, { id: string; expert_id: string }>>({})
 const selectedReplacement = computed(() => reassignableTasks.value[selectedThesisId.value])
-const canReassign = computed(() => !demoEnabled && Boolean(selectedReplacement.value) && !loading.value && !candidatesLoading.value && !actionPending.value && selectedExpertIds.value.length === 1 && matches.value.some(row => row.id === selectedExpertIds.value[0] && !row.conflictHit))
+const canReassign = computed(() => !demoEnabled && Boolean(selectedReplacement.value) && !loading.value && !candidatesLoading.value && !actionPending.value && selectedExpertIds.value.length === 1 && matches.value.some(row => row.id === selectedExpertIds.value[0] && !row.conflictHit && (candidateDetails.value[row.id]?.allowed_actions?.includes('REASSIGN_EXPERT') ?? true)))
 const selectedExpertIds = ref<string[]>([])
 const assigned = ref(false)
 const actionPending = ref(false)
@@ -113,6 +115,9 @@ function candidateRows(): ExpertCandidate[] {
     avgCompletionDays: candidate.avgCompletionDays,
     feeStandard: candidate.feeStandard,
     matchReason: candidate.matchReason,
+    ...(!demoEnabled ? { matchScore: candidateDetails.value[candidate.id]?.match_score,
+      matchReasons: candidateDetails.value[candidate.id]?.match_reasons,
+      matchRuleVersion: candidateDetails.value[candidate.id]?.match_rule_version } : {}),
   }))
 }
 
@@ -124,7 +129,7 @@ const canAssign = computed(() => {
     selectedExpertIds.value.length > 0 &&
     !assigned.value &&
     !actionPending.value &&
-    (demoEnabled || (!loading.value && !candidatesLoading.value && selectedExpertIds.value.every(id => matches.value.some(row => row.id === id && !row.conflictHit))))
+    (demoEnabled || (!loading.value && !candidatesLoading.value && selectedExpertIds.value.every(id => matches.value.some(row => row.id === id && !row.conflictHit && (candidateDetails.value[id]?.allowed_actions?.includes('ASSIGN_EXPERT') ?? true)))))
   )
 })
 
@@ -210,6 +215,7 @@ async function loadWorkbench(refreshMetrics = true) {
       ++candidateRequest
       selectedExpertIds.value = []
       matches.value = []
+      candidateDetails.value = {}
       assigned.value = false
       reassignableTasks.value = {}
       const [scope, report] = timeScope.request()
@@ -269,6 +275,7 @@ async function selectThesis(thesisId: string, silent = false) {
   selectedExpertIds.value = []
   if (!silent) assigned.value = false
   matches.value = []
+  candidateDetails.value = {}
   if (!thesisId) return
   if (!demoEnabled) {
     const request = ++candidateRequest
@@ -277,14 +284,15 @@ async function selectThesis(thesisId: string, silent = false) {
     try {
       const rows = await dispatchCandidates(thesisId)
       if (request !== candidateRequest) return
+      candidateDetails.value = Object.fromEntries(rows.map(row => [row.expert_id,row]))
       matches.value = rows.map((row) => ({
         id: row.expert_id,
         name: row.display_name || row.username || '',
-        unit: '',
-        title: '',
+        unit: row.unit ?? '',
+        title: row.title ?? '',
         discipline: { code: row.discipline_codes[0] ?? '', name: row.discipline_codes.join(',') },
-        fields: row.discipline_codes,
-        keywordHits: [],
+        fields: row.research_directions ?? [],
+        keywordHits: row.match_reasons?.filter(hit => hit.kind === 'keyword').map(hit => hit.tag) ?? [],
         conflictHit: Boolean(candidateUnavailableReason(row)) || row.expert_id === reassignableTasks.value[thesisId]?.expert_id,
         conflictReason: row.expert_id === reassignableTasks.value[thesisId]?.expert_id ? '当前任务专家' : candidateUnavailableReason(row),
         activeTasks: 0,
@@ -292,7 +300,7 @@ async function selectThesis(thesisId: string, silent = false) {
         onTimeRate: '—',
         avgCompletionDays: 0,
         feeStandard: 0,
-        matchReason: candidateUnavailableReason(row) || '可派',
+        matchReason: candidateUnavailableReason(row) || (row.allowed_actions?.includes('REASSIGN_EXPERT') ? '可改派' : '可派'),
       })) as unknown as ExpertMatchCandidate[]
       refreshRows()
     } catch (error) {
@@ -393,14 +401,14 @@ async function confirmAction() {
       const expertId = selectedExpertIds.value[0]
       if (!thesis || !expertId) return
       if (!demoEnabled) {
-        await assignExpert(thesis.id, expertId, { idempotencyKey: crypto.randomUUID() })
+        await assignExpert(thesis.id, expertId, { idempotencyKey: crypto.randomUUID() }, candidateDetails.value[expertId]?.candidate_version)
       } else if (service) {
         await service.assignExpertToThesis(thesis.id, expertId)
       }
       assigned.value = true
       message = '已生成 1 个评审任务，论文进入「专家待接受」队列。'
     } else if (current.kind === 'REASSIGN' && current.taskId && !demoEnabled) {
-      await reassignExpert(current.taskId, reassignExpertId.value, { idempotencyKey: crypto.randomUUID() })
+      await reassignExpert(current.taskId, reassignExpertId.value, { idempotencyKey: crypto.randomUUID() }, candidateDetails.value[reassignExpertId.value]?.candidate_version)
       message = '已取消旧任务并邀请替代专家，历史记录保留。'
     } else if (current.kind === 'REASSIGN' && current.taskId && service) {
       await service.reassignExpertTask(
@@ -424,7 +432,10 @@ async function confirmAction() {
     await closeConfirmation(true)
     actionError.value =
       error instanceof Error ? `${error.message}，本次操作未执行。` : '操作未完成，请重试。'
-    if (error instanceof Error && 'code' in error && String((error as { code: unknown }).code) === 'STATE_CONFLICT') {
+    if (!demoEnabled && (error as { response?: { status?: number } })?.response?.status === 409) {
+      await loadWorkbench()
+      actionError.value = '专家档案或论文状态已变化 候选已刷新 请重新选择并确认'
+    } else if (error instanceof Error && 'code' in error && String((error as { code: unknown }).code) === 'STATE_CONFLICT') {
       await loadWorkbench()
       feedback.value = '论文状态已更新，本次操作未执行。'
     } else {
@@ -559,6 +570,7 @@ onBeforeUnmount(() => { listGeneration++; candidateRequest++ })
                 :rows="candidateRows()"
                 :mobile="isMobile"
                 :show-demo-metrics="demoEnabled"
+                :show-ranking="!demoEnabled"
               />
               <p v-else class="candidate-section__empty">请先选择一篇待派论文。</p>
             </section>

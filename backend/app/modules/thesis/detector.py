@@ -113,6 +113,6 @@ def detect_sensitive(version, eligibility, anonymous, body, inspection, terms):
         title_status = "FOUND"
     else:
         title_status = "TITLE_NOT_FOUND"
-        findings.append({"kind": "TITLE_NOT_FOUND", "field": "title", "source": "title", "page_number": None,
+        findings.append({"kind": "TITLE_NOT_FOUND", "field": "title", "source": "title", "location": "title", "page_number": None,
             "matched_text": "", "context": "前两页未找到登记标题的文字，仅供核对，不代表内容不一致", "severity": "WARN"})
     return conclusion, findings, title_status

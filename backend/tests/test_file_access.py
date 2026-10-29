@@ -6,6 +6,9 @@ from uuid import UUID
 
 import jwt
 import pytest
+import pytest_asyncio
+from httpx import ASGITransport, AsyncClient
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy import select
 
 from app.core.config import get_settings
@@ -13,10 +16,25 @@ from app.core.security import create_access_token
 from app.modules.audit.models import AuditEvent
 from app.modules.files.models import FileObject
 from app.modules.user.models import User
-from tests.test_file_concurrency import independent_sessions
+from tests.conftest import _test_url
+from scripts.acceptance_server import acceptance_environment
 from tests.helpers import login, auth, ready_thesis
 from tests.test_dispatch import expert_id
 from tests.test_review import VALID_DRAFT
+
+
+@pytest_asyncio.fixture
+async def independent_sessions():
+    # HTTP uses the actual non-owner runtime roles. A separate test-only admin
+    # session observes audits and injects revocation/corruption for these tests.
+    async with acceptance_environment('empty') as runtime:
+        engine = create_async_engine(_test_url(), connect_args={'server_settings': {'search_path': runtime.schema}})
+        sessions = async_sessionmaker(engine, expire_on_commit=False)
+        try:
+            async with AsyncClient(transport=ASGITransport(app=runtime.app), base_url='http://test') as client:
+                yield sessions, client
+        finally:
+            await engine.dispose()
 
 
 async def material(client, reuse=False):
@@ -33,6 +51,7 @@ async def material(client, reuse=False):
     platform = await login(client, 'platform.chen', get_settings().seed_password)
     eid = await expert_id(client, platform, tid, 'zhou')
     res = await client.post(f'/api/v1/platform-review/theses/{tid}:assign', headers=auth(platform), json={'expert_id': eid})
+    assert res.status_code == 200, res.text
     task = res.json()['data']['task']['id']
     expert = await login(client, 'expert.zhou', get_settings().seed_password)
     assert (await client.post(f'/api/v1/expert/tasks/{task}:accept', headers=auth(expert))).status_code == 200
