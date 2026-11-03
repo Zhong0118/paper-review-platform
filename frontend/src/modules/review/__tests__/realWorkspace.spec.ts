@@ -159,6 +159,21 @@ describe('real expert workspace', () => {
     const { wrapper } = await mountPage('/expert/tasks', ExpertTasksPage)
     expect(wrapper.get('[data-action="continue-review"]').attributes('href')).toBe('/expert/review?task_id=b')
   })
+
+  it('shows the selected task group in the header even when the group is empty', async () => {
+    const { wrapper } = await mountPage('/expert/tasks', ExpertTasksPage)
+    const stage = wrapper.get('.blind-rail__stage')
+    expect(stage.text()).toBe('评阅中')
+
+    await wrapper.get('[data-tab="SUBMITTED"]').trigger('click')
+    expect(stage.text()).toBe('已完成')
+    expect(wrapper.get('[data-expert-task]').text()).toContain('旧论文 A')
+
+    await wrapper.get('[data-tab="CORRECTION_PENDING"]').trigger('click')
+    expect(stage.text()).toBe('需要更正')
+    expect(wrapper.get('[data-expert-task-table]').text()).toContain('当前分组暂无任务')
+  })
+
   it('does not show an invented zero fee for real invitations', async () => {
     api.listExpertTasks.mockResolvedValue([{ ...rows[1], status: 'INVITED', allowed_actions: ['ACCEPT_TASK'] }])
     const { wrapper } = await mountPage('/expert/tasks', ExpertTasksPage)

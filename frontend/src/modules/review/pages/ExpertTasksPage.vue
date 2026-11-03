@@ -68,9 +68,8 @@ const acceptDialog = ref<HTMLElement | null>(null)
 const acceptDialogOpener = ref<HTMLElement | null>(null)
 const acceptError = ref('')
 
-const visibleTasks = computed(() =>
-  tasks.value.filter((t) => tabs.find((tab) => tab.value === activeTab.value)?.matcher(t)),
-)
+const currentGroup = computed(() => tabs.find((tab) => tab.value === activeTab.value) ?? tabs[0])
+const visibleTasks = computed(() => tasks.value.filter(currentGroup.value.matcher))
 
 const tabCounts = computed(() => {
   const counts = new Map<string, number>()
@@ -211,7 +210,7 @@ onBeforeUnmount(() => { listGeneration++ })
       <BlindRail
         audience="匿名论文概要与本人任务"
         hidden-from="学生姓名、学号、导师、学校原始论文和其他专家意见"
-        stage="待接受"
+        :stage="currentGroup.label"
       />
 
       <nav class="task-tabs" aria-label="任务分组">
