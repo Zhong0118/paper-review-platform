@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import {useRoute} from 'vue-router'
+import { computed, onMounted, ref } from 'vue'
 import BlindRail from '@/components/app/BlindRail.vue'
 import PageHeader from '@/components/app/PageHeader.vue'
 import PortalLayout from '@/layouts/PortalLayout.vue'
@@ -10,6 +11,9 @@ import { listSchoolObjections, resolveObjection, startObjection, type ObjectionR
 const demoEnabled = import.meta.env.VITE_DEMO_MODE === 'true'
 const authStore = useAuthStore()
 const rows = ref<ObjectionRow[]>([])
+const route = useRoute()
+const target = computed(() => typeof route?.query.objection === 'string' ? route.query.objection : '')
+const visible = computed(() => target.value ? rows.value.filter(row => row.id === target.value) : rows.value)
 const conclusion = ref('')
 const notice = ref('')
 
@@ -54,13 +58,14 @@ function label(status: string) {
     <div class="objection-page">
       <PageHeader eyebrow="PAGE-019 · OBJECTIONS" title="异议处理" description="受理学生对已发布结果提出的异议，记录处理过程和结论；异议不直接修改专家原始分数或评语。" />
       <BlindRail audience="本校学生身份、异议材料与处理记录" hidden-from="专家真实身份与其他学校异议" stage="独立流程 · 不回退论文状态" />
+      <p v-if="target">正在查看收尾清单中的异议 · <RouterLink to="/school/objections">返回完整列表</RouterLink></p>
       <section class="objection-table">
         <header>
           <div><span>OBJECTION REGISTER</span><h2>异议登记</h2></div>
-          <small>共 {{ rows.length }} 条</small>
+          <small>共 {{ visible.length }} 条</small>
         </header>
         <div class="objection-table__head"><span>异议编号</span><span>论文 / 学生</span><span>异议摘要</span><span>状态</span><span>结论</span><span>操作</span></div>
-        <article v-for="row in rows" :key="row.id" :data-objection-status="row.status">
+        <article v-for="row in visible" :key="row.id" :data-objection-status="row.status">
           <code>{{ row.id.slice(0, 8) }}</code>
           <div><strong>{{ row.thesis_id.slice(0, 8) || '—' }}</strong><small>{{ row.student_name }}</small></div>
           <p>{{ row.reason }}</p>

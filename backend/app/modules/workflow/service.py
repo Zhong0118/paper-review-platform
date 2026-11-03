@@ -54,6 +54,10 @@ async def transition(
         payload={},
     )
     session.add(event)
+    if action == "reject_anonymization":
+        # The row trigger verifies this event before it copies the locked frozen version.
+        event.payload = {"source_version_id": str(thesis.current_version_id)}
+        await session.flush([event])
     thesis.stage = to_stage
     thesis.version += 1
     if reason:

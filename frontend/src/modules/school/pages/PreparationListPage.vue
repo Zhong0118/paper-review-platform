@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useRoute } from 'vue-router'
 import SensitiveFindingPanel from '@/components/app/SensitiveFindingPanel.vue'
 import { checkSensitiveThesis } from '@/api/sensitiveChecks'
 import type { ThesisDetail } from '@/api/theses'
@@ -9,7 +10,7 @@ import { computed, onMounted, ref, watch, onBeforeUnmount } from 'vue'
 import BlindRail from '@/components/app/BlindRail.vue'
 import PageHeader from '@/components/app/PageHeader.vue'
 import { useScenarioService } from '@/demo/serviceProvider'
-import { confirmAnonymization, listSchoolTheses, terminateThesis } from '@/api/schoolReview'
+import { confirmAnonymization, getSchoolThesis, listSchoolTheses, terminateThesis } from '@/api/schoolReview'
 import { confirmDispatch } from '@/api/dispatch'
 import { toSchoolRow } from '@/api/adapters'
 import type { BatchImportRow, DemoThesisSummary, SchoolSubmissionInput } from '@/demo/types'
@@ -22,6 +23,8 @@ import BatchImportPreview from '../components/BatchImportPreview.vue'
 import SchoolSubmissionDrawer from '../components/SchoolSubmissionDrawer.vue'
 import SchoolThesisTable from '../components/SchoolThesisTable.vue'
 
+const route = useRoute()
+const target = computed(() => typeof route?.query.thesis === 'string' ? route.query.thesis : '')
 const timeScope = useTimeScope()
 const demoEnabled = import.meta.env.VITE_DEMO_MODE === 'true'
 const service = demoEnabled ? useScenarioService() : null
@@ -66,7 +69,7 @@ async function loadRealRows() {
   loading.value = true
   loadError.value = ''
   try {
-    const items = await listSchoolTheses(...timeScope.request())
+    const items = target.value ? [await getSchoolThesis(target.value)] : await listSchoolTheses(...timeScope.request())
     if (request !== listGeneration) return false
     const counts = { pass: 0, reviewRequired: 0, failed: 0 }
     for (const item of items) {
@@ -75,6 +78,7 @@ async function loadRealRows() {
       else if (conclusion === 'REVIEW_REQUIRED') counts.reviewRequired++
       else if (conclusion === 'FAIL') counts.failed++
     }
+    if (target.value) selectedId.value = target.value
     rawRows.value = items
     rows.value = items.map(toSchoolRow)
     automaticCounts.value = counts
@@ -176,7 +180,7 @@ async function showBatchPreview() {
   batchRows.value = await service.previewBatchImport()
   batchOpen.value = true
 }
-watch([timeScope.scope, timeScope.identity], () => {
+watch([timeScope.scope, timeScope.identity, target], () => {
   if (demoEnabled) return
   listGeneration++; rows.value = []; rawRows.value = []; selectedId.value = null; notice.value = ''
   if (authStore.user) void loadRealRows()
@@ -194,7 +198,8 @@ onBeforeUnmount(() => { listGeneration++ })
           <button v-if="demoEnabled" type="button" class="action quiet">下载导入模板</button>
         </template>
       </PageHeader>
-      <TimeScopeSelect v-if="!demoEnabled" :model-value="timeScope.scope.value" :meta="timeScope.meta.value" @update:model-value="timeScope.setScope" />
+      <p v-if="target">正在查看收尾清单中的论文 · <RouterLink to="/school/preparation">返回完整列表</RouterLink></p>
+      <TimeScopeSelect v-if="!demoEnabled && !target" :model-value="timeScope.scope.value" :meta="timeScope.meta.value" @update:model-value="timeScope.setScope" />
       <BlindRail audience="本校学生身份、原始论文与匿名材料" hidden-from="专家身份与专家联系方式不在学校准备页展示" stage="材料准备与匿名核验" />
       <p class="submission-policy">学校可直接提交，无需学生再次确认；学生仍可在“我的论文”查看学校代传记录。</p>
       <p v-if="loading" role="status">正在加载本校论文与检测统计…</p>

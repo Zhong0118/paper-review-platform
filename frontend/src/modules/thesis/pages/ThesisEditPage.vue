@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, ref, watch, onBeforeUnmount } from 'vue'
+import { computed, nextTick, ref, watch, onBeforeUnmount } from 'vue'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 
 import BlindRail from '@/components/app/BlindRail.vue'
@@ -20,6 +20,7 @@ import StudentIdentityPanel, {
   type StudentIdentityView,
 } from '../components/StudentIdentityPanel.vue'
 import StudentDemoScenarioController from '../components/StudentDemoScenarioController.vue'
+import { studentPrograms,type ProgramOptions } from '@/api/schoolPrograms'
 import { getMyDisciplines, type CatalogOption } from '@/api/catalogs'
 import DisciplineSelector from '../components/DisciplineSelector.vue'
 import ThesisMaterialEditor from '../components/ThesisMaterialEditor.vue'
@@ -48,6 +49,26 @@ const anonymousId = ref('')
 const loading = ref(true)
 const loadError = ref('')
 const disciplineOptions = ref<CatalogOption[]>([])
+const programs = ref<ProgramOptions>({catalog_id:null,items:[]})
+const localCode = ref('')
+const localOptions = computed(()=>programs.value.items.map(item=>({code:item.code,name:`${item.name} · ${item.official_code} ${item.official_name}`})))
+const shownProgram = computed(()=>{
+  const choice=localOptions.value.find(item=>item.code===localCode.value)
+  if(choice)return choice
+  const old=realDetail.value?.current_version?.school_program
+  return old && old.code===localCode.value ? {code:old.code,name:old.name} : undefined
+})
+function chooseProgram(value:{code:string;name:string}) {
+  const item=programs.value.items.find(p=>p.code===value.code)
+  if(!item)return
+  localCode.value=item.code
+  const official={code:item.official_code,name:item.official_name}
+  if(!thesisId.value)newDiscipline.value=official
+  else updateForm({...form.value,discipline:official})
+}
+function selectedProgram(){
+  return programs.value.catalog_id && localCode.value ? {program:{catalog_id:programs.value.catalog_id,code:localCode.value}} : {}
+}
 const newDiscipline = ref<{code:string;name:string}>()
 const dirty = ref(false)
 const saving = ref(false)
@@ -58,6 +79,7 @@ const validationError = ref('')
 const submitError = ref('')
 const showConfirmation = ref(false)
 const submitting = ref(false)
+const refreshingChecklist = ref(false)
 const demoDialogOpen = ref(false)
 const form = ref<StudentDraftInput>({
   title: '',
@@ -94,10 +116,12 @@ async function loadDraft() {
         ? await service.createStudentDraft()
         : await service.getStudentThesis(requestedId)
     } else {
-      disciplineOptions.value = await getMyDisciplines()
+      const [official,local] = await Promise.all([getMyDisciplines(),studentPrograms(requestedId==='new'?undefined:requestedId)])
+      disciplineOptions.value=official;programs.value=local;localCode.value='';newDiscipline.value=undefined
       if (requestedId === 'new') { thesisId.value = ''; return }
       liveDetail = await getThesis(requestedId)
       realDetail.value = liveDetail
+      localCode.value=liveDetail.current_version?.school_program?.code ?? ''
       thesis = toStudentThesisDetail(liveDetail)
     }
     liveVersion.value = Number((thesis as { version?: number }).version ?? 1)
@@ -143,8 +167,9 @@ async function startDraft() {
   saving.value = true
   loadError.value = ''
   try {
-    const draft = await createThesis({title:'未命名论文',abstract:'',discipline_code:newDiscipline.value.code,
-      discipline_name:newDiscipline.value.name,keywords:['盲审']})
+    const selection = programs.value.catalog_id ? selectedProgram() :
+      {discipline_code:newDiscipline.value.code,discipline_name:newDiscipline.value.name}
+    const draft = await createThesis({...selection,title:'未命名论文',abstract:'',keywords:['盲审']})
     await router.replace({query:{...route.query,thesisId:draft.id}})
     await loadDraft()
   } catch (error) { loadError.value = error instanceof Error ? error.message : '创建草稿失败，请重试。' }
@@ -187,12 +212,13 @@ async function persistDraft(snapshot: StudentDraftInput, revision: number) {
       demoEnabled && service
         ? await service.saveStudentDraft(thesisId.value, snapshot)
         : await patchThesis(thesisId.value, {
+            ...(localCode.value !== (realDetail.value?.current_version?.school_program?.code ?? '') ? selectedProgram() :
+              {discipline_code:snapshot.discipline.code,discipline_name:snapshot.discipline.name}),
             title: snapshot.title,
             abstract: snapshot.abstract,
-            discipline_code: snapshot.discipline.code,
-            discipline_name: snapshot.discipline.name,
             keywords: snapshot.keywords,
           })
+    if (!demoEnabled && formRevision.value === revision) realDetail.value = saved as ThesisDetail
     if (!demoEnabled) liveVersion.value = (saved as { version?: number }).version ?? liveVersion.value
     if (formRevision.value === revision) dirty.value = false
     lastSavedAt.value =
@@ -267,35 +293,50 @@ async function saveDraft() {
   await persistDraft(draftSnapshot(), formRevision.value)
 }
 
-function firstValidationError(): { field: ValidationField; message: string } | null {
-  if (!form.value.title.trim()) return { field: 'title', message: '请填写论文题目。' }
-  if (!form.value.abstract.trim()) return { field: 'abstract', message: '请填写论文摘要。' }
-  if (!form.value.discipline.code) return { field: 'discipline', message: '请选择学科专业。' }
-  if (form.value.keywords.length === 0)
-    return { field: 'keywords', message: '请至少填写 1 个关键词。' }
-  if (
-    !form.value.files.some(
-      (file) => file.purpose === 'SCHOOL_ARCHIVE' && file.validationStatus === 'VALID',
-    )
-  )
-    return { field: 'original', message: '请上传原始版论文。' }
-  if (
-    !form.value.files.some(
-      (file) =>
-        file.purpose === 'EXPERT_REVIEW' &&
-        ['VALID', 'REVIEW_REQUIRED'].includes(file.validationStatus),
-    )
-  )
-    return { field: 'anonymous', message: '请上传匿名版论文。' }
-  return null
-}
+const issues = computed(() => {
+  const items: Array<{field: ValidationField | null; message: string}> = []
+  const add = (field: ValidationField | null, message: string) => items.push({field, message})
+  if (!demoEnabled && !realDetail.value?.draft_eligibility_status)
+    add(null, '缺少原批次资格记录，请联系学校审核员')
+  if (!form.value.title.trim()) add('title', '请填写论文题目。')
+  if (!form.value.abstract.trim()) add('abstract', '请填写论文摘要。')
+  if (!form.value.discipline.code) add('discipline', '请选择学科专业。')
+  else if (!demoEnabled && !disciplineOptions.value.some(d => d.code === form.value.discipline.code && d.name === form.value.discipline.name))
+    add('discipline', '所选专业不在本校开放目录，请重选或联系学校审核员。')
+  if (localCode.value && !programs.value.items.some(p=>p.code===localCode.value))
+    add('discipline','校内专业当前不可选择，请重选或联系学校审核员。')
+  if (!form.value.keywords.length) add('keywords', '请至少填写 1 个关键词。')
+  if (!form.value.files.some(f => f.purpose === 'SCHOOL_ARCHIVE' && f.validationStatus === 'VALID'))
+    add('original', '请上传原始版论文。')
+  if (!form.value.files.some(f => f.purpose === 'EXPERT_REVIEW' && ['VALID','REVIEW_REQUIRED'].includes(f.validationStatus)))
+    add('anonymous', '请上传匿名版论文。')
+  return items
+})
 
 async function openSubmitConfirmation() {
-  const failure = firstValidationError()
+  if (!demoEnabled) {
+    if (refreshingChecklist.value || saving.value || checking.value || submitting.value) return
+    const id = thesisId.value, generation = checkGeneration
+    refreshingChecklist.value = true
+    try {
+      const [detail, options, local] = await Promise.all([getThesis(id), getMyDisciplines(), studentPrograms(id)])
+      if (generation !== checkGeneration || id !== thesisId.value) return
+      if (detail.stage !== 'DRAFT' || detail.version !== liveVersion.value ||
+          detail.current_version?.id !== realDetail.value?.current_version?.id) {
+        validationError.value = '论文状态或版本已变化，请刷新页面后核对。'; return
+      }
+      realDetail.value = detail
+      disciplineOptions.value = options
+      programs.value=local
+    } catch {
+      validationError.value = '未能核对本批资格和开放专业，请重试。'; return
+    } finally { refreshingChecklist.value = false }
+  }
+  const failure = issues.value[0]
   if (failure) {
     validationError.value = failure.message
     await nextTick()
-    editor.value?.focusField(failure.field)
+    if (failure.field) editor.value?.focusField(failure.field)
     return
   }
   validationError.value = ''
@@ -353,7 +394,6 @@ async function confirmSubmit() {
         return
       }
     }
-    await persistDraft(draftSnapshot(), formRevision.value)
     if (!demoEnabled && authStore.accessToken) {
       for (const [purpose, raw] of Object.entries(pendingUploads.value)) {
         if (!raw) continue
@@ -371,7 +411,7 @@ async function confirmSubmit() {
     showConfirmation.value = false
     await router.push('/student/dashboard')
   } catch {
-    submitError.value = '提交失败，请重试。'
+    submitError.value = demoEnabled ? '提交失败，请重试。' : '提交失败，请关闭确认框，重新核对资格、专业和文件后重试。'
   } finally {
     submitting.value = false
   }
@@ -421,8 +461,11 @@ void loadDraft()
 
       <section v-else-if="!demoEnabled && !thesisId" class="paper-form">
         <h2>选择送审学科后创建论文</h2>
-        <DisciplineSelector v-model="newDiscipline" :options="disciplineOptions" />
-        <p v-if="!disciplineOptions.length">本校暂无可选学科，请联系学校审核员。</p>
+        <template v-if="programs.catalog_id"><p>从本批固定的校内目录选择，校码后显示对应官方学科。</p>
+          <DisciplineSelector :model-value="shownProgram" :options="localOptions" @update:model-value="chooseProgram"/>
+          <p v-if="!localOptions.length">本批暂无开放的校内专业，请联系学校审核员。</p></template>
+        <DisciplineSelector v-else v-model="newDiscipline" :options="disciplineOptions" />
+        <p v-if="!programs.catalog_id && !disciplineOptions.length">本校暂无可选学科，请联系学校审核员。</p>
         <button type="button" data-action="create-selected-draft" :disabled="!newDiscipline || saving" @click="startDraft">创建论文草稿</button>
       </section>
       <form v-else class="paper-form" @submit.prevent>
@@ -433,8 +476,14 @@ void loadDraft()
           :discipline-options="demoEnabled ? undefined : disciplineOptions"
           :identity-tokens="[identity.studentName, identity.studentId]"
           @update:model-value="updateForm"
-          @native-file="onNativeFile"
-        />
+          @native-file="onNativeFile">
+          <template v-if="!demoEnabled && programs.catalog_id" #discipline>
+            <div><p>校内专业 · 本批固定目录</p>
+            <p v-if="!localCode">原稿已选官方学科 {{form.discipline.code}} {{form.discipline.name}}；可保留原稿，或主动改选校内专业。</p>
+            <DisciplineSelector :model-value="shownProgram" :options="localOptions" @update:model-value="chooseProgram"/>
+            <p v-if="!localOptions.length">当前无可选项，请联系学校审核员。</p></div>
+          </template>
+        </ThesisMaterialEditor>
 
         <button v-if="!demoEnabled && realDetail?.stage === 'DRAFT'" type="button" data-open-pdf-transform
           :disabled="saving || submitting || checking || preparingTransform" @click="openTransform">{{preparingTransform ? '正在保存材料…' : '保存并处理 PDF 材料'}}</button>
@@ -447,6 +496,16 @@ void loadDraft()
           {{ validationError }}
         </p>
 
+        <section v-if="!demoEnabled && realDetail?.stage === 'DRAFT'" data-submit-checklist class="checklist">
+          <h2>送审前核对</h2>
+          <p v-if="realDetail.draft_eligibility_status === 'SUSPENDED'">原批次资格已暂停，仅限制新建论文；已有草稿仍可提交。</p>
+          <p v-else-if="realDetail.draft_eligibility_status">已核对本论文的原批次资格记录</p>
+          <ul v-if="issues.length"><li v-for="issue in issues" :key="issue.message">
+            {{issue.message}} <button v-if="issue.field" type="button" @click="editor?.focusField(issue.field)">去填写</button>
+          </li></ul>
+          <p v-else>当前表单没有缺项，提交时将再次核验专业和文件。</p>
+          <p v-if="pendingUploads.SCHOOL_ARCHIVE || pendingUploads.EXPERT_REVIEW">本地已选文件会在确认提交时上传，尚未完成服务端核验。</p>
+        </section>
         <footer class="paper-form__footer">
           <div>
             <p>系统将在学校确认匿名检测结果后，才允许进入专家匹配环节。</p>
@@ -472,6 +531,7 @@ void loadDraft()
               class="button button--primary"
               data-action="open-submit-confirmation"
               type="button"
+              :disabled="refreshingChecklist || saving || checking || submitting"
               @click="openSubmitConfirmation"
             >
               提交学校审核
@@ -542,6 +602,8 @@ void loadDraft()
 </template>
 
 <style scoped>
+.checklist{padding:1rem;border:1px solid #ccdbea;border-radius:.4rem}.checklist h2{font-size:1rem}.checklist li{margin:.35rem 0}.checklist button{color:#174a79;cursor:pointer}
+
 .edit-page,
 .paper-form {
   display: grid;

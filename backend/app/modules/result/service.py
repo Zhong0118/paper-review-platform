@@ -271,6 +271,25 @@ async def published_result(session: AsyncSession, user: CurrentUser, thesis_id: 
             raise _hidden()
     else:
         raise _hidden()
+    summary, publication = await latest_publication(session, thesis)
+    snapshot = publication.snapshot
+    rule = validate_rule_snapshot(snapshot["rule_snapshot"])
+    return {
+        "thesis_id": str(thesis.id),
+        "total": snapshot["total"],
+        "base_result_id": snapshot["base_result_id"],
+        "effective_revision_id": snapshot["revision_id"],
+        "rule_snapshot": rule,
+        "outcome": outcome_for_total(rule, snapshot["total"]),
+        "items": snapshot["items"],
+        "correction_pending": bool(await session.scalar(select(func.has_open_review_correction(summary.round_id)))),
+    }
+
+
+async def latest_publication(session: AsyncSession, thesis: Thesis) -> tuple[ResultSummary, ResultPublication]:
+    """The caller has authorized the thesis; only the effective, bound publication is readable."""
+    if thesis.stage != ThesisStage.COMPLETED:
+        raise _hidden()
     summary = (await session.execute(select(ResultSummary).where(
         ResultSummary.thesis_id == thesis.id,
     ))).scalar_one_or_none()
@@ -288,14 +307,4 @@ async def published_result(session: AsyncSession, user: CurrentUser, thesis_id: 
     if (snapshot.get("round_id") != str(summary.round_id)
             or snapshot.get("result_task_ids") != summary.result_task_ids):
         raise AppError("STATE_TRANSITION_DENIED", 409, "发布归属与汇总不一致，需核查")
-    rule = validate_rule_snapshot(snapshot["rule_snapshot"])
-    return {
-        "thesis_id": str(thesis.id),
-        "total": snapshot["total"],
-        "base_result_id": snapshot["base_result_id"],
-        "effective_revision_id": snapshot["revision_id"],
-        "rule_snapshot": rule,
-        "outcome": outcome_for_total(rule, snapshot["total"]),
-        "items": snapshot["items"],
-        "correction_pending": bool(await session.scalar(select(func.has_open_review_correction(summary.round_id)))),
-    }
+    return summary, publication

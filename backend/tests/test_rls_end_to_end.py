@@ -21,7 +21,7 @@ from tests.helpers import auth, create_draft, login
 @pytest.mark.asyncio
 async def test_all_mapped_tables_have_force_rls_and_non_owner_business_login():
     mapped = set(Base.metadata.tables)
-    assert len(mapped) == 36
+    assert len(mapped) == 39
     async with acceptance_environment("operations") as runtime:
         async with runtime.session_factory() as session:
             catalog = (await session.execute(text("""

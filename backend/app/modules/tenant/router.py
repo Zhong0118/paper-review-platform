@@ -176,6 +176,15 @@ async def batches(
     return ok([await service.serialize_batch(session, row) for row in rows], request_id=getattr(request.state, "request_id", None))
 
 
+@school_admin_router.get("/batches/{batch_id}/closeout")
+async def batch_closeout(batch_id: UUID, request: Request,
+    current: CurrentUser = Depends(require_roles(RoleCode.SCHOOL_REVIEWER)),
+    session: AsyncSession = Depends(get_session),
+):
+    from app.modules.tenant.batch_service import closeout
+    return ok(await closeout(session, current.tenant_id, batch_id), request_id=request.state.request_id)
+
+
 @school_admin_router.post("/batches")
 async def create_batch(
     body: CreateBatchInput, request: Request,

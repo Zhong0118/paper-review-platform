@@ -12,6 +12,7 @@ from app.modules.user.router import school_member_router
 
 from app.modules.expert.router import router as expert_management_router
 
+from app.modules.tenant.program_router import router as program_router
 from app.modules.tenant.catalog_router import router as catalog_router
 
 from app.modules.review.correction_router import router as correction_router
@@ -27,6 +28,7 @@ router.include_router(sensitive_router)
 router.include_router(dashboard_router)
 router.include_router(correction_router)
 router.include_router(catalog_router)
+router.include_router(program_router)
 router.include_router(expert_management_router)
 router.include_router(auth_router)
 router.include_router(me_router)

@@ -104,3 +104,18 @@ it('exposes vocabulary configuration only to the school real menu and route',()=
    expect(portalMenus(role,false).some(x=>x.path==='/school/sensitive-terms')).toBe(false)
  expect(appRoutes.find(x=>x.path==='/school/sensitive-terms')?.meta?.roleCodes).toEqual(['school_reviewer'])
 })
+
+it('moves between individual hits including two on the same physical page without re-fetching the file', async () => {
+  const data = detail()
+  data.anonymization.findings.splice(1,0,{...data.anonymization.findings[0]!,matched_text:'同页第二处'})
+  const w = mount(Panel,{props:{detail:data,school:true}})
+  await w.get('[data-open-hit="0"]').trigger('click'); await flushPromises()
+  expect(w.get('[data-prev-hit]').attributes('disabled')).toBeDefined()
+  await w.get('[data-next-hit]').trigger('click')
+  expect(w.get('.pdf-preview').text()).toContain('同页第二处')
+  expect(w.get('iframe').attributes('src')).toContain('#page=1')
+  await w.get('[data-next-hit]').trigger('click')
+  expect(w.get('iframe').attributes('src')).toContain('#page=2')
+  expect(w.get('[data-next-hit]').attributes('disabled')).toBeDefined()
+  expect(api.getFileContent).toHaveBeenCalledTimes(1)
+})

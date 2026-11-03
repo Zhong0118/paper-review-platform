@@ -3,6 +3,8 @@ import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import { createMemoryHistory, createRouter, RouterView } from 'vue-router'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
+const programApi=vi.hoisted(()=>({studentPrograms:vi.fn()}))
+vi.mock('@/api/schoolPrograms',()=>programApi)
 const api = vi.hoisted(() => ({
   getThesis: vi.fn(), createThesis: vi.fn(), patchThesis: vi.fn(), submitThesis: vi.fn(),
   fetchEligibility: vi.fn(), getMyDisciplines: vi.fn(), checkSensitiveThesis: vi.fn(), uploadThesisFile: vi.fn(), getFileContent: vi.fn(),
@@ -20,7 +22,7 @@ import Page from '../pages/ThesisEditPage.vue'
 
 enableAutoUnmount(afterEach)
 afterEach(() => vi.unstubAllEnvs())
-beforeEach(() => { vi.stubEnv('VITE_DEMO_MODE', 'false'); vi.resetAllMocks(); api.getMyDisciplines.mockResolvedValue([{code:'0812',name:'计算机科学与技术'}]) })
+beforeEach(() => { vi.stubEnv('VITE_DEMO_MODE', 'false'); vi.resetAllMocks(); programApi.studentPrograms.mockResolvedValue({catalog_id:null,items:[]}); api.getMyDisciplines.mockResolvedValue([{code:'0812',name:'计算机科学与技术'}]) })
 
 const historical = {
   id: 'old-thesis', stage: 'DRAFT', version: 1, return_reason: null,
@@ -130,4 +132,30 @@ it('does not check an old server file when the user removes the selected anonymo
   await wrapper.get('[data-run-sensitive]').trigger('click');await flushPromises()
   expect(api.checkSensitiveThesis).not.toHaveBeenCalled()
   expect(wrapper.text()).toContain('请先选择匿名 PDF 材料')
+})
+
+it('lists simultaneous missing materials and a closed discipline without blocking a suspended existing eligibility', async () => {
+  api.getMyDisciplines.mockResolvedValue([])
+  api.getThesis.mockResolvedValue({...historical, draft_eligibility_status:'SUSPENDED'})
+  const w = await page()
+  const panel = w.get('[data-submit-checklist]')
+  for (const text of ['资格已暂停','仍可提交','不在本校开放目录','请上传原始版','请上传匿名版']) expect(panel.text()).toContain(text)
+  await w.get('[data-action="open-submit-confirmation"]').trigger('click')
+  expect(w.find('[role=dialog]').exists()).toBe(false)
+})
+
+it('selects a local code by official name and sends its pinned catalog along with canonical discipline', async () => {
+  programApi.studentPrograms.mockResolvedValue({catalog_id:'catalog-b',items:[
+    {code:'0007',name:'虚构乙专业',official_code:'0812',official_name:'计算机科学与技术'}]})
+  api.createThesis.mockResolvedValue({...historical,id:'new-id'})
+  api.getThesis.mockResolvedValue({...historical,id:'new-id'})
+  const wrapper=await page('new')
+  await wrapper.get('[data-action="open-discipline"]').trigger('click')
+  await wrapper.get('input[type=search]').setValue('计算机')
+  await wrapper.get('[data-discipline="0007"]').trigger('click')
+  await wrapper.get('[data-action="create-selected-draft"]').trigger('click')
+  await flushPromises()
+  expect(api.createThesis.mock.calls[0]?.[0]).not.toHaveProperty('discipline_code')
+  expect(api.createThesis).toHaveBeenCalledWith(expect.objectContaining({
+    program:{catalog_id:'catalog-b',code:'0007'}}))
 })

@@ -16,7 +16,7 @@ export function studentVisibleStage(stage: string): StudentVisibleStage {
 }
 
 function filesFrom(detail: ThesisDetail): ThesisFileMeta[] {
-  return (detail.current_version?.files ?? []).map((file) => ({
+  return (detail.current_version?.files ?? []).filter(f => f.purpose === 'original' || f.purpose === 'anonymous').map((file) => ({
     id: file.file_id,
     name: file.filename,
     size: 0,
@@ -24,6 +24,12 @@ function filesFrom(detail: ThesisDetail): ThesisFileMeta[] {
     purpose: file.purpose === 'original' ? 'SCHOOL_ARCHIVE' : 'EXPERT_REVIEW',
     validationStatus: 'VALID',
   }))
+}
+
+function displayDiscipline(version:ThesisDetail['current_version']) {
+  const local=version?.school_program
+  const official=version?.discipline_name ?? ''
+  return {code:version?.discipline_code ?? '',name:local ? `${official} · 校内 ${local.code} ${local.name}` : official}
 }
 
 export function toStudentThesisDetail(detail: ThesisDetail): StudentThesisDetail {
@@ -38,7 +44,7 @@ export function toStudentThesisDetail(detail: ThesisDetail): StudentThesisDetail
     studentName: detail.student?.name ?? '',
     batchId: '',
     batchName: detail.batch_name ?? '',
-    discipline: { code: version?.discipline_code ?? '', name: version?.discipline_name ?? '' },
+    discipline: displayDiscipline(version),
     keywords: version?.keywords ?? [],
     originalFileName: files.find((file) => file.purpose === 'SCHOOL_ARCHIVE')?.name ?? '',
     anonymousFileName: files.find((file) => file.purpose === 'EXPERT_REVIEW')?.name ?? '',
@@ -96,7 +102,7 @@ export function toSchoolRow(detail: ThesisDetail): DemoThesisSummary {
     studentId: detail.student?.student_no ?? '',
     batchId: '',
     batchName: '',
-    discipline: { code: version?.discipline_code ?? '', name: version?.discipline_name ?? '' },
+    discipline: displayDiscipline(version),
     keywords: version?.keywords ?? [],
     originalFileName: '',
     anonymousFileName: '',

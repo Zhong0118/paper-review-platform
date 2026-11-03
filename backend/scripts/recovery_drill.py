@@ -336,10 +336,10 @@ def _database_snapshot(owned: OwnedResources) -> dict:
                             ))]
     finally:
         engine.dispose()
-    if ("alembic_version" not in tables or len(tables) - 1 != 36 or
+    if ("alembic_version" not in tables or len(tables) - 1 != 39 or
             any(not value["rls"] or not value["force_rls"] or value["owner"] != owned.owner_role
                 for name, value in tables.items() if name != "alembic_version")):
-        raise ValueError("expected 36 FORCE RLS business tables")
+        raise ValueError("expected 39 FORCE RLS business tables")
     if tables["users"]["grants"][owned.business_role]["password_hash_select"]:
         raise ValueError("business role can read password hashes")
     return {"tables": tables, "revision": revision, "file_rows": file_rows,

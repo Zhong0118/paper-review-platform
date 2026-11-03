@@ -275,6 +275,8 @@ def _check_batch_times(start_at: datetime | None, end_at: datetime | None) -> No
 
 
 async def serialize_batch(session: AsyncSession, batch: ReviewBatch) -> dict:
+    from app.modules.tenant.programs import binding
+    catalog_id = await binding(session,batch.id)
     actions = {
         "DRAFT": ["EDIT", "OPEN"],
         "OPEN": ["CLOSE_SUBMISSIONS"],
@@ -294,6 +296,7 @@ async def serialize_batch(session: AsyncSession, batch: ReviewBatch) -> dict:
         "id": str(batch.id), "code": batch.code, "name": batch.name,
         "status": batch.status, "start_at": batch.start_at.isoformat() if batch.start_at else None,
         "end_at": batch.end_at.isoformat() if batch.end_at else None,
+        "program_catalog_id": str(catalog_id) if catalog_id else None,
         "rule_version": batch.rule_version, "version": batch.version,
         "allowed_actions": actions,
     }

@@ -114,3 +114,13 @@ describe('real submit wiring adapters', () => {
     ).toEqual(['PUBLISH_RESULT'])
   })
 })
+
+it('does not turn a supporting attachment into an anonymous thesis file on the submission checklist', () => {
+  const mapped = toStudentThesisDetail({
+    id:'t',stage:'DRAFT',version:1,return_reason:null,allowed_actions:[],recent_events:[],
+    anonymization:{auto_conclusion:null,manual_conclusion:null,findings:[]},
+    current_version:{id:'v',title:'T',abstract:'a',discipline_code:'0812',discipline_name:'计算机科学与技术',keywords:['k'],
+      is_editable:true,files:[{file_id:'attachment',purpose:'attachment',filename:'appendix.pdf'}]},
+  })
+  expect(mapped.files).toEqual([])
+})

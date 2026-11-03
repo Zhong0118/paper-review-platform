@@ -1,0 +1,11 @@
+PASS school 1 invalid CSV rejected, valid preview published
+PASS school 1 batch version pinned
+PASS student 1 official and local search, same local code isolated, create and reload
+PASS school 1 sees local and official codes on its thesis
+PASS school 2 invalid CSV rejected, valid preview published
+PASS school 2 batch version pinned
+PASS student 2 official and local search, same local code isolated, create and reload
+PASS school 2 sees local and official codes on its thesis
+PASS school manual return creates one editable copy with the original file references and program
+PASS student reopens the returned draft with both original filenames and same program, edits, saves and reloads
+PASS no uncaught browser errors

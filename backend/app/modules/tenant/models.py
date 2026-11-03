@@ -42,6 +42,7 @@ class ReviewBatch(BaseModel):
     __tablename__ = "review_batches"
     __table_args__ = (
         UniqueConstraint("tenant_id", "code"),
+        UniqueConstraint('id','tenant_id',name='uq_program_batch_tenant'),
         Index("ix_batch_tenant_status_created", "tenant_id", "status", "created_at"),
     )
 
@@ -88,3 +89,40 @@ class SchoolDisciplineSettings(BaseModel):
     tenant_id: Mapped[UUID] = mapped_column(ForeignKey('tenants.id'), unique=True, nullable=False)
     codes: Mapped[list] = mapped_column(JSONB, nullable=False)
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+
+
+class SchoolProgramCatalog(BaseModel):
+    __tablename__ = 'school_program_catalogs'
+    __table_args__ = (UniqueConstraint('tenant_id','year','revision'), UniqueConstraint('id','tenant_id'))
+    tenant_id: Mapped[UUID] = mapped_column(ForeignKey('tenants.id'), nullable=False)
+    year: Mapped[int] = mapped_column(nullable=False)
+    revision: Mapped[int] = mapped_column(nullable=False)
+    source: Mapped[str] = mapped_column(String(512))
+    source_version: Mapped[str] = mapped_column(String(80))
+    published_by: Mapped[UUID] = mapped_column(ForeignKey('users.id'))
+    entries: Mapped[dict] = mapped_column(JSONB)
+
+
+class ThesisProgramChoice(BaseModel):
+    # Kept separate from the anonymous thesis version projection.
+    __tablename__ = 'thesis_program_choices'
+    __table_args__ = (
+        ForeignKeyConstraint(['catalog_id','tenant_id'],['school_program_catalogs.id','school_program_catalogs.tenant_id']),
+        ForeignKeyConstraint(['version_id','thesis_id','tenant_id'],['thesis_versions.id','thesis_versions.thesis_id','thesis_versions.tenant_id'],ondelete='CASCADE'),
+    )
+    version_id: Mapped[UUID] = mapped_column(unique=True)
+    thesis_id: Mapped[UUID]
+    tenant_id: Mapped[UUID]
+    catalog_id: Mapped[UUID]
+    code: Mapped[str] = mapped_column(String(40))
+
+
+class BatchProgramBinding(BaseModel):
+    __tablename__ = 'school_batch_programs'
+    __table_args__ = (
+        ForeignKeyConstraint(['catalog_id','tenant_id'],['school_program_catalogs.id','school_program_catalogs.tenant_id']),
+        ForeignKeyConstraint(['batch_id','tenant_id'],['review_batches.id','review_batches.tenant_id']),
+    )
+    tenant_id: Mapped[UUID]
+    batch_id: Mapped[UUID] = mapped_column(unique=True)
+    catalog_id: Mapped[UUID]

@@ -26,6 +26,10 @@ async def test_student_files_objection_after_publish(client: AsyncClient, seed):
     assert dup.status_code == 409
     listed = await client.get("/api/v1/school-review/objections", headers=auth(school))
     assert listed.status_code == 200
+    batch = (await client.get(f"/api/v1/school-review/theses/{thesis_id}",headers=auth(school))).json()["data"]["review_batch"]["id"]
+    closeout_url = f"/api/v1/school-admin/batches/{batch}/closeout"
+    work = (await client.get(closeout_url,headers=auth(school))).json()["data"]
+    assert [item["id"] for item in work["objections"]] == [listed.json()["data"][0]["id"]]
     obj_id = listed.json()["data"][0]["id"]
     assert listed.json()["data"][0]["student_name"] == "林知远"
     await client.post(f"/api/v1/school-review/objections/{obj_id}:start", headers=auth(school, idempotency="st-1"))
@@ -35,6 +39,7 @@ async def test_student_files_objection_after_publish(client: AsyncClient, seed):
         json={"channel": "OFFLINE", "conclusion": "维持原结果，已线下说明"},
     )
     assert resolved.json()["data"]["status"] == "RESOLVED"
+    assert not (await client.get(closeout_url,headers=auth(school))).json()["data"]["objections"]
     mine = await client.get(f"/api/v1/my/theses/{thesis_id}/objections", headers=auth(student))
     assert mine.json()["data"][0]["conclusion"] == "维持原结果，已线下说明"
     assert "周明远" not in mine.text

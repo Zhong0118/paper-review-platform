@@ -1,12 +1,13 @@
 <script setup lang="ts">
+import {useRoute} from 'vue-router'
 import TimeScopeSelect from '@/components/app/TimeScopeSelect.vue'
 import { useTimeScope } from '@/composables/useTimeScope'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import BlindRail from '@/components/app/BlindRail.vue'
 import PageHeader from '@/components/app/PageHeader.vue'
 import { useScenarioService } from '@/demo/serviceProvider'
-import { getSchoolResults, publishThesis, type ReviewOutcome } from '@/api/results'
-import { listSchoolTheses } from '@/api/schoolReview'
+import { downloadPublishedReview, getSchoolResults, publishThesis, type ReviewOutcome } from '@/api/results'
+import { getSchoolThesis,listSchoolTheses } from '@/api/schoolReview'
 import { selectSchoolResultQueue } from '@/api/adapters'
 import type { ThesisDetail } from '@/api/theses'
 import type { DemoPublishedResult } from '@/demo/types'
@@ -20,6 +21,8 @@ import ResultSummaryPanel from '../components/ResultSummaryPanel.vue'
 import RealCorrectionPanel from '../components/RealCorrectionPanel.vue'
 import ReviewOutcomeNotice from '../components/ReviewOutcomeNotice.vue'
 
+const route = useRoute()
+const target = computed(() => typeof route?.query.thesis === 'string' ? route.query.thesis : '')
 const timeScope = useTimeScope()
 const demoEnabled = import.meta.env.VITE_DEMO_MODE === 'true'
 const service = demoEnabled ? useScenarioService() : null
@@ -61,6 +64,7 @@ function mapItems(items: Array<{ alias: string; total: number; recommendation: s
 
 async function loadThesis(id: string) {
   const request = ++generation
+  exportError.value = ''
   thesisId.value = id
   rows.value = []
   summaryTotal.value = null
@@ -106,7 +110,7 @@ async function load() {
       published.value = snapshot.thesis.stage === 'COMPLETED'
       return
     }
-    const items = selectSchoolResultQueue(await listSchoolTheses(...timeScope.request()))
+    const items = selectSchoolResultQueue(target.value ? [await getSchoolThesis(target.value)] : await listSchoolTheses(...timeScope.request()))
     if (request !== generation) return
     queue.value = items
     const current = items.find(item => item.stage === 'RESULT_PROCESSING') ?? items[0]
@@ -134,7 +138,7 @@ async function publish() {
       return
     }
     await publishThesis(id, expectedVersion!, { idempotencyKey: crypto.randomUUID() })
-    const items = selectSchoolResultQueue(await listSchoolTheses(...timeScope.request()))
+    const items = selectSchoolResultQueue(target.value ? [await getSchoolThesis(target.value)] : await listSchoolTheses(...timeScope.request()))
     if (request !== generation) return
     queue.value = items
     await loadThesis(id)
@@ -145,13 +149,32 @@ async function publish() {
   }
 }
 
+const downloading = ref(false)
+const exportError = ref('')
+async function exportPdf() {
+  if (!published.value || downloading.value) return
+  const request = generation, identity = useAuthStore().user?.id
+  downloading.value = true
+  exportError.value = ''
+  try {
+    const {file, filename} = await downloadPublishedReview(thesisId.value)
+    if (request !== generation || identity !== useAuthStore().user?.id) return
+    const url = URL.createObjectURL(file)
+    const link = document.createElement('a')
+    link.href = url; link.download = filename; link.click()
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
+  } catch {
+    if (request === generation) exportError.value = '匿名评阅书下载失败，请重试。'
+  } finally { downloading.value = false }
+}
+
 function retry() {
   if (thesisId.value) void loadThesis(thesisId.value)
   else void load()
 }
 onMounted(load)
 onBeforeUnmount(() => { generation++ })
-watch([timeScope.scope, timeScope.identity], () => { if (!demoEnabled && useAuthStore().user) void load() })
+watch([timeScope.scope, timeScope.identity, target], () => { if (!demoEnabled && useAuthStore().user) void load() })
 </script>
 <template>
   <PortalLayout :menu-items="portalMenus('school_reviewer', demoEnabled)" active-path="/school/results" :context-label="demoEnabled ? '学校端 · 海岳大学' : '学校端 · ' + (useAuthStore().user?.tenantCode ?? '本校')" :user-name="useAuthStore().user?.displayName ?? '王老师'">
@@ -163,7 +186,8 @@ watch([timeScope.scope, timeScope.identity], () => { if (!demoEnabled && useAuth
           </button>
         </template>
       </PageHeader>
-      <TimeScopeSelect v-if="!demoEnabled" :model-value="timeScope.scope.value" :meta="timeScope.meta.value" @update:model-value="timeScope.setScope" />
+      <p v-if="target">正在查看收尾清单中的论文 · <RouterLink to="/school/results">返回完整列表</RouterLink></p>
+      <TimeScopeSelect v-if="!demoEnabled && !target" :model-value="timeScope.scope.value" :meta="timeScope.meta.value" @update:model-value="timeScope.setScope" />
       <BlindRail audience="本校论文、匿名任务序号与评阅汇总" hidden-from="专家姓名、联系方式和专家库档案" stage="单专家结果核对与发布" />
       <label v-if="!demoEnabled && queue.length" class="result-queue">
         待处理论文
@@ -181,11 +205,13 @@ watch([timeScope.scope, timeScope.identity], () => { if (!demoEnabled && useAuth
         <button data-action="retry-results" type="button" @click="retry">重新加载</button>
       </section>
       <template v-else-if="rows.length">
+        <button v-if="!demoEnabled && published" data-export-pdf type="button" :disabled="downloading" @click="exportPdf">下载已发布匿名评阅书</button>
+        <p v-if="exportError" role="alert">{{exportError}}</p>
         <ReviewOutcomeNotice v-if="!demoEnabled && outcome" :outcome="outcome" :rule-version="ruleVersion" />
         <ResultSummaryPanel :average="score" :conclusion="conclusion" :published="published" />
         <AnonymousResultTable :rows="rows" />
         <section v-if="!demoEnabled" aria-label="匿名评语检查摘要"><div v-for="item in checkSummaries" :key="item.alias"><strong>{{ item.alias }}</strong><ReviewCheckSummary :summary="item.summary" /></div></section>
-        <RealCorrectionPanel v-if="!demoEnabled && thesisId" :key="thesisId" mode="school" :thesis-id="thesisId" @changed="loadThesis(thesisId)" />
+        <RealCorrectionPanel v-if="!demoEnabled && thesisId" :key="thesisId" mode="school" :thesis-id="thesisId" :initial-correction-id="target && typeof route.query.correction === 'string' ? route.query.correction : undefined" @changed="loadThesis(thesisId)" />
       </template>
       <p v-else-if="demoEnabled || thesisId">尚未收到有效评阅意见，暂不能发布结果。</p>
     </div>

@@ -1,3 +1,4 @@
+import type {ProgramKey,SavedProgram} from './schoolPrograms'
 import type { SensitiveReport } from './sensitiveChecks'
 import { scopeOptions, type TimeScope, type TimeScopeReporter } from './timeScope'
 import { httpApi, type RequestOptions } from './request'
@@ -13,9 +14,11 @@ export interface ThesisDetail {
   stage: string
   version: number
   return_reason: string | null
+  draft_eligibility_status?: string | null
   allowed_actions: string[]
   anonymization: SensitiveReport
   current_version: {
+    school_program?: SavedProgram|null
     id: string
     title: string
     abstract: string
@@ -39,10 +42,11 @@ export interface ThesisDetail {
 }
 
 export interface DraftPayload {
+  program?:ProgramKey
   title: string
   abstract: string
-  discipline_code: string
-  discipline_name: string
+  discipline_code?: string
+  discipline_name?: string
   keywords: string[]
 }
 

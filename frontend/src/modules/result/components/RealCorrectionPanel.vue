@@ -7,7 +7,7 @@ import type { ReviewScoreInput } from '@/demo/types'
 import ReviewFormPane from '@/modules/review/components/ReviewFormPane.vue'
 import ReviewCheckSummary from '@/components/app/ReviewCheckSummary.vue'
 
-const props = defineProps<{ mode: 'expert' | 'platform' | 'school'; taskId?: string; thesisId?: string; dimensions?: ReviewRuleDimension[] }>()
+const props = defineProps<{ mode: 'expert' | 'platform' | 'school'; taskId?: string; thesisId?: string; initialCorrectionId?: string; dimensions?: ReviewRuleDimension[] }>()
 const emit = defineEmits<{ changed: [] }>()
 const rows = ref<Correction[]>([])
 const context = ref<TaskCorrections | null>(null)
@@ -21,7 +21,7 @@ const confirmation = ref<{ action: CorrectionAction; target: string; body: unkno
 let generation = 0
 let retryCommand: { signature: string; key: string } | null = null
 const visibleRows = computed(() => props.mode === 'school' && props.thesisId
-  ? rows.value.filter(row => row.thesis_id === props.thesisId) : rows.value)
+  ? rows.value.filter(row => row.thesis_id === props.thesisId && (!props.initialCorrectionId || row.id === props.initialCorrectionId)) : rows.value)
 const selected = computed(() => visibleRows.value.find(row => row.id === selectedId.value))
 const open = computed(() => rows.value.some(row => ['REQUESTED', 'APPROVED', 'AWAITING_SCHOOL'].includes(row.status)))
 const labels: Record<Correction['status'], string> = {
@@ -57,7 +57,7 @@ async function load() {
     if (own === generation) loading.value = false
   }
 }
-watch(() => [props.mode, props.taskId, props.thesisId], () => {
+watch(() => [props.mode, props.taskId, props.thesisId, props.initialCorrectionId], () => {
   rows.value = []; context.value = null; reason.value = ''; confirmation.value = null
   selectedId.value = ''; notice.value = ''; retryCommand = null
   void load()

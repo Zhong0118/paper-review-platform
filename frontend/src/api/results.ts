@@ -1,5 +1,5 @@
 import { scopeOptions, type TimeScope, type TimeScopeReporter } from './timeScope'
-import { httpApi, type RequestOptions } from './request'
+import http, { httpApi, type RequestOptions } from './request'
 import type { CheckSummary } from './reviewChecks'
 import type { ReviewRule } from './review'
 
@@ -51,4 +51,10 @@ export interface SupervisedPublishedThesis {
 
 export function listSupervisedPublishedTheses(scope?: TimeScope, report?: TimeScopeReporter) {
   return scope === undefined ? httpApi.get<SupervisedPublishedThesis[]>('/supervisor/theses/published') : httpApi.get<SupervisedPublishedThesis[]>('/supervisor/theses/published', scopeOptions(scope, report))
+}
+
+export async function downloadPublishedReview(id: string) {
+  const response = await http.get<Blob>(`/school-review/theses/${id}/published-review.pdf`, {responseType:'blob'})
+  const filename = /filename="(review-[a-f0-9]{8}-v\d+\.pdf)"/.exec(String(response.headers['content-disposition']))?.[1]
+  return {file: response.data, filename: filename ?? 'anonymous-review.pdf'}
 }

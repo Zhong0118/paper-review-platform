@@ -13,6 +13,10 @@ from tests.test_file_concurrency import independent_sessions
 async def test_published_snapshot_survives_current_summary_change(independent_sessions):
     sessions, client = independent_sessions
     student, school, _, thesis, _ = await submitted(client, sessions)
+    pdf_url = f"/api/v1/school-review/theses/{thesis['id']}/published-review.pdf"
+    pending = await client.get(pdf_url, headers=auth(school))
+    assert pending.status_code == 404
+    assert (await client.get(pdf_url, headers=auth(student))).status_code == 403
     reply = await client.post(
         f"/api/v1/school-review/theses/{thesis['id']}:publish",
         headers=auth(school), json={'version': thesis['version']})
@@ -24,6 +28,9 @@ async def test_published_snapshot_survives_current_summary_change(independent_se
         summary = (await session.execute(select(ResultSummary))).scalar_one()
         summary.total = 70
         await session.commit()
+    pdf = await client.get(pdf_url, headers=auth(school))
+    assert pdf.status_code == 200
+    assert f"总分：{before.json()['data']['total']}" in pdf_text(pdf)
     after = await client.get(url, headers=auth(student))
     assert after.status_code == 200, after.text
     assert after.json()['data'] == before.json()['data']
@@ -51,6 +58,20 @@ async def test_publication_contains_bound_immutable_snapshot(independent_session
         assert publication.snapshot['base_result_id']
         assert publication.snapshot['revision_id'] is None
         assert len(publication.snapshot['items']) == 1
+
+
+def pdf_text(response):
+    from io import BytesIO
+    from pypdf import PdfReader
+    assert response.headers['content-type'] == 'application/pdf'
+    assert response.headers['cache-control'] == 'no-store'
+    doc = PdfReader(BytesIO(response.content))
+    result = ''.join(page.extract_text() for page in doc.pages)
+    for private in ('周明远', 'expert.zhou', '专家私有申请理由', '学校私有核对理由'):
+        assert private not in result + str(doc.metadata) + response.headers['content-disposition']
+    for dimension in ('选题价值','文献与理论基础','研究方法','创新性','写作与学术规范','研究成果与工作量'):
+        assert dimension in result
+    return result
 
 
 @pytest.mark.asyncio
@@ -89,6 +110,16 @@ async def test_correction_requires_school_activation_with_real_rls():
             assert corrected.status_code == 200, corrected.text
             url = f'/api/v1/my/theses/{runtime.thesis_id}/published-result'
             before = await client.get(url, headers=auth(student))
+            batch = (await client.get(f'/api/v1/school-review/theses/{runtime.thesis_id}',headers=auth(school))).json()['data']['review_batch']['id']
+            closeout_url = f'/api/v1/school-admin/batches/{batch}/closeout'
+            work = (await client.get(closeout_url, headers=auth(school))).json()['data']
+            assert [row['id'] for row in work['corrections']] == [rid]
+            assert work['unpublished'] == []
+            pdf_url = f'/api/v1/school-review/theses/{runtime.thesis_id}/published-review.pdf'
+            exported = await client.get(pdf_url, headers=auth(school))
+            assert exported.status_code == 200
+            document = pdf_text(exported)
+            assert '总分：80' in document and '发布版本：1' in document
             assert before.json()['data']['total'] == 80
             assert before.json()['data'].get('correction_pending') is True
             async with runtime.session_factory() as session:
@@ -120,6 +151,12 @@ async def test_correction_requires_school_activation_with_real_rls():
                 await bind_candidate_identity(session, verified_access_claims(school['access_token']))
                 assert await session.scalar(text('SELECT count(*) FROM result_publications')) == 2
             after = await client.get(url, headers=auth(student))
+            assert not (await client.get(closeout_url, headers=auth(school))).json()['data']['corrections']
+            pdf_url = f'/api/v1/school-review/theses/{runtime.thesis_id}/published-review.pdf'
+            exported = await client.get(pdf_url, headers=auth(school))
+            assert exported.status_code == 200
+            document = pdf_text(exported)
+            assert '总分：90' in document and '发布版本：2' in document
             assert after.json()['data']['total'] == 90
             assert after.json()['data'].get('correction_pending') is False
             effective = await client.get(f'/api/v1/expert/tasks/{task}/result', headers=auth(expert))

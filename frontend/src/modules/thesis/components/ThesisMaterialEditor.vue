@@ -79,10 +79,10 @@ defineExpose({ focusField })
             @input="updateField('abstract', ($event.target as HTMLTextAreaElement).value)"
           ></textarea>
         </label>
-        <DisciplineSelector :options="disciplineOptions"
+        <slot name="discipline"><DisciplineSelector :options="disciplineOptions"
           :model-value="selectedDiscipline"
           @update:model-value="updateField('discipline', $event)"
-        />
+        /></slot>
         <KeywordTagInput
           :model-value="modelValue.keywords"
           @update:model-value="updateField('keywords', $event)"

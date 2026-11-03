@@ -86,7 +86,7 @@ async def test_runtime_sessions_have_only_their_own_schema_privileges(
           AND c.relname <> 'alembic_version'
     """), {"owner": roles.owner_role, "business": roles.business_role,
            "schema": roles.schema}).one()
-    assert count == 36
+    assert count == 39
     assert all_owned is True
     assert no_truncate is True
     assert no_references is True

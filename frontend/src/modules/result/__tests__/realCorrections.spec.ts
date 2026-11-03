@@ -88,3 +88,12 @@ it('offers explicit correction save and submit without an unwired exit action', 
   expect(wrapper.find('[data-action="save-review-draft"]').exists()).toBe(true)
   expect(wrapper.find('[data-action="exit-review"]').exists()).toBe(false)
 })
+
+it('opens the specific school correction linked by the closeout checklist even with another history row', async () => {
+  const {default:Panel} = await import('../components/RealCorrectionPanel.vue')
+  const row = {task_id:'task-a',thesis_id:'paper-a', status:'ACTIVATED', version:1, notes:[], revision:null}
+  api.listCorrections.mockResolvedValue([{...row,id:'old'}, {...row,id:'current',status:'AWAITING_SCHOOL'}])
+  const w = mount(Panel,{props:{mode:'school',thesisId:'paper-a',initialCorrectionId:'current'}})
+  await flushPromises()
+  expect((w.get('select').element as HTMLSelectElement).value).toBe('current')
+})

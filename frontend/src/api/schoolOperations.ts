@@ -6,6 +6,7 @@ export function getSchoolReviewRule() {
 }
 
 export interface ReviewBatch {
+  program_catalog_id?:string|null
   id: string
   code: string
   name: string
@@ -140,3 +141,7 @@ export function suspendEligibility(id: string, options: RequestOptions) {
 export function resumeEligibility(id: string, options: RequestOptions) {
   return httpApi.post<StudentEligibility>(`/school-admin/eligibilities/${id}:resume`, {}, options)
 }
+
+export interface CloseoutItem {id:string; thesis_id:string; title:string|null; status:string}
+export type BatchCloseout = Record<'unpublished'|'objections'|'corrections',CloseoutItem[]>
+export const getBatchCloseout = (id:string) => httpApi.get<BatchCloseout>(`/school-admin/batches/${id}/closeout`)

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import BatchProgramPin from '../components/BatchProgramPin.vue'
+import BatchCloseout from '../components/BatchCloseout.vue'
 import { onMounted, reactive, ref } from 'vue'
 import {
   archiveBatch, closeBatch, createBatch, getSchoolReviewRule, listBatches, openBatch, updateBatch,
@@ -16,6 +18,7 @@ const authStore = useAuthStore()
 const rows = ref<ReviewBatch[]>([])
 const rule = ref<ReviewRule | null>(null)
 const ruleError = ref('')
+const closeoutId = ref(''), programBatch = ref('')
 const loading = ref(!demoEnabled)
 const saving = ref(false)
 const listError = ref('')
@@ -169,11 +172,15 @@ onMounted(() => { void loadBatches(); void loadRule() })
             <span>{{ row.status }}</span><small>版本 {{ row.version }}</small>
             <small>{{ row.start_at ? new Date(row.start_at).toLocaleString() : '未设开始时间' }} — {{ row.end_at ? new Date(row.end_at).toLocaleString() : '未设结束时间' }}</small>
             <div class="actions">
+              <button type="button" :aria-expanded="programBatch === row.id" @click="programBatch = programBatch === row.id ? '' : row.id">{{row.program_catalog_id?'查看校内目录':'设置校内目录'}}</button>
+              <button type="button" :aria-expanded="closeoutId === row.id" @click="closeoutId = closeoutId === row.id ? '' : row.id">收尾核对</button>
               <button v-if="row.allowed_actions.includes('EDIT')" type="button" data-action="edit-batch" :disabled="saving" @click="openEdit(row)">编辑</button>
               <button v-if="row.allowed_actions.includes('OPEN')" type="button" data-action="open-batch" :disabled="saving" @click="runCommand(row, 'OPEN')">开放</button>
               <button v-if="row.allowed_actions.includes('CLOSE_SUBMISSIONS')" type="button" data-action="close-batch" :disabled="saving" @click="runCommand(row, 'CLOSE_SUBMISSIONS')">关闭提交</button>
               <button v-if="row.allowed_actions.includes('ARCHIVE')" type="button" data-action="archive-batch" :disabled="saving" @click="runCommand(row, 'ARCHIVE')">归档</button>
             </div>
+            <Transition name="closeout"><BatchProgramPin v-if="programBatch === row.id" :batch="row" @saved="loadBatches" /></Transition>
+            <Transition name="closeout"><BatchCloseout v-if="closeoutId === row.id" :batch-id="row.id" /></Transition>
           </article>
         </div>
         <section v-if="formMode" class="batch-form">
@@ -192,5 +199,6 @@ onMounted(() => { void loadBatches(); void loadRule() })
 </template>
 
 <style scoped>
+.closeout-enter-active,.closeout-leave-active{transition:opacity .16s,transform .16s}.closeout-enter-from,.closeout-leave-to{opacity:0;transform:translateY(-4px)}
 .rules-page{display:grid;gap:1.1rem;max-width:84rem}.rules-page :deep(.page-header__actions) button,.section-heading button,.batch-form .actions button:last-child{padding:.6rem .85rem;border:1px solid #1b4f8a;border-radius:.25rem;background:#1b4f8a;color:#fff;font-weight:650}.note{margin:0;padding:.8rem 1rem;border-left:4px solid #bd9a41;background:#fcf8ea;color:#5b4c2d;font-size:.78rem;line-height:1.5}.section-heading{display:flex;align-items:center;justify-content:space-between}.section-heading h2{margin:0;font-size:1.05rem}.batch-list,.rule-sheet,.batch-form{border:1px solid #d8e0e6;background:#fff}.batch-list article{display:grid;grid-template-columns:minmax(12rem,1.2fr) 9rem 6rem minmax(12rem,1fr) auto;gap:1rem;align-items:center;padding:1rem;border-bottom:1px solid #e6eaed}.batch-list article:last-child{border-bottom:0}.batch-list strong,.batch-list code{display:block}.batch-list code,.batch-list small{color:#6d7c87;font-size:.73rem}.actions{display:flex;gap:.45rem;flex-wrap:wrap}.actions button{border:1px solid #b8cbd9;border-radius:.25rem;background:#fff;color:#1b4f8a;padding:.45rem .7rem}.batch-form{display:grid;gap:.7rem;padding:1.1rem;max-width:34rem}.batch-form h2{margin:0;font-size:1rem}.batch-form label{display:grid;gap:.25rem;font-size:.78rem}.batch-form input{padding:.55rem;border:1px solid #b8c8d2;border-radius:.25rem;font:inherit}.empty{padding:1.1rem;border:1px dashed #cbd7df;color:#687681}.feedback{color:#28642d}.rule-sheet{padding:1rem}.rule-sheet h2{margin:.2rem 0}.score-rules{display:grid;grid-template-columns:repeat(6,1fr)}.score-rules article{display:grid;gap:.25rem;padding:.8rem;border-right:1px solid #e3e8ec}.score-rules strong{font-size:.72rem}.score-rules b{color:#1b4f8a;font-size:.75rem}button:disabled{opacity:.55;cursor:not-allowed}@media(max-width:950px){.batch-list article{grid-template-columns:1fr 1fr}.score-rules{grid-template-columns:repeat(2,1fr)}}
 </style>

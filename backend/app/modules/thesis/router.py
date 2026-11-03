@@ -239,6 +239,27 @@ class PublishInput(BaseModel):
     version: int
 
 
+@school_router.get("/theses/{thesis_id}/published-review.pdf")
+async def download_published_review(
+    thesis_id: UUID,
+    current: CurrentUser = Depends(require_roles(RoleCode.SCHOOL_REVIEWER)),
+    session: AsyncSession = Depends(get_session),
+):
+    from fastapi.responses import Response
+    from starlette.concurrency import run_in_threadpool
+    from app.modules.result.export_service import render_publication
+    from app.modules.result.service import latest_publication
+
+    thesis = await thesis_service.get_school_thesis(session, current, thesis_id)
+    _, publication = await latest_publication(session, thesis)
+    body = await run_in_threadpool(render_publication, publication.snapshot,
+                                   publication.publication_no, publication.published_at)
+    return Response(body, media_type="application/pdf", headers={
+        "Content-Disposition": f'attachment; filename="review-{str(thesis.current_version_id)[:8]}-v{publication.publication_no}.pdf"',
+        "Cache-Control": "no-store",
+    })
+
+
 @school_router.get("/theses/{thesis_id}/results")
 async def school_results(
     thesis_id: UUID,

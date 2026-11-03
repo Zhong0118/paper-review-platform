@@ -213,6 +213,8 @@ async def test_suspended_eligibility_blocks_new_draft_but_preserves_existing_dra
         headers=auth(school, "suspend-existing-draft"),
     )
     assert suspended_again.status_code == 200
+    owned = await client.get(f"/api/v1/theses/{thesis['id']}", headers=auth(student))
+    assert owned.json()["data"]["draft_eligibility_status"] == "SUSPENDED"
     assert await db_session.scalar(select(func.count()).select_from(Thesis)) == before_theses
     assert await db_session.scalar(select(func.count()).select_from(WorkflowEvent)) == before_events
     edited = await client.patch(f"/api/v1/theses/{thesis['id']}", headers=auth(student), json={

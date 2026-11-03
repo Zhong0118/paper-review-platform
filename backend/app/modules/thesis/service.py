@@ -12,6 +12,7 @@ from app.core.exceptions import AppError
 from app.modules.audit import service as audit_service
 from app.modules.auth.deps import CurrentUser
 from app.modules.files.models import FileObject
+from app.modules.tenant import programs
 from app.modules.tenant.models import DisciplineCatalog, Organization, ReviewBatch, Tenant
 from app.modules.thesis import sensitive_terms
 from app.modules.thesis.models import AnonymizationCheck, Thesis, ThesisVersion, ThesisVersionFile
@@ -22,10 +23,11 @@ from app.shared.enums import AnonymizationConclusion, FilePurpose, RoleCode, The
 
 
 class DraftInput(BaseModel):
+    program: programs.ProgramKey | None = None
     title: str = Field(min_length=1, max_length=255)
     abstract: str = ""
-    discipline_code: str
-    discipline_name: str
+    discipline_code: str | None = None
+    discipline_name: str | None = None
     keywords: list[str] = Field(default_factory=list)
 
 
@@ -218,6 +220,8 @@ async def serialize_thesis(session: AsyncSession, user: CurrentUser, thesis: The
         "allowed_actions": allowed_actions(
             user.role, thesis, check, submitted_before, has_open_objection=has_open_objection, stale_check=stale_check
         ),
+        **({"draft_eligibility_status": elig.status if elig else None}
+           if user.role == RoleCode.STUDENT and thesis.stage == ThesisStage.DRAFT else {}),
         "student": student_block,
         "batch_name": batch.name if batch else "",
         "review_batch": {
@@ -228,6 +232,8 @@ async def serialize_thesis(session: AsyncSession, user: CurrentUser, thesis: The
         "current_version": None
         if version is None
         else {
+            **({"school_program": await programs.display_choice(session,version.id)}
+               if user.role in {RoleCode.STUDENT,RoleCode.SCHOOL_REVIEWER} else {}),
             "id": str(version.id),
             "title": version.title,
             "abstract": version.abstract,
@@ -246,6 +252,7 @@ async def serialize_thesis(session: AsyncSession, user: CurrentUser, thesis: The
 
 async def create_draft(session: AsyncSession, user: CurrentUser, data: DraftInput) -> Thesis:
     elig = await _eligibility_for_student(session, user)
+    data.discipline_code,data.discipline_name = await programs.resolve(session,elig.review_batch_id,user.tenant_id,data.program,data.discipline_code,data.discipline_name,required=True)
     await _require_discipline(session, data.discipline_code, data.discipline_name)
     from app.modules.tenant.catalog_service import require_school_discipline
     await require_school_discipline(session, user.tenant_id, data.discipline_code)
@@ -285,6 +292,8 @@ async def create_draft(session: AsyncSession, user: CurrentUser, data: DraftInpu
     )
     session.add(version)
     await session.flush()
+    if data.program:
+        programs.store_choice(session,version,data.program)
     thesis.current_version_id = version.id
     await audit_service.record(
         session, user=user, action="create_draft", object_type="thesis", object_id=str(thesis.id)
@@ -341,7 +350,11 @@ async def patch_draft(session: AsyncSession, user: CurrentUser, thesis_id: UUID,
     version = await session.get(ThesisVersion, thesis.current_version_id, populate_existing=True)
     if version is None or not version.is_editable:
         raise AppError("STATE_TRANSITION_DENIED", 409, "当前版本不可编辑")
-    if (version.discipline_code,version.discipline_name) != (data.discipline_code,data.discipline_name):
+    changed = (version.discipline_code,version.discipline_name) != (data.discipline_code,data.discipline_name)
+    if changed or data.program:
+        data.discipline_code,data.discipline_name = await programs.resolve(session,thesis.review_batch_id,user.tenant_id,data.program,
+                               data.discipline_code,data.discipline_name,required=changed)
+    if changed:
         await _require_discipline(session, data.discipline_code, data.discipline_name)
         from app.modules.tenant.catalog_service import require_school_discipline
         await require_school_discipline(session, user.tenant_id, data.discipline_code)
@@ -351,6 +364,13 @@ async def patch_draft(session: AsyncSession, user: CurrentUser, thesis_id: UUID,
     version.discipline_name = data.discipline_name
     version.keywords = _normalize_keywords(data.keywords)
     await session.flush()
+    if data.program:
+        selected = await programs.choice(session,version.id)
+        if selected:
+            selected.code = data.program.code
+        else:
+            programs.store_choice(session,version,data.program)
+        await session.flush()
     return thesis
 
 
@@ -372,6 +392,9 @@ async def _clone_editable_version(session: AsyncSession, thesis: Thesis) -> Thes
     )
     session.add(new)
     await session.flush()
+    selected = await programs.choice(session,old.id)
+    if selected:
+        programs.store_choice(session,new,selected)
     files = (
         await session.execute(select(ThesisVersionFile).where(ThesisVersionFile.thesis_version_id == old.id))
     ).scalars()
@@ -400,6 +423,10 @@ async def submit(session: AsyncSession, user: CurrentUser, thesis_id: UUID, expe
     await _require_discipline(session, version.discipline_code, version.discipline_name)
     from app.modules.tenant.catalog_service import require_school_discipline
     await require_school_discipline(session, user.tenant_id, version.discipline_code)
+    selected = await programs.choice(session,version.id)
+    if selected:
+        await programs.resolve(session,locked.review_batch_id,user.tenant_id,selected,version.discipline_code,
+                               version.discipline_name,required=True)
     files = {
         link.purpose: link
         for link in (
@@ -575,8 +602,9 @@ async def confirm_anonymization(
             request_id=request_id,
         )
     elif body.decision == "REJECT":
-        if not body.reason:
+        if not (body.reason or "").strip():
             raise AppError("VALIDATION_FAILED", 422, "退回必须填写原因")
+        source_version_id = locked.current_version_id
         if check:
             check.manual_conclusion = AnonymizationConclusion.FAIL
         await workflow_service.transition(
@@ -589,7 +617,10 @@ async def confirm_anonymization(
             expected_version=body.version,
             request_id=request_id,
         )
-        await _clone_editable_version(session, locked)
+        # 0029 copies the old version and file links atomically with the stage change.
+        await session.refresh(locked, attribute_names=["current_version_id"])
+        if locked.current_version_id == source_version_id:
+            raise AppError("RETURN_COPY_UNAVAILABLE", 503, "退回版本未生成，请联系管理员核对数据库迁移后重试")
     else:
         raise AppError("VALIDATION_FAILED", 422, "无效的审核决定")
     await audit_service.record(
