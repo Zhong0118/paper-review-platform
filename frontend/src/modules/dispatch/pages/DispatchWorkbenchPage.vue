@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import ExtensionPanel from '../components/ExtensionPanel.vue'
+import { deadlineLabel } from "@/api/taskTiming"
 import TimeScopeSelect from '@/components/app/TimeScopeSelect.vue'
 import { useTimeScope } from '@/composables/useTimeScope'
 import { useOperationsDashboard } from '@/composables/useOperationsDashboard'
@@ -40,6 +42,8 @@ const selectedThesisId = ref('')
 const matches = ref<ExpertMatchCandidate[]>([])
 const candidateDetails = ref<Record<string, DispatchCandidate>>({})
 const reassignableTasks = ref<Record<string, { id: string; expert_id: string }>>({})
+const showExtensions=ref(false)
+const clockLabels = ref<Record<string,string>>({})
 const selectedReplacement = computed(() => reassignableTasks.value[selectedThesisId.value])
 const canReassign = computed(() => !demoEnabled && Boolean(selectedReplacement.value) && !loading.value && !candidatesLoading.value && !actionPending.value && selectedExpertIds.value.length === 1 && matches.value.some(row => row.id === selectedExpertIds.value[0] && !row.conflictHit && (candidateDetails.value[row.id]?.allowed_actions?.includes('REASSIGN_EXPERT') ?? true)))
 const selectedExpertIds = ref<string[]>([])
@@ -51,6 +55,7 @@ const actionError = ref('')
 const loading = ref(true)
 let candidateRequest = 0
 const candidatesLoading = ref(false)
+const candidateResultReady = ref(false)
 /** 移动端断点（≤900px）：候选专家列表切换为卡片视图，与专家库/任务列表一致。 */
 const isMobile = ref(false)
 
@@ -115,9 +120,10 @@ function candidateRows(): ExpertCandidate[] {
     avgCompletionDays: candidate.avgCompletionDays,
     feeStandard: candidate.feeStandard,
     matchReason: candidate.matchReason,
-    ...(!demoEnabled ? { matchScore: candidateDetails.value[candidate.id]?.match_score,
+    ...(!demoEnabled ? { workload: candidateDetails.value[candidate.id]?.workload, matchScore: candidateDetails.value[candidate.id]?.match_score,
       matchReasons: candidateDetails.value[candidate.id]?.match_reasons,
-      matchRuleVersion: candidateDetails.value[candidate.id]?.match_rule_version } : {}),
+      matchRuleVersion: candidateDetails.value[candidate.id]?.match_rule_version,
+      exclusionReasons: candidateDetails.value[candidate.id]?.unavailable_reasons } : {}),
   }))
 }
 
@@ -213,16 +219,19 @@ async function loadWorkbench(refreshMetrics = true) {
       dashboard.resetList()
       dispatchTheses.value = []
       ++candidateRequest
+      candidateResultReady.value = false
       selectedExpertIds.value = []
       matches.value = []
       candidateDetails.value = {}
       assigned.value = false
+      clockLabels.value={}
       reassignableTasks.value = {}
       const [scope, report] = timeScope.request()
       let listAsOf = ''
       const queue = await dispatchQueue(scope, meta => { report(meta); listAsOf = meta.asOf }, dashboard.status.value)
       if (request !== listGeneration) return
       dashboard.receiveList(['ALL', 'WAITING'].includes(dashboard.status.value) ? queue.length : queue.reduce((n, row) => n + (row.tasks?.length ?? 0), 0), listAsOf)
+      clockLabels.value=Object.fromEntries(queue.map(item=>[item.thesis_id,(item.tasks??[]).map(t=>deadlineLabel(t.status,t.deadline)).filter(Boolean).join(' · ')]))
       reassignableTasks.value = Object.fromEntries(queue.filter(item => item.allowed_actions.includes('REASSIGN_EXPERT') && item.reassignable_task).map(item => [item.thesis_id, item.reassignable_task!]))
       dispatchTheses.value = queue.map((item) => ({
         id: item.thesis_id,
@@ -276,9 +285,10 @@ async function selectThesis(thesisId: string, silent = false) {
   if (!silent) assigned.value = false
   matches.value = []
   candidateDetails.value = {}
-  if (!thesisId) return
+  candidateResultReady.value = false
+  const request = ++candidateRequest
+  if (!thesisId) { candidatesLoading.value = false; return }
   if (!demoEnabled) {
-    const request = ++candidateRequest
     candidatesLoading.value = true
     actionError.value = ''
     try {
@@ -294,7 +304,7 @@ async function selectThesis(thesisId: string, silent = false) {
         fields: row.research_directions ?? [],
         keywordHits: row.match_reasons?.filter(hit => hit.kind === 'keyword').map(hit => hit.tag) ?? [],
         conflictHit: Boolean(candidateUnavailableReason(row)) || row.expert_id === reassignableTasks.value[thesisId]?.expert_id,
-        conflictReason: row.expert_id === reassignableTasks.value[thesisId]?.expert_id ? '当前任务专家' : candidateUnavailableReason(row),
+        conflictReason: candidateUnavailableReason(row) || (row.expert_id === reassignableTasks.value[thesisId]?.expert_id ? '当前任务专家' : ''),
         activeTasks: 0,
         acceptanceRate: '—',
         onTimeRate: '—',
@@ -303,6 +313,7 @@ async function selectThesis(thesisId: string, silent = false) {
         matchReason: candidateUnavailableReason(row) || (row.allowed_actions?.includes('REASSIGN_EXPERT') ? '可改派' : '可派'),
       })) as unknown as ExpertMatchCandidate[]
       refreshRows()
+      candidateResultReady.value = true
     } catch (error) {
       if (request === candidateRequest) actionError.value = error instanceof Error ? error.message : '候选专家加载失败'
     } finally {
@@ -505,6 +516,8 @@ onBeforeUnmount(() => { listGeneration++; candidateRequest++ })
       <p v-if="actionError" role="alert" class="dispatch-page__error">{{ actionError }}</p>
       <p v-if="feedback" role="status" class="dispatch-page__feedback">{{ feedback }}</p>
 
+      <div v-if="!demoEnabled"><button type="button" :aria-expanded="showExtensions" @click="showExtensions=!showExtensions">评阅延期审批</button>
+        <Transition name="timing-panel"><ExtensionPanel v-if="showExtensions" @changed="loadWorkbench()" /></Transition></div>
       <TaskProgressSummary v-if="!demoEnabled" live :data="dashboard.data.value" :loading="dashboard.loading.value" :error="dashboard.error.value" @filter="showStatus" @retry="dashboard.load" />
       <div v-if="!demoEnabled" class="live-filter">
         <strong>{{ filterLabels[dashboard.status.value] }}</strong>
@@ -550,7 +563,7 @@ onBeforeUnmount(() => { listGeneration++; candidateRequest++ })
             <div v-if="!demoEnabled && Object.keys(reassignableTasks).length">
               <h3>待接单 / 评阅中（可改派）</h3>
               <button v-for="thesis in dispatchTheses.filter(row => reassignableTasks[row.id])" :key="thesis.id"
-                type="button" :data-thesis-id="thesis.id" @click="selectThesis(thesis.id)">{{ thesis.title }}</button>
+                type="button" :data-thesis-id="thesis.id" @click="selectThesis(thesis.id)">{{ thesis.title }} {{ clockLabels[thesis.id] }}</button>
             </div>
             <DispatchDetailPanel :thesis="selectedThesis" />
           </div>
@@ -571,6 +584,7 @@ onBeforeUnmount(() => { listGeneration++; candidateRequest++ })
                 :mobile="isMobile"
                 :show-demo-metrics="demoEnabled"
                 :show-ranking="!demoEnabled"
+                :result-ready="candidateResultReady"
               />
               <p v-else class="candidate-section__empty">请先选择一篇待派论文。</p>
             </section>
@@ -795,6 +809,8 @@ onBeforeUnmount(() => { listGeneration++; candidateRequest++ })
 </template>
 
 <style scoped>
+.timing-panel-enter-active,.timing-panel-leave-active{transition:opacity .18s,transform .18s}.timing-panel-enter-from,.timing-panel-leave-to{opacity:0;transform:translateY(3px)}
+
 .live-filter { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; padding: .9rem 1rem; border: 1px solid #dce3e9; background: white; }
 .live-filter > strong { margin-right: auto; color: #263744; }
 .live-filter > p { flex-basis: 100%; margin: .2rem 0 0; color: #687682; font-size: .75rem; }

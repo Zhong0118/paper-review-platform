@@ -4,6 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Header, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.modules.dispatch.deadlines import DeadlineInput, set_rule
 from app.core.response import ok
 from app.db.session import get_session
 from app.modules.audit import service as audit_service
@@ -318,3 +319,12 @@ async def resume_eligibility(
     session: AsyncSession = Depends(get_session), idempotency_key: str = Header(alias="Idempotency-Key"),
 ):
     return await _eligibility_command(eligibility_id, "ELIGIBLE", request, current, session, idempotency_key)
+
+@school_admin_router.put("/batches/{batch_id}/deadlines")
+async def deadlines(batch_id:UUID, body:DeadlineInput, request:Request,
+                    current:CurrentUser=Depends(require_roles(RoleCode.SCHOOL_REVIEWER)),
+                    session:AsyncSession=Depends(get_session)):
+    batch=await set_rule(session,current,batch_id,body,request.state.request_id)
+    data=await service.serialize_batch(session,batch)
+    await session.commit()
+    return ok(data, request_id=request.state.request_id)

@@ -3,7 +3,7 @@ from app.modules.review.rules import pilot_rule_snapshot
 from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AppError
@@ -12,6 +12,7 @@ from app.modules.auth.deps import CurrentUser
 from app.modules.auth.service import load_active_identity
 from app.modules.dispatch.models import ExpertTask, ReviewRound
 from app.modules.dispatch.candidate_ranking import rank_candidate
+from app.modules.dispatch.deadlines import clock_fields
 from app.modules.expert.models import Expert, ExpertConflict
 from app.modules.files.models import FileObject
 from app.modules.thesis.models import Thesis, ThesisVersion, ThesisVersionFile
@@ -128,10 +129,21 @@ async def list_candidates(session: AsyncSession, user: CurrentUser, thesis_id: U
         ExpertTask.status.in_([ExpertTaskStatus.INVITED,ExpertTaskStatus.IN_REVIEW,ExpertTaskStatus.SUBMITTED])))).first() if round_ else None
     metadata={field:getattr(version,field) for field in ('title','abstract','keywords')} if version else {}
     experts = (await session.execute(select(Expert, User).join(User, User.id == Expert.user_id))).all()
+    load_counts = (await session.execute(
+        select(ExpertTask.expert_id, func.count().filter(ExpertTask.status == 'INVITED'),
+               func.count().filter(ExpertTask.status == 'IN_REVIEW'))
+        .join(ReviewRound, ReviewRound.id == ExpertTask.round_id)
+        .join(Thesis, Thesis.id == ExpertTask.thesis_id)
+        .where(ExpertTask.status.in_(('INVITED', 'IN_REVIEW')), ReviewRound.status == 'ACTIVE',
+               Thesis.stage == 'UNDER_REVIEW', ReviewRound.thesis_version_id == Thesis.current_version_id)
+        .group_by(ExpertTask.expert_id)
+    )).all()
+    loads = {eid: (inv, rev) for eid, inv, rev in load_counts}
     items = []
     for expert, usr in experts:
         if not await _active_expert_user(session, usr.id):
             continue
+        invited, reviewing = loads.get(expert.id, (0, 0))
         codes = expert.discipline_codes or []
         mismatch = version is not None and version.discipline_code not in codes
         avoided = await _avoided(session, expert.id, usr.display_name, supervisor_name, thesis.tenant_id)
@@ -157,6 +169,7 @@ async def list_candidates(session: AsyncSession, user: CurrentUser, thesis_id: U
                 'hard_allowed':bool(actions),'allowed_actions':actions,'unavailable_reasons':reasons,
                 'unit':expert.unit,'title':expert.title,'research_directions':expert.research_directions,
                 "expert_id": str(expert.id),
+                "workload": {"invited": invited, "in_review": reviewing, "total": invited + reviewing},
                 "username": usr.username,
                 "display_name": usr.display_name,
                 "discipline_codes": codes,
@@ -325,19 +338,19 @@ async def reject_task(session: AsyncSession, user: CurrentUser, task_id: UUID, r
 
 async def list_expert_tasks(session: AsyncSession, user: CurrentUser, *, time_scope="all", as_of=None) -> list[dict]:
     expert = await expert_for_user(session, user.id)
-    query = select(ExpertTask).where(ExpertTask.expert_id == expert.id)
+    query = select(ExpertTask, func.approved_extension_due(ExpertTask.id)).where(ExpertTask.expert_id == expert.id)
     lower, upper = resolve_time_scope(time_scope, as_of if as_of is not None else utc_now())
     if lower is not None:
-        from sqlalchemy import func
         query = query.where(func.task_thesis_in_period(ExpertTask.id, lower, upper))
-    tasks = list((await session.execute(query)).scalars())
+    tasks = (await session.execute(query)).all()
     items = []
-    for task in tasks:
+    for task, extended_due in tasks:
         round_ = await session.get(ReviewRound, task.round_id)
         items.append(
             {
                 "id": str(task.id),
                 "status": task.status,
+                **clock_fields(task,upper,extended_due),
                 "anonymous_id": str(task.id)[:8],
                 "anonymous_title": (round_.anonymous_title if round_ else "匿名论文") or "匿名论文",
                 "discipline_code": round_.discipline_code if round_ else "",
@@ -362,6 +375,7 @@ async def invitation(session: AsyncSession, user: CurrentUser, task_id: UUID) ->
         "discipline_name": round_.discipline_name if round_ else "",
         "anonymous_title": (round_.anonymous_title if round_ else "匿名论文") or "匿名论文",
         "anonymous_id": str(task.id)[:8],
+        **clock_fields(task,utc_now(),await session.scalar(select(func.approved_extension_due(task.id)))),
         "fee": "未启用",
     }
 
@@ -407,11 +421,12 @@ async def school_progress(session: AsyncSession, thesis: Thesis) -> dict:
         tasks = list(
             (
                 await session.execute(
-                    select(ExpertTask).where(ExpertTask.round_id == round_.id).order_by(ExpertTask.invited_at.asc())
+                    select(ExpertTask,func.approved_extension_due(ExpertTask.id)).where(ExpertTask.round_id == round_.id).order_by(ExpertTask.invited_at.asc(), ExpertTask.id)
                 )
-            ).scalars()
+            ).all()
         )
-        for index, task in enumerate(tasks, start=1):
+        as_of = utc_now()
+        for index, (task, extended) in enumerate(tasks, start=1):
             if task.status == ExpertTaskStatus.INVITED:
                 counts["invited_count"] += 1
             elif task.status == ExpertTaskStatus.IN_REVIEW:
@@ -420,7 +435,7 @@ async def school_progress(session: AsyncSession, thesis: Thesis) -> dict:
                 counts["submitted_count"] += 1
             elif task.status == ExpertTaskStatus.REJECTED:
                 counts["rejected_count"] += 1
-            aliases.append({"alias": f"T-{index:03d}", "status": task.status})
+            aliases.append({"alias": f"T-{index:03d}", "status": task.status, **clock_fields(task,as_of,extended,include_original=False)})
     return {
         "thesis_id": str(thesis.id),
         "stage": thesis.stage,
@@ -446,15 +461,15 @@ async def school_progress_list(session: AsyncSession, user: CurrentUser, *, time
         item.update({key: sum(t['status'] == status for t in tasks) for key, status in (
             ('invited_count', 'INVITED'), ('in_review_count', 'IN_REVIEW'),
             ('submitted_count', 'SUBMITTED'), ('rejected_count', 'REJECTED'))})
-        item['tasks'] = [{'alias': f'T-{index:03d}', 'status': t['status']}
+        item['tasks'] = [{'alias': f'T-{index:03d}', 'status': t['status'], **({'deadline':t['deadline']} if 'deadline' in t else {})}
                          for index, t in enumerate(tasks, start=1)
                          if status_filter == 'ALL' or t['status'] == status_filter]
         items.append(item)
     filtered_count = len(items) if status_filter in ('ALL', 'WAITING') else sum(len(r['tasks']) for r in items)
     return {'items': items, 'totals': {
         'waiting': cards['waiting_theses'], 'reviewing': cards['invited_tasks'] + cards['in_review_tasks'],
-        'completed': cards['submitted_tasks'], 'rejected': sum(r['rejected_count'] for r in items), 'overdue': None,
-    }, 'overdue_status': 'NOT_CONFIGURED', 'as_of': as_of.isoformat(), 'status_filter': status_filter, 'filtered_count': filtered_count}
+        'completed': cards['submitted_tasks'], 'rejected': sum(r['rejected_count'] for r in items), 'overdue': cards['overdue_tasks'],
+    }, 'overdue_status': 'CONFIGURED' if cards['overdue_tasks'] is not None else 'NOT_CONFIGURED', 'as_of': as_of.isoformat(), 'status_filter': status_filter, 'filtered_count': filtered_count}
 
 
 async def dispatch_queue(session: AsyncSession, user: CurrentUser, *, time_scope="all", as_of=None, status_filter="ALL") -> list[dict]:
@@ -478,7 +493,7 @@ async def dispatch_queue(session: AsyncSession, user: CurrentUser, *, time_scope
             **{k: row[k] for k in ('thesis_id', 'stage', 'title', 'student_name', 'discipline_code')},
             'allowed_actions': ['ASSIGN_EXPERT'] if row['waiting'] else (['REASSIGN_EXPERT'] if replacement else []),
             'reassignable_task': {k: replacement[k] for k in ('id', 'expert_id')} if replacement else None,
-            'tasks': [{'status': t['status']} for t in row['tasks']
+            'tasks': [{'status': t['status'], **({'deadline':t['deadline']} if 'deadline' in t else {})} for t in row['tasks']
                       if t['status'] in ('INVITED', 'IN_REVIEW', 'SUBMITTED') and (status_filter == 'ALL' or t['status'] == status_filter)],
         })
     return items

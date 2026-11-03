@@ -6,6 +6,8 @@ export function getSchoolReviewRule() {
 }
 
 export interface ReviewBatch {
+  accept_days?:number|null
+  review_days?:number|null
   program_catalog_id?:string|null
   id: string
   code: string
@@ -145,3 +147,6 @@ export function resumeEligibility(id: string, options: RequestOptions) {
 export interface CloseoutItem {id:string; thesis_id:string; title:string|null; status:string}
 export type BatchCloseout = Record<'unpublished'|'objections'|'corrections',CloseoutItem[]>
 export const getBatchCloseout = (id:string) => httpApi.get<BatchCloseout>(`/school-admin/batches/${id}/closeout`)
+
+export const saveDeadlines=(id:string,version:number,accept:number|null,review:number|null)=>
+  httpApi.put<ReviewBatch>(`/school-admin/batches/${id}/deadlines`,{expected_version:version,accept_days:accept,review_days:review})

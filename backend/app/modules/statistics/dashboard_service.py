@@ -7,7 +7,8 @@ async def dashboard(session, user, scope, *, scores=False):
     rows = await operation_rows(session, user, time_scope=scope.scope, as_of=scope.as_of, scores=scores)
     lower, upper = resolve_time_scope(scope.scope, scope.as_of)
     data = dict(as_of=upper.isoformat(), time_scope=scope.scope, time_from=lower.isoformat() if lower else None,
-                cards=card_counts(rows), overdue_status='NOT_CONFIGURED')
+                cards=card_counts(rows))
+    data['overdue_status']='CONFIGURED' if data['cards']['overdue_tasks'] is not None else 'NOT_CONFIGURED'
     if scores:
         bands = [{'code': code, 'count': 0} for code in ('0-59', '60-79', '80-100')]
         for row in rows:

@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import BlindRail from '@/components/app/BlindRail.vue'
 import PageHeader from '@/components/app/PageHeader.vue'
 import { useScenarioService } from '@/demo/serviceProvider'
+import { beijingTime } from '@/api/taskTiming'
 import { acceptTask, getInvitation, listExpertTasks, rejectTask } from '@/api/expertTasks'
 import type { ExpertTaskSummary } from '@/demo/types'
 import PortalLayout from '@/layouts/PortalLayout.vue'
@@ -68,6 +69,8 @@ onMounted(async () => {
         task.value = {
           ...(task.value as ExpertTaskSummary),
           anonymousId: invitation.anonymous_id,
+          acceptBy: beijingTime(invitation.deadline?.accept_due_at),
+          overdue: invitation.deadline?.overdue ?? false,
           anonymousTitle: invitation.anonymous_title || '匿名论文',
           discipline: { code: invitation.discipline_code, name: invitation.discipline_name },
         } as ExpertTaskSummary
@@ -253,9 +256,9 @@ async function confirmReject() {
             <dt>匹配说明</dt>
             <dd>{{ task.matchNote }}</dd>
           </div>
-          <div v-if="demoEnabled">
-            <dt>接单截止</dt>
-            <dd><time>{{ task.acceptBy }}</time></dd>
+          <div v-if="demoEnabled || task.acceptBy">
+            <dt>接单截止{{ demoEnabled ? '' : '（北京时间）' }}</dt>
+            <dd><time>{{ task.acceptBy }}</time>{{ !demoEnabled && task.overdue ? ' · 已逾期' : '' }}</dd>
           </div>
           <div v-if="demoEnabled">
             <dt>评阅截止</dt>

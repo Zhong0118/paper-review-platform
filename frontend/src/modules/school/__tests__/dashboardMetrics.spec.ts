@@ -31,7 +31,7 @@ it('renders units, real score bands, denominator and unconfigured overdue', asyn
   const { wrapper } = await page()
   expect(wrapper.get('[data-dashboard-card="waiting_theses"]').text()).toContain('2')
   expect(wrapper.get('[data-dashboard-card="invited_tasks"]').text()).toContain('邀请中任务')
-  expect(wrapper.text()).toContain('未配置截止规则，暂不统计')
+  expect(wrapper.text()).toContain('当前范围无已配置截止的活动任务，暂不统计')
   expect(wrapper.get('[data-score-distribution]').text()).toContain('已发布论文 4 篇')
   expect(wrapper.findAll('[data-score-band]').map(x => x.attributes('data-score-band'))).toEqual(['0-59', '60-79', '80-100'])
   expect(wrapper.text()).toContain('2026')

@@ -10,6 +10,7 @@ from app.core.response import ok
 from app.db.session import get_session
 from app.modules.auth.deps import CurrentUser, require_roles
 from app.modules.dispatch import service as dispatch_service
+from app.modules.dispatch import extensions
 from app.modules.review.service import ReviewPayload, ReviewSubmission
 from app.modules.review import service as review_service
 from app.modules.thesis import service as thesis_service
@@ -237,3 +238,34 @@ async def expert_rules(
     if round_ is None:
         raise AppError("RESOURCE_NOT_FOUND", 404, "资源不存在或不可见")
     return ok(validate_rule_snapshot(round_.rule_snapshot), request_id=getattr(request.state, "request_id", None))
+
+
+@expert_router.get('/tasks/{task_id}/extensions')
+async def extension_history(task_id: UUID, request: Request, current: CurrentUser = Depends(require_roles(RoleCode.EXPERT)),
+                            session: AsyncSession = Depends(get_session)):
+    await dispatch_service.get_task_for_expert(session, current, task_id)
+    return ok(await extensions.history(session, task_id), request_id=request.state.request_id)
+
+
+@expert_router.post('/tasks/{task_id}/extensions')
+async def extension_request(task_id: UUID, body: extensions.RequestExtension, request: Request,
+                            current: CurrentUser = Depends(require_roles(RoleCode.EXPERT)),
+                            session: AsyncSession = Depends(get_session),
+                            key: str | None = Header(None, alias='Idempotency-Key')):
+    data = await extensions.request_extension(session, current, task_id, body, key, request.state.request_id)
+    return ok(data, request_id=request.state.request_id)
+
+
+@platform_router.get('/task-extensions')
+async def platform_extensions(request: Request, current: CurrentUser = Depends(require_roles(RoleCode.PLATFORM_REVIEWER)),
+                              session: AsyncSession = Depends(get_session)):
+    return ok(await extensions.history(session), request_id=request.state.request_id)
+
+
+@platform_router.post('/task-extensions/{extension_id}:decide')
+async def extension_decision(extension_id: UUID, body: extensions.DecideExtension, request: Request,
+                             current: CurrentUser = Depends(require_roles(RoleCode.PLATFORM_REVIEWER)),
+                             session: AsyncSession = Depends(get_session),
+                             key: str | None = Header(None, alias='Idempotency-Key')):
+    data = await extensions.decide(session, current, extension_id, body, key, request.state.request_id)
+    return ok(data, request_id=request.state.request_id)

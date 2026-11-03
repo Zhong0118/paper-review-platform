@@ -5,8 +5,8 @@ export interface Dashboard {
   as_of: string
   time_scope: TimeScope
   time_from: string | null
-  cards: { waiting_theses: number; invited_tasks: number; in_review_tasks: number; submitted_tasks: number; overdue_tasks: null }
-  overdue_status: 'NOT_CONFIGURED'
+  cards: { waiting_theses: number; invited_tasks: number; in_review_tasks: number; submitted_tasks: number; overdue_tasks: number|null }
+  overdue_status: 'NOT_CONFIGURED'|'CONFIGURED'
   published_count?: number
   published_score_bands?: Array<{ code: string; count: number }>
 }

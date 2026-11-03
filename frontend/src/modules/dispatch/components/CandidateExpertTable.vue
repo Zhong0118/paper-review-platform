@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import type { MatchReason } from '@/api/dispatch'
+import type { DispatchCandidate, MatchReason } from '@/api/dispatch'
 import ColumnPreferences from '@/components/app/ColumnPreferences.vue'
 import { useColumnPreferences, type ColumnIdentity } from '@/composables/useColumnPreferences'
 import ConflictReason from './ConflictReason.vue'
@@ -19,7 +19,9 @@ export interface ExpertCandidate {
   fields: string[]
   keywordHits: string[]
   conflictHit: boolean
+  exclusionReasons?: string[]
   conflictReason?: string
+  workload?: DispatchCandidate['workload']
   activeTasks: number
   acceptanceRate: string
   onTimeRate: string
@@ -33,6 +35,7 @@ const props = defineProps<{
   modelValue: string[]
   showDemoMetrics?: boolean
   showRanking?: boolean
+  resultReady?: boolean
   /** 移动断点由页面传入；真实模式保留横向表格，演示模式使用卡片。 */
   mobile?: boolean
   preferenceIdentity?: ColumnIdentity | null
@@ -40,6 +43,15 @@ const props = defineProps<{
 const showUnavailable = ref(false)
 const blockedCount = computed(() => props.rows.filter(row => row.conflictHit).length)
 const visibleRows = computed(() => props.showRanking && !showUnavailable.value ? props.rows.filter(row => !row.conflictHit) : props.rows)
+const exclusions = computed(() => {
+  if (!props.resultReady || props.rows.some(row => !row.conflictHit)) return null
+  const counts = new Map<string, number>()
+  for (const row of props.rows) {
+    const reasons = row.exclusionReasons?.length ? row.exclusionReasons : [row.conflictReason || '当前不可派']
+    for (const reason of new Set(reasons)) counts.set(reason, (counts.get(reason) ?? 0) + 1)
+  }
+  return [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'zh'))
+})
 const preferences = useColumnPreferences('dispatch-candidates', 1, () => [
   ...(!props.preferenceIdentity ? [{ id: 'selection', label: '选择', required: true, defaultVisible: true }] : []),
   { id: 'expert', label: '专家', required: true, defaultVisible: true },
@@ -48,6 +60,7 @@ const preferences = useColumnPreferences('dispatch-candidates', 1, () => [
   ...(props.showRanking ? [{ id: 'ranking', label: '规则排序分', required: false, defaultVisible: true }] : []),
   { id: 'fields', label: '擅长领域', required: false, defaultVisible: true },
   { id: 'keywords', label: '关键词命中', required: false, defaultVisible: true },
+  ...(props.showRanking ? [{ id: 'workload', label: '任务负荷', required: false, defaultVisible: true }] : []),
   ...(props.showDemoMetrics ? [
     { id: 'load', label: '当前负载', required: false, defaultVisible: true },
     { id: 'acceptance', label: '接单率', required: false, defaultVisible: true },
@@ -55,7 +68,7 @@ const preferences = useColumnPreferences('dispatch-candidates', 1, () => [
     { id: 'average', label: '平均完成时间', required: false, defaultVisible: true },
     { id: 'fee', label: '费用标准', required: false, defaultVisible: true },
   ] : []),
-  { id: 'conflict', label: '回避校验', required: false, defaultVisible: true },
+  { id: 'conflict', label: props.showRanking ? '派单资格' : '回避校验', required: false, defaultVisible: true },
   ...(props.preferenceIdentity ? [{ id: 'actions', label: '选择', required: true, defaultVisible: true }] : []),
 ], () => props.preferenceIdentity ?? null)
 const { visibleColumns } = preferences
@@ -72,7 +85,19 @@ function toggle(id: string, checked: boolean) {
     <p>规则排序分 · {{ rows[0]?.matchRuleVersion ?? '待刷新' }} · 方向每项3分（最多15）关键词每项2分（最多10）</p>
     <p>0分表示缺少匹配线索 不代表不合格 分数不是准确率或概率 最终由平台人工确认</p>
     <button v-if="blockedCount" type="button" data-toggle-unavailable :aria-expanded="showUnavailable" @click="showUnavailable = !showUnavailable">{{ showUnavailable ? '收起' : '查看' }}不可派候选（{{ blockedCount }}）</button>
-    <p v-if="!visibleRows.length">当前没有可选候选</p>
+    <Transition name="ranking-rows">
+      <div v-if="exclusions" class="exclusions" data-candidate-exclusions role="status">
+        <template v-if="rows.length">
+          <strong>{{ rows.length }} 位候选均不可派</strong>
+          <ul><li v-for="[reason, count] in exclusions" :key="reason">{{ reason }}：{{ count }} 人</li></ul>
+          <p>同一人可能命中多项原因。展开不可派候选可核对个人情况。</p>
+        </template>
+        <template v-else>
+          <strong>本次查询未返回候选</strong>
+          <p>请在专家库核对是否已有专家档案及有效专家账号。</p>
+        </template>
+      </div>
+    </Transition>
   </section>
   <ColumnPreferences v-if="preferenceIdentity" :preferences="preferences" label="候选专家" />
   <div v-if="!mobile || preferenceIdentity" class="candidate-table-wrap">
@@ -99,12 +124,13 @@ function toggle(id: string, checked: boolean) {
             <template v-else-if="column.id === 'keywords'">
               <span v-if="row.keywordHits.length > 0"><span v-for="keyword in row.keywordHits" :key="keyword" class="tag hit">{{ keyword }}</span></span><small v-else>无直接命中</small>
             </template>
+            <template v-else-if="column.id === 'workload'"><template v-if="row.workload">待接单 {{ row.workload.invited }} · 评阅中 {{ row.workload.in_review }} · 合计 {{ row.workload.total }}</template><template v-else>—</template></template>
             <template v-else-if="column.id === 'load'">{{ row.activeTasks }} 个</template>
             <template v-else-if="column.id === 'acceptance'">{{ row.acceptanceRate }}</template>
             <template v-else-if="column.id === 'onTime'">{{ row.onTimeRate }}</template>
             <template v-else-if="column.id === 'average'">{{ row.avgCompletionDays }} 天</template>
             <template v-else-if="column.id === 'fee'">¥ {{ Number(row.feeStandard).toFixed(2) }}</template>
-            <ConflictReason v-else-if="column.id === 'conflict'" :hit="row.conflictHit" :reason="row.conflictReason" />
+            <ConflictReason v-else-if="column.id === 'conflict'" :availability="showRanking" :hit="row.conflictHit" :reason="row.conflictReason" />
           </td>
         </TransitionGroup>
       </TransitionGroup>
@@ -190,6 +216,8 @@ function toggle(id: string, checked: boolean) {
 
 <style scoped>
 .ranking-note { padding: .8rem; background: #f1f6fd; color: #334155; font-size: .75rem; line-height: 1.7; animation: rank-in .18s ease; }
+.exclusions { margin-top: .6rem; padding: .65rem .85rem; background: white; border-left: 3px solid #33659c; }
+.exclusions ul { display: flex; flex-wrap: wrap; gap: .25rem 1.25rem; padding: 0; list-style: none; }
 .ranking-note button { margin-top: .4rem; padding: .35rem .7rem; border: 1px solid #cbd5e1; border-radius: .3rem; background: white; transition: background .18s, transform .18s; cursor: pointer; }
 .ranking-note button:hover { background: #dbeafe; transform: translateY(-1px); }
 .ranking-note button:active { transform: scale(.98); }

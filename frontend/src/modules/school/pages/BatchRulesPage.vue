@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import BatchDeadlines from "../components/BatchDeadlines.vue"
 import BatchProgramPin from '../components/BatchProgramPin.vue'
 import BatchCloseout from '../components/BatchCloseout.vue'
 import { onMounted, reactive, ref } from 'vue'
@@ -18,7 +19,7 @@ const authStore = useAuthStore()
 const rows = ref<ReviewBatch[]>([])
 const rule = ref<ReviewRule | null>(null)
 const ruleError = ref('')
-const closeoutId = ref(''), programBatch = ref('')
+const closeoutId = ref(''), programBatch = ref(''), clockBatch = ref('')
 const loading = ref(!demoEnabled)
 const saving = ref(false)
 const listError = ref('')
@@ -172,6 +173,8 @@ onMounted(() => { void loadBatches(); void loadRule() })
             <span>{{ row.status }}</span><small>版本 {{ row.version }}</small>
             <small>{{ row.start_at ? new Date(row.start_at).toLocaleString() : '未设开始时间' }} — {{ row.end_at ? new Date(row.end_at).toLocaleString() : '未设结束时间' }}</small>
             <div class="actions">
+              <small>接单 {{row.accept_days ? row.accept_days+' 天' : '不限期'}} · 评阅 {{row.review_days ? row.review_days+' 天' : '不限期'}}</small>
+              <button v-if="['OPEN','DRAFT'].includes(row.status)" type="button" @click="clockBatch=clockBatch===row.id?'':row.id">设置期限</button>
               <button type="button" :aria-expanded="programBatch === row.id" @click="programBatch = programBatch === row.id ? '' : row.id">{{row.program_catalog_id?'查看校内目录':'设置校内目录'}}</button>
               <button type="button" :aria-expanded="closeoutId === row.id" @click="closeoutId = closeoutId === row.id ? '' : row.id">收尾核对</button>
               <button v-if="row.allowed_actions.includes('EDIT')" type="button" data-action="edit-batch" :disabled="saving" @click="openEdit(row)">编辑</button>
@@ -179,6 +182,7 @@ onMounted(() => { void loadBatches(); void loadRule() })
               <button v-if="row.allowed_actions.includes('CLOSE_SUBMISSIONS')" type="button" data-action="close-batch" :disabled="saving" @click="runCommand(row, 'CLOSE_SUBMISSIONS')">关闭提交</button>
               <button v-if="row.allowed_actions.includes('ARCHIVE')" type="button" data-action="archive-batch" :disabled="saving" @click="runCommand(row, 'ARCHIVE')">归档</button>
             </div>
+            <Transition name="closeout"><BatchDeadlines v-if="clockBatch===row.id" :batch="row" @saved="clockBatch='';loadBatches()" /></Transition>
             <Transition name="closeout"><BatchProgramPin v-if="programBatch === row.id" :batch="row" @saved="loadBatches" /></Transition>
             <Transition name="closeout"><BatchCloseout v-if="closeoutId === row.id" :batch-id="row.id" /></Transition>
           </article>

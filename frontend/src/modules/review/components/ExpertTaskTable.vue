@@ -13,6 +13,7 @@ const props = defineProps<{
 defineEmits<{
   accept: [task: ExpertTaskSummary]
   reject: [task: ExpertTaskSummary]
+  extensions: [task: ExpertTaskSummary]
 }>()
 
 const statusLabels: Record<ExpertTaskSummary['status'], string> = {
@@ -112,6 +113,7 @@ const gridStyle = computed(() => props.preferenceIdentity ? {
             {{ actionFor(task)?.label }}
           </RouterLink>
           <span v-else class="task-table__none">—</span>
+          <button v-if="!showFee && task.dueAt" type="button" @click="$emit('extensions',task)">评阅延期</button>
         </span>
       </span>
     </TransitionGroup>

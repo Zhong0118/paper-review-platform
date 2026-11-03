@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import ExtensionPanel from '@/modules/dispatch/components/ExtensionPanel.vue'
+import { beijingTime } from "@/api/taskTiming"
 import TimeScopeSelect from '@/components/app/TimeScopeSelect.vue'
 import { useTimeScope } from '@/composables/useTimeScope'
 import { computed, nextTick, onMounted, ref, watch, onBeforeUnmount } from 'vue'
@@ -78,6 +80,8 @@ const tabCounts = computed(() => {
   return counts
 })
 
+const extensionId=ref('')
+const extensionTask=computed(()=>visibleTasks.value.find(t=>t.id===extensionId.value))
 let listGeneration = 0
 async function loadTasks() {
   const request = ++listGeneration
@@ -92,8 +96,9 @@ async function loadTasks() {
           anonymousTitle: row.anonymous_title ?? '匿名论文',
           discipline: { code: row.discipline_code ?? '', name: row.discipline_name ?? '' },
           fee: 0,
-          dueAt: '',
-          overdue: false,
+          acceptBy: beijingTime(row.deadline?.accept_due_at),
+          dueAt: beijingTime(row.deadline?.review_due_at),
+          overdue: row.deadline?.overdue ?? false,
           allowedActions: row.allowed_actions ?? (row.status === 'INVITED' ? ['ACCEPT_TASK'] : []),
         })) as ExpertTaskSummary[]
     if (request !== listGeneration) return
@@ -226,7 +231,9 @@ onBeforeUnmount(() => { listGeneration++ })
 
       <p v-if="error" class="tasks-page__error" role="alert">{{ error }}</p>
       <p v-else-if="loading" class="tasks-page__loading">正在加载任务…</p>
-      <ExpertTaskTable :preference-identity="demoEnabled ? null : authStore.user" v-else :rows="visibleTasks" :show-fee="demoEnabled" @accept="requestAccept" />
+      <ExpertTaskTable :preference-identity="demoEnabled ? null : authStore.user" v-else :rows="visibleTasks" :show-fee="demoEnabled" @accept="requestAccept" @extensions="t=>extensionId=extensionId===t.id?'':t.id" />
+      <Transition name="timing-panel"><ExtensionPanel v-if="!demoEnabled && extensionTask" :key="extensionTask.id"
+        :task-id="extensionTask.id" :can-request="extensionTask.status==='IN_REVIEW'" :due="extensionTask.dueAt" @changed="loadTasks" /></Transition>
     </div>
 
     <template #modal>
@@ -245,7 +252,7 @@ onBeforeUnmount(() => { listGeneration++ })
           </p>
           <p>
             任务 <strong>{{ acceptTarget.anonymousId }}</strong> ·
-            评阅截止 <time>{{ acceptTarget.dueAt || '未设置' }}</time>
+            {{demoEnabled?'评阅截止':'接单截止（北京时间）'}} <time>{{ (demoEnabled ? acceptTarget.dueAt : acceptTarget.acceptBy) || '未配置' }}</time>
             <template v-if="demoEnabled"> · 费用 <strong>¥ {{ acceptTarget.fee.toFixed(2) }}</strong></template>
           </p>
           <p v-if="acceptError" class="action-dialog__error" role="alert">{{ acceptError }}</p>
@@ -274,6 +281,8 @@ onBeforeUnmount(() => { listGeneration++ })
 </template>
 
 <style scoped>
+.timing-panel-enter-active,.timing-panel-leave-active{transition:opacity .18s,transform .18s}.timing-panel-enter-from,.timing-panel-leave-to{opacity:0;transform:translateY(3px)}
+
 .tasks-page {
   display: grid;
   min-width: 0;

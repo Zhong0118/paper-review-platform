@@ -1,5 +1,5 @@
 """Read-only current-work projection shared by cards and their drill-down lists."""
-from sqlalchemy import and_, select
+from sqlalchemy import and_, func, select
 
 from app.core.exceptions import AppError
 from app.modules.dispatch.models import ExpertTask, ReviewRound
@@ -7,7 +7,8 @@ from app.modules.result.models import ResultPublication, ResultSummary
 from app.modules.thesis.models import Thesis, ThesisVersion
 from app.modules.user.models import StudentEligibility
 from app.shared.enums import RoleCode
-from app.shared.time_scope import apply_thesis_scope
+from app.shared.time_scope import apply_thesis_scope, utc_now
+from app.modules.dispatch.deadlines import deadline_view
 
 ACTIVE_TASKS = ('INVITED', 'IN_REVIEW', 'SUBMITTED')
 FILTERS = ('ALL', 'WAITING', *ACTIVE_TASKS)
@@ -35,7 +36,9 @@ async def operation_rows(session, user, *, time_scope='all', as_of=None, labels=
         ReviewRound.round_no.desc()).limit(1).correlate(Thesis).scalar_subquery()
     query = select(Thesis.id, Thesis.stage, ReviewRound.id.label('round_id'),
                    ReviewRound.status.label('round_status'), ExpertTask.id.label('task_id'),
-                   ExpertTask.status.label('task_status'), ExpertTask.expert_id).outerjoin(
+                   ExpertTask.status.label('task_status'), ExpertTask.expert_id, ExpertTask.invited_at,
+                   ExpertTask.decided_at,ExpertTask.accept_due_at,ExpertTask.review_days,ExpertTask.original_review_due_at,
+                   func.approved_extension_due(ExpertTask.id).label('extended_due')).outerjoin(
         ReviewRound, and_(ReviewRound.id == latest_round,
                           ReviewRound.thesis_version_id == Thesis.current_version_id,
                           ReviewRound.status != 'CANCELLED')).outerjoin(
@@ -57,6 +60,7 @@ async def operation_rows(session, user, *, time_scope='all', as_of=None, labels=
         query = query.add_columns(score.label('published_score'))
     query = apply_thesis_scope(query, time_scope, as_of).order_by(
         Thesis.created_at.desc(), Thesis.id, ExpertTask.invited_at.asc(), ExpertTask.id)
+    as_of=as_of or utc_now()
     papers = {}
     for row in (await session.execute(query)).mappings():
         key = str(row['id'])
@@ -68,7 +72,12 @@ async def operation_rows(session, user, *, time_scope='all', as_of=None, labels=
             if scores:
                 papers[key]['published_score'] = row['published_score']
         if row['task_id'] is not None:
-            papers[key]['tasks'].append({'id': str(row['task_id']), 'status': row['task_status'],
+            timing={}
+            if row['accept_due_at'] or row['review_days']:
+                timing['deadline']=deadline_view(row['task_status'],row['invited_at'],row['decided_at'],row['accept_due_at'],
+                                                 row['original_review_due_at'],row['extended_due'],as_of,
+                                                 include_original=user.role != RoleCode.SCHOOL_REVIEWER)
+            papers[key]['tasks'].append({**timing, 'id': str(row['task_id']), 'status': row['task_status'],
                                          'expert_id': str(row['expert_id'])})
     for paper in papers.values():
         occupied = [t for t in paper['tasks'] if t['status'] in ACTIVE_TASKS]
@@ -87,6 +96,9 @@ def card_counts(rows):
         counts['waiting_theses'] += int(row['waiting'])
         for task in row['tasks']:
             key = {'INVITED': 'invited_tasks', 'IN_REVIEW': 'in_review_tasks', 'SUBMITTED': 'submitted_tasks'}.get(task['status'])
+            clock=task.get('deadline',{})
+            if (task['status']=='INVITED' and clock.get('accept_due_at')) or (task['status']=='IN_REVIEW' and clock.get('review_due_at')):
+                counts['overdue_tasks']=(counts['overdue_tasks'] or 0)+int(clock['overdue'])
             if key:
                 counts[key] += 1
     return counts

@@ -93,7 +93,7 @@ async def test_published_backup_is_readable_and_tampering_is_rejected_before_del
         with TemporaryDirectory(prefix="paper-review-bundle-test-") as directory:
             archive_dir = Path(directory)
             manifest = backup_owned_resources(owned, archive_dir)
-            assert manifest["revision"] == "0029_school_return_clone"
+            assert manifest["revision"] == "0031_task_extensions"
             assert len(manifest["tables"]["review_result_versions"]["content_sha256"]) == 64
             assert manifest["tables"]["result_publications"]["count"] == 1
             assert runtime.thesis_id in manifest["references"]["thesis_ids"]

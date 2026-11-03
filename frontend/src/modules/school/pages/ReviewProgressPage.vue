@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { deadlineLabel } from "@/api/taskTiming"
 import TimeScopeSelect from '@/components/app/TimeScopeSelect.vue'
 import { useTimeScope } from '@/composables/useTimeScope'
 import { useOperationsDashboard } from '@/composables/useOperationsDashboard'
@@ -133,7 +134,7 @@ onBeforeUnmount(() => { listGeneration++ })
               <code>{{ row.student_name }} · {{ row.stage }}</code>
             </div>
             <div v-if="row.tasks.length" class="task-list">
-              <span v-for="task in row.tasks" :key="task.alias">{{ task.alias }} · {{ taskLabel(task.status) }}</span>
+              <span v-for="task in row.tasks" :key="task.alias">{{ task.alias }} · {{ taskLabel(task.status) }} {{ deadlineLabel(task.status,task.deadline) }}</span>
             </div>
             <span v-else>待平台派单</span>
           </article>

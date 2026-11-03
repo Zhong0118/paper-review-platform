@@ -1,11 +1,12 @@
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import DateTime, ForeignKey, ForeignKeyConstraint, Integer, String, Text, UniqueConstraint
+from sqlalchemy import DateTime, ForeignKey, ForeignKeyConstraint, Integer, SmallInteger, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.dialects.postgresql import JSONB
 from app.modules.review.rules import pilot_rule_snapshot
 
+from app.db.base import Base
 from app.db.mixins import BaseModel
 
 
@@ -55,3 +56,31 @@ class ExpertTask(BaseModel):
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     reject_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+
+    accept_due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    review_days: Mapped[int | None] = mapped_column(SmallInteger)
+    original_review_due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class BatchDeadlineRule(Base):
+    __tablename__ = 'batch_deadline_rules'
+    __table_args__ = (ForeignKeyConstraint(['id','tenant_id'],['review_batches.id','review_batches.tenant_id']),)
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    tenant_id: Mapped[UUID] = mapped_column(nullable=False)
+    accept_days: Mapped[int | None] = mapped_column(SmallInteger)
+    review_days: Mapped[int | None] = mapped_column(SmallInteger)
+
+
+class TaskExtension(Base):
+    __tablename__ = 'task_extensions'
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    task_id: Mapped[UUID] = mapped_column(ForeignKey('expert_tasks.id'))
+    requested_by: Mapped[UUID] = mapped_column(ForeignKey('users.id'))
+    requested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    original_due_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    requested_due_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    reason: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(Text)
+    decided_by: Mapped[UUID | None] = mapped_column(ForeignKey('users.id'))
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    decision_reason: Mapped[str | None] = mapped_column(Text)

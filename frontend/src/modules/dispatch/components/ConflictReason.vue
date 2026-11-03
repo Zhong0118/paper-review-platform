@@ -1,10 +1,10 @@
 <script setup lang="ts">
-defineProps<{ hit: boolean; reason?: string }>()
+defineProps<{ hit: boolean; reason?: string; availability?: boolean }>()
 </script>
 
 <template>
-  <span v-if="hit" class="conflict conflict--hit">回避命中 · {{ reason }}</span>
-  <span v-else class="conflict conflict--clear">未命中回避</span>
+  <span v-if="hit" class="conflict conflict--hit">{{ availability ? '不可派' : '回避命中' }} · {{ reason }}</span>
+  <span v-else class="conflict conflict--clear">{{ availability ? '可派' : '未命中回避' }}</span>
 </template>
 
 <style scoped>

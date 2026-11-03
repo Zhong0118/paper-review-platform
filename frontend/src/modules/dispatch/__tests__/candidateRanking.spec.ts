@@ -45,3 +45,61 @@ it('folds ineligible rows by default and keeps high scoring conflicts disabled',
  await w.get('[data-toggle-unavailable]').trigger('click')
  expect(w.get('[data-expert-id="blocked"] input').attributes('disabled')).toBeDefined();expect(w.text()).toContain('机器学习 +2')
 })
+
+it('counts excluded people separately from overlapping reasons even when rows are expanded',async()=>{
+ const blocked={...ranked,hard_allowed:false,allowed_actions:[],unavailable_reasons:['回避','回避','资格未通过']}
+ api.dispatchCandidates.mockResolvedValue([blocked,{...blocked,expert_id:'two',unavailable_reasons:['资格未通过']}])
+ const w=await page()
+ const note=()=>w.get('[data-candidate-exclusions]')
+ expect(note().text()).toContain('2 位候选均不可派')
+ expect(note().findAll('li').map(x=>x.text())).toEqual(expect.arrayContaining(['回避：1 人','资格未通过：2 人']))
+ expect(note().text()).not.toContain(ranked.display_name)
+ await w.get('[data-toggle-unavailable]').trigger('click')
+ expect(note().findAll('li')).toHaveLength(2)
+ expect(w.get('[data-action="assign-experts"]').attributes('disabled')).toBeDefined()
+})
+
+it('distinguishes a successful empty response from loading, errors, and eligible zero-score candidates',async()=>{
+ let finish!:(v:unknown[])=>void
+ const w=await page()
+ api.dispatchCandidates.mockReturnValueOnce(new Promise(r=>{finish=r}))
+ await w.get('[data-thesis-id="thesis"]').trigger('click')
+ expect(w.text()).not.toContain('当前没有可选候选')
+ expect(w.find('[data-candidate-exclusions]').exists()).toBe(false)
+ finish([]);await flushPromises()
+ expect(w.get('[data-candidate-exclusions]').text()).toContain('本次查询未返回候选')
+ api.dispatchCandidates.mockRejectedValueOnce(new Error('候选请求失败'))
+ await w.get('[data-thesis-id="thesis"]').trigger('click');await flushPromises()
+ expect(w.text()).toContain('候选请求失败')
+ expect(w.find('[data-candidate-exclusions]').exists()).toBe(false)
+ await w.get('[data-thesis-id="thesis"]').trigger('click');await flushPromises()
+ expect(w.find('[data-candidate-exclusions]').exists()).toBe(false)
+ expect(w.get('[data-expert-id="one"] input').attributes('disabled')).toBeUndefined()
+})
+
+it('ignores a late empty response for the previously selected thesis',async()=>{
+ const row={title:'论文',student_name:'学生',discipline_code:'0812',stage:'READY_FOR_DISPATCH',allowed_actions:['ASSIGN_EXPERT']}
+ api.dispatchQueue.mockResolvedValue([{...row,thesis_id:'first'},{...row,thesis_id:'second'}])
+ let complete!:(v:unknown[])=>void
+ const w=await page()
+ api.dispatchCandidates.mockReturnValueOnce(new Promise(r=>{complete=r}))
+ await w.get('[data-thesis-id="first"]').trigger('click')
+ await w.get('[data-thesis-id="second"]').trigger('click');await flushPromises()
+ complete([]);await flushPromises()
+ expect(w.find('[data-candidate-exclusions]').exists()).toBe(false)
+ expect(w.get('[data-expert-id="one"] input').attributes('disabled')).toBeUndefined()
+})
+
+it('keeps an expert with a high real workload selectable', async () => {
+ api.dispatchCandidates.mockResolvedValue([{...ranked, workload:{invited:3,in_review:8,total:11}}])
+ const w=await page()
+ expect(w.get('[data-column-cell="workload"]').text()).toBe('待接单 3 · 评阅中 8 · 合计 11')
+ expect(w.get('[data-expert-id="one"] input').attributes('disabled')).toBeUndefined()
+})
+
+it('does not report a conflict of interest when the current expert is simply not a replacement', async()=>{
+ api.dispatchCandidates.mockResolvedValue([{...ranked,hard_allowed:false,allowed_actions:[],unavailable_reasons:['当前任务专家']}])
+ const w=await page();await w.get('[data-toggle-unavailable]').trigger('click')
+ expect(w.get('[data-column-cell="conflict"]').text()).toBe('不可派 · 当前任务专家')
+ expect(w.get('[data-expert-id="one"] input').attributes('disabled')).toBeDefined()
+})

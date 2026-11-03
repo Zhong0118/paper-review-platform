@@ -1,10 +1,11 @@
+import type { TaskDeadline } from './taskTiming'
 import type { StatusFilter } from './dashboard'
 import { scopeOptions, type TimeScope, type TimeScopeReporter } from './timeScope'
 import { httpApi, type RequestOptions } from './request'
 
 export interface DispatchQueueItem {
   thesis_id: string
-  tasks?: Array<{ status: string }>
+  tasks?: Array<{ status: string; deadline?:TaskDeadline }>
   reassignable_task?: { id: string; expert_id: string } | null
   allowed_actions: string[]
   stage: string
@@ -16,6 +17,7 @@ export interface DispatchQueueItem {
 export interface MatchReason { kind: 'research_direction' | 'keyword'; tag: string; points: number }
 
 export interface DispatchCandidate {
+  workload?: { invited:number; in_review:number; total:number }
   match_score?: number
   match_rule_version?: string
   match_reasons?: MatchReason[]
@@ -47,6 +49,7 @@ export function candidateUnavailableReason(row: DispatchCandidate): string {
 }
 
 export interface SchoolProgressTask {
+  deadline?:TaskDeadline
   alias: string
   status: string
 }

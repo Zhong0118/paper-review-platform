@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { beijingTime } from '@/api/taskTiming'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import BlindRail from '@/components/app/BlindRail.vue'
@@ -111,7 +112,8 @@ async function loadRealTask() {
       anonymousId: current.anonymous_id ?? current.id.slice(0, 8),
       anonymousTitle: current.anonymous_title ?? '匿名论文',
       discipline: { code: current.discipline_code ?? '', name: current.discipline_name ?? '' },
-      fee: 0, dueAt: '', overdue: false, allowedActions: current.allowed_actions ?? [],
+      fee: 0, dueAt: beijingTime(current.deadline?.review_due_at), overdue: current.deadline?.overdue ?? false,
+      allowedActions: current.allowed_actions ?? [],
     } as ExpertTaskSummary
     locked.value = current.status !== 'IN_REVIEW'
   } catch (err) {
@@ -370,6 +372,7 @@ watch(() => route.query.task_id, () => { if (!demoEnabled) void loadRealTask() }
         </template>
       </PageHeader>
       <p v-if="task" class="task-context">{{ task.anonymousId }} · {{ task.anonymousTitle }}</p>
+      <p v-if="!demoEnabled && task?.dueAt" data-review-deadline>评阅截止：{{ task.dueAt }}（北京时间）</p>
       <p v-if="!demoEnabled && rule" data-review-rule>评审规则 {{ rule.version }} · {{ rule.dimensions.length }} 维 · {{ rule.dimensions.reduce((sum, item) => sum + item.max_score, 0) }} 分</p>
       <BlindRail
         :audience="submitted ? '本人正式评阅意见' : '匿名版论文材料与本人评阅意见'"
@@ -377,7 +380,7 @@ watch(() => route.query.task_id, () => { if (!demoEnabled) void loadRealTask() }
         :stage="!task ? '未选择任务' : submitted ? '已提交 · 只读' : '评阅中'"
       />
       <p v-if="overdue" class="overdue-warning" data-overdue-warning role="alert">
-        本任务已逾期，逾期标记不会因保存或提交自动取消；请尽快完成评阅并提交。
+        {{ demoEnabled ? '本任务已逾期，逾期标记不会因保存或提交自动取消；请尽快完成评阅并提交。' : '本任务已超过评阅截止时间，仍可保存草稿或提交正式意见。' }}
       </p>
       <p v-if="notice" class="notice" role="status">{{ notice }}</p>
       <p v-if="loadError" class="load-error" role="alert">{{ loadError }}

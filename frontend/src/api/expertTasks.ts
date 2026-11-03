@@ -1,7 +1,9 @@
+import type { TaskDeadline } from './taskTiming'
 import { scopeOptions, type TimeScope, type TimeScopeReporter } from './timeScope'
 import { httpApi } from './request'
 
 export interface ExpertTaskRow {
+  deadline?:TaskDeadline
   id: string
   status: string
   anonymous_id?: string
@@ -12,6 +14,7 @@ export interface ExpertTaskRow {
 }
 
 export interface ExpertInvitation {
+  deadline?: TaskDeadline
   id: string
   status: string
   discipline_code: string

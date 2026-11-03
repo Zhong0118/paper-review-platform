@@ -29,7 +29,7 @@ const updated = (value: string) => new Date(value).toLocaleString('zh-CN', { tim
             <span>{{ card.label }}</span><strong>{{ data.cards[card.key] }}</strong><small>查看列表</small>
           </button>
         </div>
-        <p class="scope-note">逾期任务：未配置截止规则，暂不统计</p>
+        <p class="scope-note">逾期任务：{{ data.cards.overdue_tasks == null ? '当前范围无已配置截止的活动任务，暂不统计' : data.cards.overdue_tasks+' 个（仅统计设有当前截止的任务）' }}</p>
         <section v-if="data.published_score_bands" class="distribution" data-score-distribution aria-label="已发布论文评分分布">
           <h3>已发布论文 {{ data.published_count }} 篇</h3>
           <p>仅统计当前有效发布 每篇论文计一次 更正后替换分值</p>

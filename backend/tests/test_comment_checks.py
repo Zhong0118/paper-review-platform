@@ -150,7 +150,7 @@ async def test_preview_ack_submission_and_private_summary_with_real_rls():
                 # Later bound-report data blocks before the receipt migration.
                 assert down.returncode != 0 and 'would discard sensitive terms or bound reports' in down.stderr
                 with engine.connect() as conn:
-                    assert conn.scalar(text('SELECT version_num FROM alembic_version')) == '0029_school_return_clone'
+                    assert conn.scalar(text('SELECT version_num FROM alembic_version')) == '0031_task_extensions'
                     assert conn.scalar(text("SELECT bool_and(relforcerowsecurity) FROM pg_class WHERE relnamespace=to_regnamespace(current_schema()) AND relname IN ('review_result_versions','review_result_revisions')")) is True
             finally:
                 engine.dispose()

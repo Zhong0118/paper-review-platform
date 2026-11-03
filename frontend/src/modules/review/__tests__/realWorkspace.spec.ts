@@ -238,3 +238,13 @@ describe('real expert workspace', () => {
   })
 
 })
+
+it('shows the effective deadline and lets the expert save an overdue review', async () => {
+  api.listExpertTasks.mockResolvedValue([{ ...rows[1], deadline:{review_due_at:'2026-01-15T02:30:00Z',overdue:true} }])
+  const { wrapper } = await mountPage()
+  expect(wrapper.get('[data-overdue-warning]').text()).toContain('仍可保存')
+  expect(wrapper.get('[data-review-deadline]').text()).toContain('10:30')
+  wrapper.getComponent(ReviewFormPane).vm.$emit('save',score)
+  await flushPromises()
+  expect(api.saveReviewDraft).toHaveBeenCalledWith('b',score)
+})
