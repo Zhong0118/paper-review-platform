@@ -115,7 +115,7 @@ async def test_other_expert_cannot_read_draft_or_result_and_family_cannot_read_b
             supervisor = await login(client, "supervisor.zhao", runtime.seed_password)
             from tests.test_review import VALID_DRAFT
             saved = await client.put(f"/api/v1/expert/tasks/{runtime.task_id}/draft",
-                                     headers=auth(expert), json=VALID_DRAFT)
+                                     headers=auth(expert), json={**VALID_DRAFT, "expected_revision": 0})
             assert saved.status_code == 200, saved.text
             async with runtime.session_factory() as session:
                 await bind_candidate_identity(
@@ -124,7 +124,7 @@ async def test_other_expert_cannot_read_draft_or_result_and_family_cannot_read_b
             submitted = await client.post(
                 f"/api/v1/expert/tasks/{runtime.task_id}:submit-final",
                 headers=auth(expert, idempotency="rls-child-private-final"),
-                json=VALID_DRAFT)
+                json={**VALID_DRAFT, "expected_revision": 1})
             assert submitted.status_code == 200, submitted.text
             for token in (student, supervisor):
                 async with runtime.session_factory() as session:

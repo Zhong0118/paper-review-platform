@@ -6,7 +6,7 @@ export interface PdfTransform {operation_id:string;new_file_id:string;page_count
 export interface PdfTransformRequest {expected_version:number;purpose:PdfPurpose;operation:PdfOperation;sources:{file_id:string;pages:number[]}[]}
 export const generatePdfTransform = (thesisId:string, body:PdfTransformRequest, key:string) =>
   httpApi.post<PdfTransform>(`/theses/${thesisId}/pdf-transforms`, body, {idempotencyKey:key,timeout:85000})
-export const applyPdfTransform = (id:string,version:number) => httpApi.post<PdfTransform>(`/pdf-transforms/${id}:apply`,{expected_version:version})
+export const applyPdfTransform = (id:string,version:number,revision:string) => httpApi.post<PdfTransform & {content_revision:string}>(`/pdf-transforms/${id}:apply`,{expected_version:version},{headers:{'If-Draft-Revision':revision}})
 export const cancelPdfTransform = (id:string,version:number) => httpApi.post<PdfTransform>(`/pdf-transforms/${id}:cancel`,{expected_version:version})
 export async function uploadTransformSource(thesisId:string,purpose:PdfPurpose,file:File,token:string){
  const prepared=await prepareUpload({thesis_id:thesisId,purpose,filename:file.name,content_type:'application/pdf'})

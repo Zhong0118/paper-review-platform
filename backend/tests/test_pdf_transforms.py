@@ -1,3 +1,4 @@
+from tests.helpers import submit_current_draft
 from io import BytesIO
 
 import pytest
@@ -101,7 +102,7 @@ async def test_two_phase_permissions_idempotency_and_stale_apply():
             assert (await client.post(path + '/pdf-transforms', headers=auth(school), json=payload)).status_code == 404
             assert (await client.post(path + '/pdf-transforms', headers=auth(student), json={**payload, 'sources': [{'file_id': str(uuid4()), 'pages': [1]}]})).status_code == 404
             apply = '/api/v1/pdf-transforms/' + operation['operation_id'] + ':apply'
-            responses = await asyncio.gather(*[client.post(apply, headers=auth(student), json={'expected_version': before['version']}) for _ in range(2)])
+            responses = await asyncio.gather(*[client.post(apply, headers={**auth(student),'If-Draft-Revision':before['current_version']['content_revision']}, json={'expected_version': before['version']}) for _ in range(2)])
             assert [r.status_code for r in responses] == [200, 200]
             assert anonymous(await detail()) == operation['new_file_id']
             # Original bytes survive replacement; only bindings change.
@@ -115,10 +116,10 @@ async def test_two_phase_permissions_idempotency_and_stale_apply():
             next_payload = {**payload, 'sources': [{'file_id': operation['new_file_id'], 'pages': [1]}]}
             pending = await client.post(path + '/pdf-transforms', headers=auth(student, 'convert-2'), json=next_payload)
             assert pending.status_code == 200, pending.text
-            submitted = await client.post(path + ':submit', headers=auth(student), json={'version': before['version']})
+            submitted = await submit_current_draft(client, path + ':submit', headers=auth(student), json={'version': before['version']})
             assert submitted.status_code == 200, submitted.text
             stale_apply = '/api/v1/pdf-transforms/' + pending.json()['data']['operation_id'] + ':apply'
-            assert (await client.post(stale_apply, headers=auth(student), json={'expected_version': before['version']})).status_code == 409
+            assert (await client.post(stale_apply, headers={**auth(student),'If-Draft-Revision':before['current_version']['content_revision']}, json={'expected_version': before['version']})).status_code == 409
             assert (await client.get('/api/v1/files/' + pending.json()['data']['new_file_id'] + '/content', headers=auth(student))).status_code == 404
 
 
@@ -148,7 +149,7 @@ async def test_unbound_sources_cancel_rls_and_submit_during_conversion(monkeypat
             extra=prepared['file_id']
             assert (await client.post(f'/api/v1/files/{extra}:complete-transform-source',headers=auth(student))).status_code==200
             assert (await client.get(f'/api/v1/files/{extra}/content',headers=auth(student))).status_code==404
-            await client.post(f'/api/v1/files/{extra}:complete',headers=auth(student))
+            assert (await client.post(f'/api/v1/files/{extra}:complete',headers={**auth(student),'If-Draft-Revision':detail['current_version']['content_revision']})).status_code == 409
             detail=(await client.get(path,headers=auth(student))).json()['data']
             assert next(f['file_id'] for f in detail['current_version']['files'] if f['purpose']=='anonymous')==source
             body={'expected_version':detail['version'],'purpose':'anonymous','operation':'MERGE','sources':[{'file_id':source,'pages':[2,1]},{'file_id':extra,'pages':[1]}]}
@@ -173,7 +174,7 @@ async def test_unbound_sources_cancel_rls_and_submit_during_conversion(monkeypat
             assert cancelled.status_code==200
             assert (await client.get(grant.json()['data']['url'])).status_code==404
             assert (await client.get('/api/v1/files/'+product['new_file_id']+'/content',headers=auth(student))).status_code==404
-            assert (await client.post('/api/v1/pdf-transforms/'+product['operation_id']+':apply',headers=auth(student),json={'expected_version':detail['version']})).status_code==409
+            assert (await client.post('/api/v1/pdf-transforms/'+product['operation_id']+':apply',headers={**auth(student),'If-Draft-Revision':detail['current_version']['content_revision']},json={'expected_version':detail['version']})).status_code==409
             started,release=Event(),Event()
             real_convert=transform_runtime.convert
             def paused(*args):
@@ -185,7 +186,7 @@ async def test_unbound_sources_cancel_rls_and_submit_during_conversion(monkeypat
             pending=asyncio.create_task(client.post(path+'/pdf-transforms',headers=auth(student),json=body))
             try:
                 assert await asyncio.to_thread(started.wait,5)
-                submitted=await asyncio.wait_for(client.post(path+':submit',headers=auth(student),json={'version':detail['version']}),5)
+                submitted=await asyncio.wait_for(submit_current_draft(client, path+':submit',headers=auth(student),json={'version':detail['version']}),5)
                 assert submitted.status_code==200,submitted.text
             finally:release.set()
             assert (await pending).status_code==409
@@ -213,7 +214,7 @@ async def test_transform_report_and_owned_recovery():
             old=await client.post(path+'/sensitive-checks',headers=auth(student),json={'expected_version':1,'file_id':source})
             assert old.status_code==200
             product=(await client.post(path+'/pdf-transforms',headers=auth(student),json={'expected_version':1,'purpose':'anonymous','operation':'DELETE_PAGES','sources':[{'file_id':source,'pages':[1]}]})).json()['data']
-            applied=await client.post('/api/v1/pdf-transforms/'+product['operation_id']+':apply',headers=auth(student),json={'expected_version':1})
+            applied=await client.post('/api/v1/pdf-transforms/'+product['operation_id']+':apply',headers={**auth(student),'If-Draft-Revision':detail['current_version']['content_revision']},json={'expected_version':1})
             assert applied.status_code==200,applied.text
             assert (await client.get(path,headers=auth(student))).json()['data']['anonymization']['stale'] is True
             checked=await client.post(path+'/sensitive-checks',headers=auth(student),json={'expected_version':1,'file_id':product['new_file_id']})
@@ -234,7 +235,7 @@ async def test_transform_report_and_owned_recovery():
                 after=(await client.get(path,headers=auth(student))).json()['data']
                 assert after['anonymization']==checked.json()['data']
                 assert next(f['file_id'] for f in after['current_version']['files'] if f['purpose']=='anonymous')==product['new_file_id']
-                assert (await client.post('/api/v1/pdf-transforms/'+product['operation_id']+':apply',headers=auth(student),json={'expected_version':1})).json()['data']['status']=='APPLIED'
+                assert (await client.post('/api/v1/pdf-transforms/'+product['operation_id']+':apply',headers={**auth(student),'If-Draft-Revision':detail['current_version']['content_revision']},json={'expected_version':1})).json()['data']['status']=='APPLIED'
 
 
 def test_container_enforces_limits_and_unavailable_runtime_fails_closed(monkeypatch):
@@ -252,7 +253,8 @@ def test_container_enforces_limits_and_unavailable_runtime_fails_closed(monkeypa
             assert host['NetworkMode']=='none' and host['ReadonlyRootfs'] is True
             assert host['CapDrop']==['ALL'] and host['SecurityOpt']==['no-new-privileges']
             assert info['Config']['User']=='65534:65534'
-            assert [(m['Destination'],m['RW']) for m in info['Mounts']]==[('/input',False),('/output',True)]
+            # Docker inspect does not promise a presentation order for independent mounts.
+            assert sorted((m['Destination'],m['RW']) for m in info['Mounts'])==[('/input',False),('/output',True)]
             assert all('paper-review-transform-' in m['Source'] for m in info['Mounts'])
             inspected.append(True)
         return original(command,**kwargs)

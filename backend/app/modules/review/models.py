@@ -13,6 +13,7 @@ class ReviewDraft(BaseModel):
 
     task_id: Mapped[UUID] = mapped_column(ForeignKey("expert_tasks.id"), nullable=False)
     payload: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    revision: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
 
 
 class ReviewResultVersion(BaseModel):

@@ -23,7 +23,11 @@ defineProps<{ rows: DemoPublishedResult[] }>()
             <b>{{ row.score }}</b>
           </td>
           <td>{{ row.recommendation }}</td>
-          <td>{{ row.comment }}</td>
+          <td>
+            <div>{{ row.comment }}</div>
+            <div v-if="row.issues !== undefined"><strong>主要问题：</strong>{{ row.issues || '未填写' }}</div>
+            <div v-if="row.revisionAdvice !== undefined"><strong>修改建议：</strong>{{ row.revisionAdvice === null ? '该发布版本未收录修改建议' : row.revisionAdvice || '未填写' }}</div>
+          </td>
           <td>
             <time>{{ row.submittedAt }}</time>
           </td>

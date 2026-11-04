@@ -13,9 +13,11 @@ export interface PublishedItem {
   recommendation: string
   overall_comment: string
   issues: string
+  revision_advice?: string
 }
 
 export interface SchoolResults {
+  snapshot_schema_version: number
   thesis_id: string
   stage: string
   version: number
@@ -37,7 +39,7 @@ export function publishThesis(thesisId: string, version: number, options?: Reque
 }
 
 export function getPublishedResult(thesisId: string) {
-  return httpApi.get<{ thesis_id: string; base_result_id: string; effective_revision_id: string | null; total: number; correction_pending: boolean; items: PublishedItem[]; rule_snapshot: ReviewRule; outcome: ReviewOutcome }>(
+  return httpApi.get<{ snapshot_schema_version: number; thesis_id: string; base_result_id: string; effective_revision_id: string | null; total: number; correction_pending: boolean; items: PublishedItem[]; rule_snapshot: ReviewRule; outcome: ReviewOutcome }>(
     `/my/theses/${thesisId}/published-result`,
   )
 }

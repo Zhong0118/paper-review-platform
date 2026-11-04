@@ -18,7 +18,7 @@ from app.modules.files.models import FileObject
 from app.modules.user.models import User
 from tests.conftest import _test_url
 from scripts.acceptance_server import acceptance_environment
-from tests.helpers import login, auth, ready_thesis
+from tests.helpers import login, auth, ready_thesis, submit_current_draft
 from tests.test_dispatch import expert_id
 from tests.test_review import VALID_DRAFT
 
@@ -43,7 +43,7 @@ async def material(client, reuse=False):
     if reuse:
         res = await client.post(f'/api/v1/theses/{tid}:withdraw', headers=auth(student), json={'version': thesis['version']})
         draft = res.json()['data']
-        res = await client.post(f'/api/v1/theses/{tid}:submit', headers=auth(student), json={'version': draft['version']})
+        res = await submit_current_draft(client, f'/api/v1/theses/{tid}:submit', headers=auth(student), json={'version': draft['version']})
         res = await client.post(f'/api/v1/school-review/theses/{tid}:confirm-anonymization', headers=auth(school), json={'version': res.json()['data']['version'], 'decision': 'PASS'})
         assert res.status_code == 200, res.text
         thesis = res.json()['data']

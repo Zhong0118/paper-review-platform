@@ -8,7 +8,7 @@ from sqlalchemy import select
 from app.modules.files.models import FileObject
 from app.modules.thesis.models import ThesisVersionFile
 from app.modules.user.models import User, Role, UserRoleAssignment, TenantUserMembership
-from tests.helpers import auth, login, create_draft, attach_files
+from tests.helpers import auth, login, create_draft, attach_files, submit_current_draft
 
 
 async def prepare(client, tokens, thesis_id, purpose='anonymous'):
@@ -28,7 +28,7 @@ async def pending(client, tokens, thesis_id):
 
 
 async def submit(client, tokens, thesis):
-    response = await client.post(f"/api/v1/theses/{thesis['id']}:submit", headers=auth(tokens), json={'version': thesis['version']})
+    response = await submit_current_draft(client, f"/api/v1/theses/{thesis['id']}:submit", headers=auth(tokens), json={'version': thesis['version']})
     assert response.status_code == 200, response.text
     return response.json()['data']
 
@@ -90,7 +90,7 @@ async def test_pending_old_version_cannot_complete_after_withdraw(client, db_ses
     file_id = await pending(client, tokens, thesis['id'])
     current = await withdraw(client, tokens, await submit(client, tokens, thesis))
     before = (await file_for(db_session, current['current_version']['id'])).id
-    response = await client.post(f'/api/v1/files/{file_id}:complete', headers=auth(tokens))
+    response = await client.post(f'/api/v1/files/{file_id}:complete', headers={**auth(tokens),'If-Draft-Revision':thesis['current_version']['content_revision']})
     assert response.status_code == 409
     assert (await file_for(db_session, current['current_version']['id'])).id == before
 
@@ -100,10 +100,13 @@ async def test_complete_retry_does_not_restore_replaced_file(client, db_session)
     tokens = await login(client, 'student.lin')
     thesis = await create_draft(client, tokens)
     old = await pending(client, tokens, thesis['id'])
-    assert (await client.post(f'/api/v1/files/{old}:complete', headers=auth(tokens))).status_code == 200
+    old_headers = {**auth(tokens), 'If-Draft-Revision':thesis['current_version']['content_revision']}
+    first = await client.post(f'/api/v1/files/{old}:complete', headers=old_headers)
+    assert first.status_code == 200
     replacement = await pending(client, tokens, thesis['id'])
-    assert (await client.post(f'/api/v1/files/{replacement}:complete', headers=auth(tokens))).status_code == 200
-    assert (await client.post(f'/api/v1/files/{old}:complete', headers=auth(tokens))).status_code == 200
+    fresh = {**auth(tokens), 'If-Draft-Revision':first.json()['data']['content_revision']}
+    assert (await client.post(f'/api/v1/files/{replacement}:complete', headers=fresh)).status_code == 200
+    assert (await client.post(f'/api/v1/files/{old}:complete', headers=old_headers)).status_code == 409
     assert str((await file_for(db_session, thesis['current_version']['id'])).id) == replacement
 
 
@@ -114,7 +117,7 @@ async def test_complete_rejects_bytes_not_matching_recorded_hash(client, db_sess
     file_id = await pending(client, tokens, thesis['id'])
     obj = await db_session.get(FileObject, UUID(file_id))
     Path(obj.storage_key).write_bytes(b'%PDF changed outside transaction')
-    response = await client.post(f'/api/v1/files/{file_id}:complete', headers=auth(tokens))
+    response = await client.post(f'/api/v1/files/{file_id}:complete', headers={**auth(tokens),'If-Draft-Revision':thesis['current_version']['content_revision']})
     assert response.status_code == 409
 
 
@@ -142,13 +145,13 @@ async def test_replacement_after_withdraw_preserves_submitted_version(client, db
     old_id, old_bytes = old_file.id, Path(old_file.storage_key).read_bytes()
     current = await withdraw(client, tokens, await submit(client, tokens, thesis))
     replacement = await pending(client, tokens, thesis['id'])
-    response = await client.post(f'/api/v1/files/{replacement}:complete', headers=auth(tokens))
+    response = await client.post(f'/api/v1/files/{replacement}:complete', headers={**auth(tokens),'If-Draft-Revision':current['current_version']['content_revision']})
     assert response.status_code == 200
     assert (await file_for(db_session, old_version)).id == old_id
     assert str((await file_for(db_session, current['current_version']['id'])).id) == replacement
     assert Path(old_file.storage_key).read_bytes() == old_bytes
     # A completed file retry must not copy the old file over the replacement.
-    assert (await client.post(f'/api/v1/files/{old_id}:complete', headers=auth(tokens))).status_code == 200
+    assert (await client.post(f'/api/v1/files/{old_id}:complete', headers={**auth(tokens),'If-Draft-Revision':thesis['current_version']['content_revision']})).status_code == 409
     assert str((await file_for(db_session, current['current_version']['id'])).id) == replacement
 
 
@@ -160,4 +163,4 @@ async def test_other_tenant_cannot_write_or_complete_upload(client):
     assert (await prepare(client, other, thesis['id'])).status_code == 404
     file_id = await pending(client, owner, thesis['id'])
     assert (await client.put(f'/api/v1/files/{file_id}/content', headers=auth(other), content=b'other')).status_code == 404
-    assert (await client.post(f'/api/v1/files/{file_id}:complete', headers=auth(other))).status_code == 404
+    assert (await client.post(f'/api/v1/files/{file_id}:complete', headers={**auth(other),'If-Draft-Revision':thesis['current_version']['content_revision']})).status_code == 404

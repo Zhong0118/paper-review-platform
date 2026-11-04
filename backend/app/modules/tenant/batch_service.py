@@ -15,7 +15,7 @@ async def closeout(session, tenant_id, batch_id):
         return (select(literal(kind).label("kind"), object_id.label("id"),
                        Thesis.id.label("thesis_id"), ThesisVersion.title.label("title"), status.label("status"))
                 .select_from(Thesis).outerjoin(ThesisVersion, ThesisVersion.id == Thesis.current_version_id)
-                .where(Thesis.review_batch_id == batch_id, Thesis.tenant_id == tenant_id))
+                .where(Thesis.review_batch_id == batch_id, Thesis.tenant_id == tenant_id, Thesis.draft_abandoned_at.is_(None)))
 
     work = union_all(
         items("unpublished", Thesis.id, Thesis.stage).where(

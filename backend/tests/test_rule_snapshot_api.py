@@ -6,7 +6,7 @@ from sqlalchemy.exc import DBAPIError
 from app.db.rls_context import bind_candidate_identity,verified_access_claims
 from app.modules.review.rules import pilot_rule_snapshot
 from scripts.acceptance_server import acceptance_environment
-from tests.helpers import login,auth
+from tests.helpers import login,auth, submit_current_draft
 from tests.test_review import VALID_DRAFT
 
 
@@ -138,7 +138,7 @@ async def test_repeat_confirmation_and_resubmission_freeze_separate_rounds(monke
             assert again.status_code==200 and len(snapshots)==1
             withdrawn=await client.post(f'/api/v1/theses/{tid}:withdraw',headers=auth(student),json={'version':first.json()['data']['version'],'reason':'测试新版本'})
             assert withdrawn.status_code==200
-            submit=await client.post(f'/api/v1/theses/{tid}:submit',headers=auth(student),json={'version':withdrawn.json()['data']['version']})
+            submit=await submit_current_draft(client, f'/api/v1/theses/{tid}:submit',headers=auth(student),json={'version':withdrawn.json()['data']['version']})
             assert submit.status_code==200
             ready=await client.post(f'/api/v1/school-review/theses/{tid}:confirm-anonymization',headers=auth(school),json={'version':submit.json()['data']['version'],'decision':'PASS'})
             assert ready.status_code==200

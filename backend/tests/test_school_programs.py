@@ -3,7 +3,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import text
 from app.db.rls_context import bind_candidate_identity, verified_access_claims
 from scripts.acceptance_server import acceptance_environment
-from tests.helpers import auth, create_draft, login, attach_files
+from tests.helpers import auth, create_draft, login, attach_files, submit_current_draft
 
 SCHOOL = '/api/v1/school-admin/program-catalogs'
 HEADER = '校内代码,校内名称,官方代码,状态\n'
@@ -72,29 +72,32 @@ async def test_two_school_mapping_and_legacy_with_real_rls():
         assert saved['current_version']['school_program']['name']=='虚构乙专业'
         later=await publish(c,b,upload('次年乙','0007',2027))
         assert (await bind(c,b,await batch(c,b),later)).status_code==409
-        direct=await c.patch('/api/v1/theses/'+old['id'],headers=auth(sa),json=DRAFT)
+        direct=await c.patch('/api/v1/theses/'+old['id'],headers=auth(sa),json={**DRAFT,'expected_content_revision':old['current_version']['content_revision']})
         assert direct.status_code==200 and direct.json()['data']['current_version']['school_program'] is None
         # Grandfathered draft can submit unchanged; withdrawal keeps the original snapshot.
         await attach_files(c,sa,old['id'])
-        sent=await c.post('/api/v1/theses/'+old['id']+':submit',headers=auth(sa,'legacy-send'),json={'version':old['version']})
+        sent=await submit_current_draft(c, '/api/v1/theses/'+old['id']+':submit',headers=auth(sa,'legacy-send'),json={'version':old['version']})
         assert sent.status_code==200,sent.text
         fk=await c.get('/api/v1/school-review/theses/'+saved['id'],headers=auth(b))
         assert fk.json()['data']['current_version']['school_program']['name']=='虚构乙专业'
         # A later catalog cannot be substituted even if its local code looks identical.
         swapped=await c.patch('/api/v1/theses/'+saved['id'],headers=auth(sb),
-                              json={**DRAFT,'program':{**program,'catalog_id':later['id']}})
+                              json={**DRAFT,'expected_content_revision':saved['current_version']['content_revision'],'program':{**program,'catalog_id':later['id']}})
         assert swapped.status_code==422
         await attach_files(c,sb,saved['id'])
         setting='/api/v1/school-admin/discipline-settings'
         assert (await c.put(setting,headers=auth(b),json={'codes':[],'expected_version':0})).status_code==200
         assert not (await c.get('/api/v1/catalog/student-programs',headers=auth(sb))).json()['data']['items']
-        blocked=await c.post('/api/v1/theses/'+saved['id']+':submit',headers=auth(sb,'no-open-field'),json={'version':saved['version']})
+        blocked=await submit_current_draft(c, '/api/v1/theses/'+saved['id']+':submit',headers=auth(sb,'no-open-field'),json={'version':saved['version']})
         assert blocked.status_code==422
         assert (await c.put(setting,headers=auth(b),json={'codes':['0812'],'expected_version':1})).status_code==200
         bpath='/api/v1/school-review/theses/'+saved['id']
         spath='/api/v1/theses/'+saved['id']
         async def command(path,token,key,**body):
-            reply=await c.post(path,headers=auth(token,key),json=body)
+            if path.endswith(':submit'):
+                reply=await submit_current_draft(c,path,headers=auth(token,key),json=body)
+            else:
+                reply=await c.post(path,headers=auth(token,key),json=body)
             assert reply.status_code==200,reply.text
             return reply.json()['data']
         v=await command(spath+':submit',sb,'send1',version=saved['version'])
@@ -125,7 +128,7 @@ async def test_two_school_mapping_and_legacy_with_real_rls():
         assert '总分' in content and not any(v in content for v in private+['校内代码'])
         # Legacy draft may explicitly adopt a local code after withdrawal.
         old_again=await command('/api/v1/theses/'+old['id']+':withdraw',sa,'old-back',version=sent.json()['data']['version'],reason='改选专业')
-        update=await c.patch('/api/v1/theses/'+old_again['id'],headers=auth(sa),json={**DRAFT,'program':{'catalog_id':ca['id'],'code':'0007'}})
+        update=await c.patch('/api/v1/theses/'+old_again['id'],headers=auth(sa),json={**DRAFT,'expected_content_revision':old_again['current_version']['content_revision'],'program':{'catalog_id':ca['id'],'code':'0007'}})
         assert update.status_code==200 and update.json()['data']['current_version']['school_program']['name']=='虚构甲专业'
         import asyncio
         next_data=upload('并发专业','0011')
@@ -172,7 +175,7 @@ async def test_manual_return_copies_mapped_version_under_real_school_role():
         draft=await create_draft(c,student,program={'catalog_id':cat['id'],'code':'0007'})
         tid=draft['id']
         await attach_files(c,student,tid)
-        sent=await c.post(f'/api/v1/theses/{tid}:submit',headers=auth(student,'submit'),json={'version':draft['version']})
+        sent=await submit_current_draft(c, f'/api/v1/theses/{tid}:submit',headers=auth(student,'submit'),json={'version':draft['version']})
         assert sent.status_code==200
         old=sent.json()['data']['current_version']
         url=f'/api/v1/school-review/theses/{tid}:confirm-anonymization'
@@ -195,7 +198,7 @@ async def test_manual_return_copies_mapped_version_under_real_school_role():
             assert await s.scalar(text('SELECT is_editable FROM thesis_versions WHERE id=:id'),{'id':old['id']}) is False
             assert await s.scalar(text("SELECT count(*) FROM workflow_events WHERE thesis_id=:tid AND action='reject_anonymization'"),{'tid':tid})==1
         # A second genuine submission freezes the new version; a later return should work again.
-        resubmit=await c.post(f'/api/v1/theses/{tid}:submit',headers=auth(student,'resubmit'),
+        resubmit=await submit_current_draft(c, f'/api/v1/theses/{tid}:submit',headers=auth(student,'resubmit'),
                               json={'version':returned.json()['data']['version']})
         assert resubmit.status_code==200,resubmit.text
         again=await c.post(url,headers=auth(school,'return2'),json={**body,'version':resubmit.json()['data']['version']})
@@ -218,7 +221,7 @@ async def test_school_return_denies_direct_writes_and_rolls_back_on_abort():
         draft=await create_draft(c,student)
         tid=draft['id']
         await attach_files(c,student,tid)
-        sent=await c.post(f'/api/v1/theses/{tid}:submit',headers=auth(student,'send'),json={'version':draft['version']})
+        sent=await submit_current_draft(c, f'/api/v1/theses/{tid}:submit',headers=auth(student,'send'),json={'version':draft['version']})
         assert sent.status_code==200
         original=sent.json()['data']
         claims=verified_access_claims(school['access_token'])

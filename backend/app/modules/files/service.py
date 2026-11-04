@@ -31,7 +31,7 @@ def _hidden() -> AppError:
 async def _lock_owned_thesis(session: AsyncSession, user: CurrentUser, thesis_id: UUID) -> Thesis:
     thesis = (await session.execute(
         select(Thesis).join(TenantUserMembership, TenantUserMembership.id == Thesis.student_membership_id)
-        .where(Thesis.id == thesis_id, Thesis.tenant_id == user.tenant_id,
+        .where(Thesis.id == thesis_id, Thesis.tenant_id == user.tenant_id, Thesis.draft_abandoned_at.is_(None),
                TenantUserMembership.user_id == user.id)
         .with_for_update(of=Thesis).execution_options(populate_existing=True)
     )).scalar_one_or_none()
@@ -56,7 +56,7 @@ async def prepare_upload(
     filename: str,
     content_type: str,
 ) -> dict:
-    if purpose not in {FilePurpose.ORIGINAL, FilePurpose.ANONYMOUS, FilePurpose.ATTACHMENT}:
+    if purpose not in {FilePurpose.ORIGINAL, FilePurpose.ANONYMOUS}:
         raise AppError("VALIDATION_FAILED", 422, "不支持的文件用途")
     if user.role != RoleCode.STUDENT or user.tenant_id is None:
         raise AppError("ACCESS_DENIED", 403, "无权执行该操作")
@@ -94,6 +94,8 @@ async def _lock_upload(session: AsyncSession, user: CurrentUser, file_id: UUID) 
 
 
 async def _require_pending(session: AsyncSession, obj: FileObject, thesis: Thesis | None) -> None:
+    if obj.purpose == FilePurpose.ATTACHMENT:
+        raise AppError("VALIDATION_FAILED", 422, "尚不支持附件上传")
     if obj.completed_at is not None or thesis is None:
         raise AppError("STATE_TRANSITION_DENIED", 409, "文件已锁定，请创建新的上传")
     await _require_editable(session, thesis, obj.upload_version_id)
@@ -109,11 +111,20 @@ async def put_content(session: AsyncSession, user: CurrentUser, file_id: UUID, d
     await session.flush()
 
 
-async def complete_upload(session: AsyncSession, user: CurrentUser, file_id: UUID, *, bind: bool = True, parse_pdf: bool = True) -> FileObject:
+async def complete_upload(session: AsyncSession, user: CurrentUser, file_id: UUID, *, bind: bool = True, parse_pdf: bool = True, expected_content_revision: str | None = None) -> FileObject:
     obj, thesis = await _lock_upload(session, user, file_id)
+    if expected_content_revision is not None:
+        from app.modules.thesis.service import require_content_revision
+        if thesis is None:
+            raise _hidden()
+        await _require_editable(session, thesis, obj.upload_version_id)
+        version = await session.get(ThesisVersion, obj.upload_version_id, populate_existing=True)
+        await require_content_revision(session, version, expected_content_revision)
     if obj.completed_at is not None:
         return obj
     await _require_pending(session, obj, thesis)
+    if bind and expected_content_revision is None:
+        raise AppError("VALIDATION_FAILED", 422, "绑定文件必须提供论文内容版本")
     path = Path(obj.storage_key)
     if not path.exists() or obj.size_bytes <= 0:
         raise AppError("FILE_NOT_READY", 409, "文件尚未上传完成")
@@ -142,6 +153,10 @@ async def complete_upload(session: AsyncSession, user: CurrentUser, file_id: UUI
 async def can_access_file(session: AsyncSession, user: CurrentUser, obj: FileObject) -> bool:
     if obj.completed_at is None or user.role == RoleCode.SYSTEM_ADMIN:
         return False
+    if obj.thesis_id and user.role in (RoleCode.STUDENT, RoleCode.SCHOOL_REVIEWER, RoleCode.PLATFORM_REVIEWER):
+        if await session.scalar(select(Thesis.id).where(
+                Thesis.id == obj.thesis_id, Thesis.draft_abandoned_at.is_(None))) is None:
+            return False
     bound = await session.scalar(select(ThesisVersionFile.id).where(ThesisVersionFile.file_id == obj.id).limit(1))
     if bound is None:
         from app.modules.files.transform_models import PdfTransformOperation

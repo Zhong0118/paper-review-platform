@@ -21,7 +21,7 @@ VALID_DRAFT = {
 @pytest.mark.asyncio
 async def test_save_and_reload_draft(client: AsyncClient, seed):
     expert, _student, task_id = await accepted_task(client, seed)
-    saved = await client.put(f"/api/v1/expert/tasks/{task_id}/draft", headers=auth(expert), json=VALID_DRAFT)
+    saved = await client.put(f"/api/v1/expert/tasks/{task_id}/draft", headers=auth(expert), json={**VALID_DRAFT, "expected_revision": 0})
     assert saved.status_code == 200, saved.text
     loaded = await client.get(f"/api/v1/expert/tasks/{task_id}/draft", headers=auth(expert))
     assert loaded.json()["data"]["issues"] == VALID_DRAFT["issues"]
@@ -37,7 +37,7 @@ async def test_submit_final_locks_and_moves_to_result_processing(client: AsyncCl
     )
     assert res.status_code == 200, res.text
     assert res.json()["data"]["status"] == "SUBMITTED"
-    again = await client.put(f"/api/v1/expert/tasks/{task_id}/draft", headers=auth(expert), json=VALID_DRAFT)
+    again = await client.put(f"/api/v1/expert/tasks/{task_id}/draft", headers=auth(expert), json={**VALID_DRAFT, "expected_revision": 0})
     assert again.status_code == 409
     theses = await client.get("/api/v1/theses", headers=auth(student))
     assert theses.json()["data"][0]["stage"] == "RESULT_PROCESSING"

@@ -9,6 +9,19 @@ from tests.test_dispatch_result_integrity import submitted
 from tests.test_file_concurrency import independent_sessions
 
 
+PUBLIC_ITEM_KEYS = {'alias', 'total', 'scores', 'recommendation', 'overall_comment', 'issues', 'revision_advice'}
+REVISED_ADVICE = '请补充样本规模的对照表'
+
+
+def public_item(data, advice, *, school=False):
+    assert data['snapshot_schema_version'] == 2
+    item, = data['items']
+    assert set(item) == PUBLIC_ITEM_KEYS | ({'check_summary'} if school else set())
+    assert item['alias'] == 'E-001' and item['revision_advice'] == advice
+    for private in ('expert.zhou', '周明远', '专家私有申请理由', '学校私有核对理由', '不公开的分项意见', '私有优点'):
+        assert private not in str(data)
+
+
 @pytest.mark.asyncio
 async def test_published_snapshot_survives_current_summary_change(independent_sessions):
     sessions, client = independent_sessions
@@ -53,6 +66,7 @@ async def test_publication_contains_bound_immutable_snapshot(independent_session
             'SELECT snapshot,publication_no,replaces_id FROM result_publications'))).one()
         assert publication.publication_no == 1
         assert publication.replaces_id is None
+        public_item(publication.snapshot, '补充对照')
         assert publication.snapshot['thesis_id'] == thesis['id']
         assert publication.snapshot['thesis_version_id'] == thesis['current_version']['id']
         assert publication.snapshot['base_result_id']
@@ -67,7 +81,7 @@ def pdf_text(response):
     assert response.headers['cache-control'] == 'no-store'
     doc = PdfReader(BytesIO(response.content))
     result = ''.join(page.extract_text() for page in doc.pages)
-    for private in ('周明远', 'expert.zhou', '专家私有申请理由', '学校私有核对理由'):
+    for private in ('周明远', 'expert.zhou', '专家私有申请理由', '学校私有核对理由','不公开的分项意见','私有优点'):
         assert private not in result + str(doc.metadata) + response.headers['content-disposition']
     for dimension in ('选题价值','文献与理论基础','研究方法','创新性','写作与学术规范','研究成果与工作量'):
         assert dimension in result
@@ -88,6 +102,7 @@ async def test_correction_requires_school_activation_with_real_rls():
             accounts = {name: await login(client, name, runtime.seed_password)
                         for name in ('expert.zhou', 'school.wang', 'platform.chen', 'student.lin')}
             expert, school, platform, student = (accounts[name] for name in accounts)
+            supervisor = await login(client, 'supervisor.zhao', runtime.seed_password)
             task = runtime.task_id
             listing = await client.get(f'/api/v1/expert-tasks/{task}/corrections', headers=auth(expert))
             assert listing.status_code == 200, listing.text
@@ -106,7 +121,8 @@ async def test_correction_requires_school_activation_with_real_rls():
             corrected = await client.post(f'/api/v1/expert-corrections/{rid}:submit',
                 headers=auth(expert, 'correction-submit'),
                 json={'version': approved.json()['data']['version'],
-                      'payload': {**VALID_DRAFT, 'topicValue': 15, 'literatureTheory': 15, 'methodology': 20}})
+                      'payload': {**VALID_DRAFT, 'topicValue': 15, 'literatureTheory': 15, 'methodology': 20,
+                                  'revisionAdvice': REVISED_ADVICE, 'strengths': '私有优点', 'evaluations': {'topicValue':'不公开的分项意见'}}})
             assert corrected.status_code == 200, corrected.text
             url = f'/api/v1/my/theses/{runtime.thesis_id}/published-result'
             before = await client.get(url, headers=auth(student))
@@ -120,6 +136,9 @@ async def test_correction_requires_school_activation_with_real_rls():
             assert exported.status_code == 200
             document = pdf_text(exported)
             assert '总分：80' in document and '发布版本：1' in document
+            public_item(before.json()['data'], '补充对照')
+            public_item((await client.get(url, headers=auth(supervisor))).json()['data'], '补充对照')
+            assert '补充对照' in document and REVISED_ADVICE not in document
             assert before.json()['data']['total'] == 80
             assert before.json()['data'].get('correction_pending') is True
             async with runtime.session_factory() as session:
@@ -157,6 +176,14 @@ async def test_correction_requires_school_activation_with_real_rls():
             assert exported.status_code == 200
             document = pdf_text(exported)
             assert '总分：90' in document and '发布版本：2' in document
+            public_item(after.json()['data'], REVISED_ADVICE)
+            public_item((await client.get(url, headers=auth(supervisor))).json()['data'], REVISED_ADVICE)
+            assert REVISED_ADVICE in document
+            async with runtime.session_factory() as session:
+                await bind_candidate_identity(session, verified_access_claims(school['access_token']))
+                first, second = (await session.execute(text('SELECT snapshot FROM result_publications ORDER BY publication_no'))).scalars().all()
+                public_item(first, '补充对照')
+                public_item(second, REVISED_ADVICE)
             assert after.json()['data']['total'] == 90
             assert after.json()['data'].get('correction_pending') is False
             effective = await client.get(f'/api/v1/expert/tasks/{task}/result', headers=auth(expert))
@@ -179,6 +206,7 @@ async def test_correction_requires_school_activation_with_real_rls():
             assert after.json()['data']['effective_revision_id'] == activated.json()['data']['revision']['id']
             school_result = await client.get(f'/api/v1/school-review/theses/{runtime.thesis_id}/results',
                 headers=auth(school))
+            public_item(school_result.json()['data'], REVISED_ADVICE, school=True)
             assert school_result.json()['data']['base_result_id'] == base
             assert school_result.json()['data']['effective_revision_id'] == after.json()['data']['effective_revision_id']
 
@@ -463,7 +491,7 @@ async def test_correction_terminal_paths_preserve_expected_publication(ending):
             if ending != 'platform_reject':
                 submitted = await client.post(f'/api/v1/expert-corrections/{rid}:submit',
                     headers=auth(expert, 'terminal-submit'), json={'version': row['version'],
-                        'payload': {**VALID_DRAFT, 'topicValue': 15, 'literatureTheory': 15, 'methodology': 20}})
+                        'payload': {**VALID_DRAFT, 'topicValue': 15, 'literatureTheory': 15, 'methodology': 20, 'revisionAdvice': REVISED_ADVICE}})
                 assert submitted.status_code == 200, submitted.text
                 row = submitted.json()['data']
                 action = 'activate' if ending == 'activate_before_publish' else 'reject'
@@ -478,14 +506,107 @@ async def test_correction_terminal_paths_preserve_expected_publication(ending):
             if ending == 'activate_before_publish':
                 current = await client.get(f'/api/v1/school-review/theses/{runtime.thesis_id}/results',
                     headers=auth(school))
+                public_item(current.json()['data'], REVISED_ADVICE, school=True)
                 published = await client.post(f'/api/v1/school-review/theses/{runtime.thesis_id}:publish',
                     headers=auth(school, 'terminal-publish'), json={'version': current.json()['data']['version']})
                 assert published.status_code == 200, published.text
             result = await client.get(f'/api/v1/my/theses/{runtime.thesis_id}/published-result', headers=auth(student))
             assert result.status_code == 200, result.text
             assert result.json()['data']['total'] == (90 if ending == 'activate_before_publish' else 80)
+            public_item(result.json()['data'], REVISED_ADVICE if ending == 'activate_before_publish' else '补充对照')
             assert result.json()['data']['correction_pending'] is False
             if ending != 'activate_before_publish':
                 again = await client.post(f'/api/v1/expert-tasks/{runtime.task_id}/corrections',
                     headers=auth(expert, 'terminal-new-request'), json=request_body)
                 assert again.status_code == 200, again.text
+
+
+@pytest.mark.asyncio
+async def test_legacy_publication_remains_exactly_as_released_after_guard_upgrade(monkeypatch):
+    from httpx import ASGITransport, AsyncClient
+    from app.db.rls_context import bind_candidate_identity, verified_access_claims
+    from app.modules.result import service
+    from scripts.acceptance_server import acceptance_environment
+    from tests.helpers import login
+    from tests.test_review import VALID_DRAFT
+    from tests.test_rule_snapshot_migration import migrate
+
+    async with acceptance_environment('accepted') as runtime:
+        async with AsyncClient(transport=ASGITransport(app=runtime.app), base_url='http://test') as client:
+            school, expert, student, supervisor = [await login(client, name, runtime.seed_password)
+                for name in ('school.wang','expert.zhou','student.lin','supervisor.zhao')]
+            result = await client.post(f'/api/v1/expert/tasks/{runtime.task_id}:submit-final',
+                                       headers=auth(expert), json=VALID_DRAFT)
+            assert result.status_code == 200
+            school_url = f'/api/v1/school-review/theses/{runtime.thesis_id}'
+            preview = (await client.get(school_url+'/results', headers=auth(school))).json()['data']
+            async with runtime.session_factory() as session:
+                schema = await session.scalar(text('SELECT current_schema()'))
+            down = migrate(schema, 'downgrade', '0033_abandoned_drafts')
+            assert down.returncode == 0, down.stderr
+            # Exercise the actual old INSERT guard and the old writer's precise shape.
+            new_snapshot = service.publication_snapshot
+            def old_writer(*args):
+                snapshot = new_snapshot(*args)
+                snapshot.pop('snapshot_schema_version', None)
+                snapshot['items'][0].pop('revision_advice', None)
+                return snapshot
+            with monkeypatch.context() as patch:
+                patch.setattr(service, 'publication_snapshot', old_writer)
+                published = await client.post(school_url+':publish', headers=auth(school),
+                                              json={'version': preview['version']})
+                assert published.status_code == 200
+            async def stored_bytes():
+                async with runtime.session_factory() as session:
+                    await bind_candidate_identity(session, verified_access_claims(school['access_token']))
+                    return await session.scalar(text('SELECT snapshot::text FROM result_publications'))
+            before = await stored_bytes()
+            up = migrate(schema, 'upgrade', 'head')
+            assert up.returncode == 0, up.stderr
+            assert await stored_bytes() == before
+            for actor, url in [(school, school_url+'/results'), *[(actor, f'/api/v1/my/theses/{runtime.thesis_id}/published-result') for actor in (student, supervisor)]]:
+                data = (await client.get(url, headers=auth(actor))).json()['data']
+                assert data['snapshot_schema_version'] == 1
+                assert 'revision_advice' not in data['items'][0] and VALID_DRAFT['revisionAdvice'] not in str(data)
+            document = pdf_text(await client.get(school_url+'/published-review.pdf', headers=auth(school)))
+            assert '该发布版本未收录修改建议' in document and VALID_DRAFT['revisionAdvice'] not in document
+
+
+@pytest.mark.asyncio
+async def test_first_publication_guard_rejects_forged_advice_and_extra_private_fields(monkeypatch):
+    from httpx import ASGITransport, AsyncClient
+    from sqlalchemy.exc import DBAPIError
+    from app.db.rls_context import bind_candidate_identity, verified_access_claims
+    from app.modules.auth.deps import CurrentUser
+    from app.modules.result import service
+    from scripts.acceptance_server import acceptance_environment
+    from tests.helpers import login
+    from tests.test_review import VALID_DRAFT
+
+    async with acceptance_environment('accepted') as rt:
+        async with AsyncClient(transport=ASGITransport(app=rt.app), base_url='http://test') as client:
+            school, expert = [await login(client, n, rt.seed_password) for n in ('school.wang', 'expert.zhou')]
+            submit = await client.post(f'/api/v1/expert/tasks/{rt.task_id}:submit-final', headers=auth(expert), json=VALID_DRAFT)
+            assert submit.status_code == 200
+            url = f'/api/v1/school-review/theses/{rt.thesis_id}'
+            preview = (await client.get(url+'/results', headers=auth(school))).json()['data']
+            public_item(preview, VALID_DRAFT['revisionAdvice'], school=True)
+            claims = verified_access_claims(school['access_token'])
+            user = CurrentUser(claims.user_id, claims.role, claims.tenant_id, {})
+            writer = service.publication_snapshot
+            for extra in [{'strengths':'私有优点'}, {'revision_advice':'伪造意见'}]:
+                def forged(*args):
+                    snapshot = writer(*args)
+                    snapshot['items'][0].update(extra)
+                    return snapshot
+                with monkeypatch.context() as patch:
+                    patch.setattr(service, 'publication_snapshot', forged)
+                    async with rt.session_factory() as s:
+                        await bind_candidate_identity(s, claims)
+                        with pytest.raises(DBAPIError) as denied:
+                            await service.publish(s, user, UUID(rt.thesis_id), preview['version'])
+                        assert denied.value.orig.sqlstate == '42501'
+                        assert 'snapshot does not match effective result' in str(denied.value.orig)
+                        await s.rollback()
+            published = await client.post(url+':publish', headers=auth(school), json={'version':preview['version']})
+            assert published.status_code == 200

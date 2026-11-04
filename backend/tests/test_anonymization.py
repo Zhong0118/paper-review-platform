@@ -2,7 +2,7 @@ from tests.pdf_samples import pdf_bytes
 import pytest
 from httpx import AsyncClient
 
-from tests.helpers import attach_files, auth, create_draft, login
+from tests.helpers import attach_files, auth, create_draft, login, submit_current_draft
 
 
 @pytest.mark.asyncio
@@ -17,7 +17,7 @@ async def test_failing_detection_returns_to_draft(client: AsyncClient, seed):
         anonymous_bytes=pdf_bytes("作者 林知远 学号 20260042 导师 赵文博"),
         anonymous_type="application/pdf",
     )
-    res = await client.post(
+    res = await submit_current_draft(client,
         f"/api/v1/theses/{thesis['id']}:submit",
         headers=auth(student, idempotency="sub-fail"),
         json={"version": thesis["version"]},
@@ -44,7 +44,7 @@ async def test_school_cannot_pass_failed_check(client: AsyncClient, seed):
         anonymous_bytes=pdf_bytes("林知远 20260042"),
         anonymous_type="application/pdf",
     )
-    submitted = await client.post(
+    submitted = await submit_current_draft(client,
         f"/api/v1/theses/{thesis['id']}:submit",
         headers=auth(student, idempotency="fail-pass"),
         json={"version": thesis["version"]},

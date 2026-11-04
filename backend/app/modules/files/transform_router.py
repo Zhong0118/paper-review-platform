@@ -50,8 +50,9 @@ async def complete_source(file_id: UUID, user: CurrentUser = Depends(get_current
 
 
 @router.post('/pdf-transforms/{operation_id}:apply')
-async def apply(operation_id: UUID, body: FinishBody, user: CurrentUser = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
-    result = await transform_service.finish(session, user, operation_id, body.expected_version)
+async def apply(operation_id: UUID, body: FinishBody,
+                expected: str = Header(alias="If-Draft-Revision", pattern=r"^[0-9a-f]{64}$"), user: CurrentUser = Depends(get_current_user), session: AsyncSession = Depends(get_session)):
+    result = await transform_service.finish(session, user, operation_id, body.expected_version, expected_content_revision=expected)
     await session.commit()
     return ok(result)
 

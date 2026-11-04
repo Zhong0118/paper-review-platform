@@ -18,6 +18,7 @@ export interface ThesisDetail {
   allowed_actions: string[]
   anonymization: SensitiveReport
   current_version: {
+    content_revision?: string
     school_program?: SavedProgram|null
     id: string
     title: string
@@ -62,7 +63,7 @@ export function createThesis(payload: DraftPayload) {
   return httpApi.post<ThesisDetail>('/theses', payload)
 }
 
-export function patchThesis(id: string, payload: DraftPayload) {
+export function patchThesis(id: string, payload: DraftPayload & {expected_content_revision:string}) {
   return httpApi.patch<ThesisDetail>(`/theses/${id}`, payload)
 }
 
@@ -70,8 +71,8 @@ export function deleteThesis(id: string) {
   return httpApi.delete(`/theses/${id}`)
 }
 
-export function submitThesis(id: string, version: number, options?: RequestOptions) {
-  return httpApi.post<ThesisDetail>(`/theses/${id}:submit`, { version }, options)
+export function submitThesis(id: string, version: number, expectedContentRevision: string, options?: RequestOptions) {
+  return httpApi.post<ThesisDetail>(`/theses/${id}:submit`, { version, expected_content_revision:expectedContentRevision }, options)
 }
 
 export function withdrawThesis(id: string, version: number, reason: string, options?: RequestOptions) {

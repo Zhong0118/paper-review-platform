@@ -11,7 +11,7 @@ import { useStudentPortalService } from '@/demo/serviceProvider'
 import { getPublishedResult, type ReviewOutcome } from '@/api/results'
 import { createObjection, listMyObjections } from '@/api/objections'
 import { listTheses } from '@/api/theses'
-import { toStudentThesisDetail } from '@/api/adapters'
+import { toStudentThesisDetail, toAnonymousResult } from '@/api/adapters'
 import type { StudentObjectionInput, StudentResult, StudentThesisDetail } from '@/demo/types'
 import PortalLayout from '@/layouts/PortalLayout.vue'
 import { portalMenus } from '@/router/menus'
@@ -104,13 +104,7 @@ async function loadSelected(id: string) {
                   score: data.items[0]?.scores[dimension.key] ?? 0,
                   maxScore: dimension.max_score,
                 })),
-                results: data.items.map((item) => ({
-                  expertAlias: item.alias,
-                  score: item.total,
-                  recommendation: item.recommendation,
-                  comment: item.overall_comment,
-                  submittedAt: '',
-                })),
+                results: data.items.map(toAnonymousResult),
                 objection: latest
                   ? {
                       id: latest.id,

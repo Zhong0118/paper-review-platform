@@ -7,7 +7,7 @@ const programApi=vi.hoisted(()=>({studentPrograms:vi.fn()}))
 vi.mock('@/api/schoolPrograms',()=>programApi)
 const api = vi.hoisted(() => ({
   getThesis: vi.fn(), createThesis: vi.fn(), patchThesis: vi.fn(), submitThesis: vi.fn(),
-  fetchEligibility: vi.fn(), getMyDisciplines: vi.fn(), checkSensitiveThesis: vi.fn(), uploadThesisFile: vi.fn(), getFileContent: vi.fn(),
+  listTheses:vi.fn(), fetchEligibility: vi.fn(), getMyDisciplines: vi.fn(), checkSensitiveThesis: vi.fn(), uploadThesisFile: vi.fn(), getFileContent: vi.fn(),
 }))
 vi.mock('@/api/theses', () => api)
 vi.mock('@/api/sensitiveChecks', () => api)
@@ -19,6 +19,7 @@ vi.mock('@/api/auth', async (importOriginal) => ({
 }))
 
 import Page from '../pages/ThesisEditPage.vue'
+import Dashboard from '../pages/StudentDashboardPage.vue'
 
 enableAutoUnmount(afterEach)
 afterEach(() => vi.unstubAllEnvs())
@@ -28,7 +29,7 @@ const historical = {
   id: 'old-thesis', stage: 'DRAFT', version: 1, return_reason: null,
   allowed_actions: ['EDIT_THESIS', 'SUBMIT_THESIS'],
   anonymization: { auto_conclusion: null, manual_conclusion: null, findings: [] },
-  current_version: { id: 'old-version', title: '旧论文', abstract: '旧摘要', discipline_code: '0812',
+  current_version: { id: 'old-version', content_revision:'base', title: '旧论文', abstract: '旧摘要', discipline_code: '0812',
     discipline_name: '计算机科学与技术', keywords: ['盲审'], is_editable: true, files: [] },
   recent_events: [],
   student: { name: '旧学生', student_no: 'old-001', supervisor_name: '旧导师',
@@ -98,9 +99,12 @@ it('creates only after an explicit server-provided discipline is selected', asyn
   expect(wrapper.get('[data-action="create-selected-draft"]').attributes('disabled')).toBeDefined()
   await wrapper.get('[data-action="open-discipline"]').trigger('click')
   await wrapper.get('[data-discipline="0101"]').trigger('click')
+  expect(wrapper.get('[data-action="create-selected-draft"]').attributes('disabled')).toBeDefined()
+  await wrapper.get('[data-create-title]').setValue('虚构哲学论文')
+  await wrapper.get('[data-create-keywords]').setValue('方法，实验')
   await wrapper.get('[data-action="create-selected-draft"]').trigger('click')
   await flushPromises()
-  expect(api.createThesis).toHaveBeenCalledWith(expect.objectContaining({discipline_code:'0101',discipline_name:'哲学'}))
+  expect(api.createThesis).toHaveBeenCalledWith(expect.objectContaining({title:'虚构哲学论文',keywords:['方法','实验'],discipline_code:'0101',discipline_name:'哲学'}))
 })
 
 it('does not create or fall back to demo choices when the directory fails', async () => {
@@ -153,9 +157,93 @@ it('selects a local code by official name and sends its pinned catalog along wit
   await wrapper.get('[data-action="open-discipline"]').trigger('click')
   await wrapper.get('input[type=search]').setValue('计算机')
   await wrapper.get('[data-discipline="0007"]').trigger('click')
+  expect(wrapper.get('[data-action="create-selected-draft"]').attributes('disabled')).toBeDefined()
+  await wrapper.get('[data-create-title]').setValue('虚构哲学论文')
+  await wrapper.get('[data-create-keywords]').setValue('方法，实验')
   await wrapper.get('[data-action="create-selected-draft"]').trigger('click')
   await flushPromises()
-  expect(api.createThesis.mock.calls[0]?.[0]).not.toHaveProperty('discipline_code')
+  expect(api.createThesis.mock.calls[0]?.[0]).toMatchObject({discipline_code:'0812',discipline_name:'计算机科学与技术'})
   expect(api.createThesis).toHaveBeenCalledWith(expect.objectContaining({
     program:{catalog_id:'catalog-b',code:'0007'}}))
+})
+
+it('keeps author input on a catalog change and rejects double clicks while creating', async()=>{
+  let reject!: (error:Error)=>void
+  api.createThesis.mockImplementation(()=>new Promise((_,r)=>{reject=r}))
+  const w=await page('new')
+  await w.get('[data-create-title]').setValue('目录变化时保留标题')
+  await w.get('[data-create-keywords]').setValue('唯一关键词')
+  await w.get('[data-action="open-discipline"]').trigger('click')
+  await w.get('[data-discipline="0812"]').trigger('click')
+  await w.get('[data-action="create-selected-draft"]').trigger('click')
+  await w.get('[data-action="create-selected-draft"]').trigger('click')
+  expect(api.createThesis).toHaveBeenCalledTimes(1)
+  reject(new Error('目录已变更'));await flushPromises()
+  expect(w.get('[role=alert]').text()).toContain('目录已变更')
+  expect((w.get('[data-create-title]').element as HTMLInputElement).value).toBe('目录变化时保留标题')
+  expect((w.get('[data-create-keywords]').element as HTMLInputElement).value).toBe('唯一关键词')
+})
+
+it('uses the loaded revision and keeps all local fields when another tab wins',async()=>{
+  api.getThesis.mockResolvedValue({...historical,current_version:{...historical.current_version,content_revision:'revision-a'}})
+  api.patchThesis.mockRejectedValue({response:{status:409,data:{code:'VERSION_CONFLICT'}}})
+  const w=await page()
+  await w.get('input[name=title]').setValue('本页唯一输入')
+  await w.get('[data-action=save-draft]').trigger('click');await flushPromises()
+  expect(api.patchThesis).toHaveBeenCalledWith('old-thesis',expect.objectContaining({expected_content_revision:'revision-a'}))
+  expect(w.get('[data-save-status]').text()).toContain('其他')
+  expect((w.get('input[name=title]').element as HTMLInputElement).value).toBe('本页唯一输入')
+  expect(api.getThesis).toHaveBeenCalledTimes(1)
+})
+
+it('keeps input on an existing-thesis conflict and offers its verified destination',async()=>{
+  api.createThesis.mockRejectedValue({response:{data:{code:'VERSION_CONFLICT',data:{id:'owned-existing'},message:'本批已有论文'}}})
+  api.getThesis.mockResolvedValue({...historical,id:'owned-existing'})
+  const w=await page('new')
+  await w.get('[data-create-title]').setValue('冲突仍保留')
+  await w.get('[data-create-keywords]').setValue('实验')
+  await w.get('[data-action=open-discipline]').trigger('click')
+  await w.get('[data-discipline="0812"]').trigger('click')
+  await w.get('[data-action=create-selected-draft]').trigger('click'); await flushPromises()
+  expect((w.get('[data-create-title]').element as HTMLInputElement).value).toBe('冲突仍保留')
+  await w.get('[data-open-existing]').trigger('click');await flushPromises()
+  expect(api.getThesis).toHaveBeenCalledWith('owned-existing')
+})
+
+it.each([null,'bound'])('empty directory %s never selects an official fallback', async catalog_id=>{
+  api.getMyDisciplines.mockResolvedValue(catalog_id?[{code:'0835',name:'软件工程'}]:[])
+  programApi.studentPrograms.mockResolvedValue({catalog_id,items:[]})
+  const w=await page('new')
+  await w.get('[data-create-title]').setValue('保留待维护的论文')
+  await w.get('[data-create-keywords]').setValue('实验')
+  expect(w.get('[data-action=create-selected-draft]').attributes('disabled')).toBeDefined()
+  expect(w.text()).toContain('联系学校审核员')
+  expect(api.createThesis).not.toHaveBeenCalled()
+})
+
+it.each([false,true])('real dashboard uses batch eligibility and an existing draft instead of a blind POST (eligible %s)',async eligible=>{
+  api.fetchEligibility.mockResolvedValue({eligible,status:eligible?'ELIGIBLE':'SUSPENDED',batch_id:'batch-x',batch_name:'试点',deadline:null})
+  api.listTheses.mockResolvedValue([{...historical,review_batch:{...historical.review_batch,id:'batch-x'}}])
+  const router=createRouter({history:createMemoryHistory(),routes:[
+    {path:'/student/dashboard',component:Dashboard},
+    {path:'/student/thesis/edit',component:{template:'<p>编辑页</p>'}},
+  ]})
+  await router.push('/student/dashboard')
+  const w=mount(RouterView,{global:{plugins:[createPinia(),router],stubs:{PortalLayout:{template:'<div><slot/></div>'}}}})
+  await flushPromises()
+  const btn=w.get('[data-action=create-thesis]')
+  expect(btn.attributes('disabled')!==undefined).toBe(!eligible)
+  await btn.trigger('click'); await flushPromises()
+  expect(router.currentRoute.value.path).toBe(eligible?'/student/thesis/edit':'/student/dashboard')
+  if(eligible)expect(router.currentRoute.value.query.thesisId).toBe('old-thesis')
+  expect(api.createThesis).not.toHaveBeenCalled()
+})
+
+it('locates an existing submitted thesis without offering draft commands', async()=>{
+  api.getThesis.mockResolvedValue({...historical,stage:'PREPARING',allowed_actions:[],
+    current_version:{...historical.current_version,is_editable:false}})
+  const w=await page()
+  expect(w.text()).toContain('旧论文')
+  expect(w.find('[data-action=save-draft]').exists()).toBe(false)
+  expect(w.find('[data-action=open-submit-confirmation]').exists()).toBe(false)
 })

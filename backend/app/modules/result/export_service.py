@@ -47,6 +47,9 @@ def render_publication(snapshot: dict, version: int, published_at: datetime) -> 
         for label, key in (("评审建议", "recommendation"), ("总体评价", "overall_comment"), ("主要问题", "issues")):
             line(label, heading)
             line(item.get(key) or "未填写")
+        line("修改建议", heading)
+        line("该发布版本未收录修改建议" if snapshot.get("snapshot_schema_version", 1) == 1
+             else item["revision_advice"] or "未填写")
         story.append(Spacer(1, 4*mm))
     doc.build(story)
     return buffer.getvalue()

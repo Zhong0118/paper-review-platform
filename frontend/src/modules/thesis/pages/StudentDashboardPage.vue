@@ -7,7 +7,7 @@ import { useRouter } from 'vue-router'
 import BlindRail from '@/components/app/BlindRail.vue'
 import PageHeader from '@/components/app/PageHeader.vue'
 import { useStudentPortalService } from '@/demo/serviceProvider'
-import { createThesis as createThesisApi, deleteThesis, getThesis, listTheses, withdrawThesis } from '@/api/theses'
+import { deleteThesis, getThesis, listTheses, withdrawThesis } from '@/api/theses'
 import { toStudentThesisDetail } from '@/api/adapters'
 import { fetchEligibility } from '@/api/auth'
 import type {
@@ -189,23 +189,20 @@ function errorMessage(error: unknown) {
 }
 
 async function createThesis() {
-  if (creating.value || eligibilityReason.value) return
+  if (creating.value || loading.value || listError.value || !eligibility.value?.eligible) return
   creating.value = true
   feedback.value = ''
   try {
-    const created =
-      demoEnabled && service
-        ? await service.createStudentDraft()
-        : toStudentThesisDetail(
-            await createThesisApi({
-              title: '未命名论文',
-              abstract: '待补充摘要',
-              discipline_code: '0812',
-              discipline_name: '计算机科学与技术',
-              keywords: ['盲审'],
-            }),
-          )
-    await router.push({ path: '/student/thesis/edit', query: { thesisId: created.id } })
+    if (demoEnabled && service) {
+      const created = await service.createStudentDraft()
+      await router.push({path:'/student/thesis/edit',query:{thesisId:created.id}})
+    } else {
+      const existing=theses.value.find(t=>t.batchId===eligibility.value?.batchId && t.stage!=='TERMINATED')
+      if (existing && !existing.allowedActions.includes('EDIT_THESIS')) {
+        selectThesis(existing.id); drawerOpen.value=true; return
+      }
+      await router.push({path:'/student/thesis/edit',query:existing ? {thesisId:existing.id} : {}})
+    }
   } catch (error) {
     if (errorCode(error) === 'NOT_ELIGIBLE') eligibilityReason.value = errorMessage(error)
     else feedback.value = errorMessage(error)
@@ -381,7 +378,7 @@ onBeforeUnmount(() => { listGeneration++ })
             class="primary-action"
             type="button"
             data-action="create-thesis"
-            :disabled="creating || !eligibility?.eligible"
+            :disabled="creating || loading || !!listError || !eligibility?.eligible"
             @click="createThesis"
           >
             {{ creating ? '正在新建…' : '新建论文' }}
@@ -397,7 +394,7 @@ onBeforeUnmount(() => { listGeneration++ })
       />
 
       <div class="student-dashboard__overview">
-        <EligibilityCard
+        <EligibilityCard v-if="!loading && !listError && eligibility"
           :eligible="eligibility?.eligible ?? false"
           :batch-name="eligibility?.batchName ?? '资格信息加载中'"
           :deadline="eligibility?.deadline || '未设置'"
@@ -493,7 +490,7 @@ onBeforeUnmount(() => { listGeneration++ })
             }}
           </h2>
           <p v-if="confirmationAction === 'DELETE_DRAFT'">
-            删除后该草稿及其本地演示材料记录将不再显示。
+            删除后该草稿将从我的论文中移除，原材料不能再访问。
           </p>
           <template v-else>
             <p v-if="confirmationAction === 'REQUEST_WITHDRAWAL'">

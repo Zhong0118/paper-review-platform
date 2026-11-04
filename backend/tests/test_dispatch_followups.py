@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from httpx import AsyncClient, ASGITransport
 from scripts.acceptance_server import acceptance_environment
-from tests.helpers import auth, login
+from tests.helpers import auth, login, submit_current_draft
 from tests.test_expert_operations import dispatch_fixture
 
 PL = '/api/v1/platform-review'
@@ -279,7 +279,7 @@ async def test_workload_spans_schools_and_drops_rejected_invitation():
             draft = await create_draft(c, student)
             path = '/api/v1/school-review/theses/' + draft['id']
             await attach_files(c, student, draft['id'])
-            res = await c.post(
+            res = await submit_current_draft(c,
                 '/api/v1/theses/' + draft['id'] + ':submit',
                 headers=auth(student),
                 json={'version': draft['version']},

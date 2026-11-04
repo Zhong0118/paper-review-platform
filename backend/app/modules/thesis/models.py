@@ -29,6 +29,7 @@ class Thesis(BaseModel):
     submission_source: Mapped[str] = mapped_column(String(32), nullable=False, default="STUDENT")
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     return_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    draft_abandoned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), deferred=True)
 
 
 class ThesisVersion(BaseModel):

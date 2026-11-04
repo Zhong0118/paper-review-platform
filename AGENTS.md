@@ -23,7 +23,7 @@
 - `theses.stage` 只允许 `workflow.transition` 写入。
 - 学校看不到专家姓名；专家看不到原文和作者。敏感缺失与无权限对外多为 `RESOURCE_NOT_FOUND`。
 - 测试用独立 Postgres（5433 / `paper_review_test`），不要复用其它项目的 5432。
-- 不删除 `docs/99_原始材料/`。不上生产前必须补 RLS（延期，未取消）。
+- 不删除 `docs/99_原始材料/`。已有 ENABLE/FORCE RLS 迁移。部署前须在目标环境验证迁移状态、受限数据库角色和跨租户隔离；源码存在不代表部署验收通过。
 
 ## 4. 角色（实现口径）
 

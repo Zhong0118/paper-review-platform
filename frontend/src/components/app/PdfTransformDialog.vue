@@ -5,7 +5,7 @@ import { useAuthStore } from '@/stores/auth'
 import { getFileContent } from '@/api/files'
 import { generatePdfTransform, applyPdfTransform, cancelPdfTransform, uploadTransformSource,
   type PdfPurpose, type PdfOperation, type PdfTransform } from '@/api/pdfTransforms'
-const props=defineProps<{thesisId:string;version:number;files:{file_id:string;purpose:string;filename:string}[]}>()
+const props=defineProps<{thesisId:string;version:number;contentRevision:string;files:{file_id:string;purpose:string;filename:string}[]}>()
 const emit=defineEmits<{close:[];applied:[]}>()
 const auth=useAuthStore(), dialog=ref<HTMLDialogElement>()
 const purpose=ref<PdfPurpose>('anonymous'), operation=ref<PdfOperation>('EXTRACT')
@@ -21,7 +21,7 @@ watch(purpose,resetSources,{immediate:true})
 onMounted(async()=>{await nextTick();dialog.value?.showModal()})
 function clear(){generation++;if(preview.value)URL.revokeObjectURL(preview.value);preview.value='';ready.value=undefined}
 onBeforeUnmount(clear)
-watch(()=>[props.thesisId,props.version,auth.user?.id,auth.user?.tenantId,auth.user?.role],()=>{clear();emit('close')})
+watch(()=>[props.thesisId,props.version,props.contentRevision,auth.user?.id,auth.user?.tenantId,auth.user?.role],()=>{clear();emit('close')})
 function pages(text:string){
  const values:number[]=[]
  for(const piece of text.split(/[,，]/)){
@@ -80,7 +80,7 @@ async function retryPreview(){
 async function apply(){
  if(!ready.value||!preview.value||busy.value)return
  const current=++generation;busy.value=true;error.value=''
- try{await applyPdfTransform(ready.value.operation_id,props.version);if(current===generation)emit('applied')}
+ try{await applyPdfTransform(ready.value.operation_id,props.version,props.contentRevision);if(current===generation)emit('applied')}
  catch(e){if(current===generation)error.value=e instanceof Error?e.message:'应用失败 请刷新草稿后重试'}
  finally{if(current===generation)busy.value=false}
 }

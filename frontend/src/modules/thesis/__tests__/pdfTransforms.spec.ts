@@ -16,7 +16,7 @@ beforeEach(() => {
   api.applyPdfTransform.mockResolvedValue({...ready,status:'APPLIED'})
 })
 afterEach(()=>vi.unstubAllGlobals())
-function dialog(){return mount(Dialog,{props:{thesisId:'thesis',version:1,files:[{file_id:'source',purpose:'anonymous',filename:'paper.pdf'}]},attachTo:document.body})}
+function dialog(){return mount(Dialog,{props:{thesisId:'thesis',version:1,contentRevision:'a'.repeat(64),files:[{file_id:'source',purpose:'anonymous',filename:'paper.pdf'}]},attachTo:document.body})}
 it('requires explicit preview then apply, preserving page order',async()=>{
  const w=dialog()
  await w.get('[data-pages]').setValue('2,1')
@@ -25,7 +25,7 @@ it('requires explicit preview then apply, preserving page order',async()=>{
  expect(api.applyPdfTransform).not.toHaveBeenCalled()
  expect(w.get('iframe').attributes('src')).toBe('blob:pdf')
  await w.get('[data-apply-pdf]').trigger('click');await flushPromises()
- expect(api.applyPdfTransform).toHaveBeenCalledWith('op',1)
+ expect(api.applyPdfTransform).toHaveBeenCalledWith('op',1,'a'.repeat(64))
  expect(w.emitted('applied')).toHaveLength(1)
 })
 it('rejects empty or duplicate page plans and retains an operation after apply conflict',async()=>{

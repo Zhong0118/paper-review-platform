@@ -166,3 +166,17 @@ describe('real result pages', () => {
     expect(wrapper.get('[data-action="publish-results"]').text()).not.toContain('结果已发布')
   })
 })
+
+it.each([StudentResultPage, SupervisorResultPage, ResultProcessingPage])('renders advice beside its anonymous result and explains an old snapshot (%s)', async component => {
+  for (const legacy of [false, true]) {
+    const items = [{ ...item, ...(legacy ? {} : {revision_advice:'请补充样本规模的对照表'}) }]
+    const data = { items, snapshot_schema_version: legacy ? 1 : 2 }
+    api.getPublishedResult.mockResolvedValue({ ...published, ...data })
+    api.getSchoolResults.mockResolvedValue({ ...schoolResult, ...data })
+    const wrapper = await page(component)
+    const row = wrapper.get('[data-result-row]').text()
+    expect(row).toContain(legacy ? '该发布版本未收录修改建议' : '请补充样本规模的对照表')
+    expect(row).toContain('实验不充分')
+    wrapper.unmount()
+  }
+})

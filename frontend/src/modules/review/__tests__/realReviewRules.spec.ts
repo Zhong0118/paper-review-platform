@@ -43,7 +43,7 @@ beforeEach(() => {
     { id: 'a', status: 'IN_REVIEW', anonymous_title: '论文甲', allowed_actions: ['CONTINUE_REVIEW'] },
     { id: 'b', status: 'IN_REVIEW', anonymous_title: '论文乙', allowed_actions: ['CONTINUE_REVIEW'] },
   ])
-  api.getReviewDraft.mockResolvedValue({})
+  api.getReviewDraft.mockResolvedValue({ revision: 0 })
   api.getReviewResult.mockResolvedValue({})
   api.getReviewRules.mockResolvedValue(rule)
   api.getMaterials.mockResolvedValue({ task_id: 'a', files: [] })
