@@ -18,7 +18,7 @@ jobs:
           POSTGRES_USER: paper_review_test_runner
           POSTGRES_PASSWORD: paper_review_ci_only
         ports:
-          - 5433:5432
+          - "127.0.0.1:5433:5432"
         options: >-
           --health-cmd "pg_isready -U paper_review_test_runner -d postgres"
           --health-interval 5s
@@ -54,6 +54,13 @@ jobs:
 
       - name: Install frontend dependencies
         run: pnpm --dir frontend install --frozen-lockfile
+
+      - name: Prepare recovery and PDF test containers
+        env:
+          POSTGRES_SERVICE_ID: ${{ job.services.postgres.id }}
+        run: |
+          docker rename "$POSTGRES_SERVICE_ID" paper-review-postgres
+          backend/.venv/bin/python backend/scripts/build_pdf_worker.py
 
       - name: Create test database and restricted runtime logins
         run: |

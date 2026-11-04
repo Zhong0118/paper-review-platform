@@ -5,6 +5,7 @@ from uuid import UUID
 import pytest
 from sqlalchemy import select
 
+from app.core.config import get_settings
 from app.core.exceptions import AppError
 from app.modules.auth.deps import CurrentUser
 from app.modules.dispatch.models import ExpertTask
@@ -18,7 +19,7 @@ from tests.test_review import VALID_DRAFT
 
 
 async def setup_task(client):
-    return await accepted_task(client, SimpleNamespace(password='ChangeMe!dev-only'))
+    return await accepted_task(client, SimpleNamespace(password=get_settings().seed_password))
 
 
 async def expert_actor(session):

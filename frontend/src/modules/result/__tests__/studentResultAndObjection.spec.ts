@@ -1,3 +1,4 @@
+import '@/__tests__/demoMode'
 import { createPinia } from 'pinia'
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import { createMemoryHistory, createRouter, RouterView } from 'vue-router'
