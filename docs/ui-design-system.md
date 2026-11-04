@@ -14,7 +14,7 @@ related_documents:
 
 # UI 设计系统
 
-> 历史草案。现行视觉未按本文强制落地；改样式前再读。现状见 [CURRENT.md](CURRENT.md)。
+> 历史草案。下文“个人门户用顶部导航”是旧方案。六角色统一侧栏、专注模式与实施顺序以 [十二类页面设计简报 · UI agent 当前入口](superpowers/specs/2026-11-04-ui-agent-brief.md) 为准；业务现状见 [CURRENT.md](CURRENT.md)。
 
 本文件规定平台前端的**视觉与组件设计系统**，是 `docs/engineering-specification.md` 第 4 节的视觉细则。前端采用 **Tailwind CSS v4 + Element Plus** 双轨方案：**Tailwind 负责布局/间距/排版/业务自定义组件样式，Element Plus 负责表单/表格/弹窗/日期/上传/消息等交互组件**。所有颜色、字号、间距通过设计令牌（Design Token）使用，禁止在业务组件中散落硬编码值。
 
