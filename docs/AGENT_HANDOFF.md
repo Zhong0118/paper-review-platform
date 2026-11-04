@@ -4,9 +4,11 @@
 
 ## 最新执行入口
 
-**2026-11-04 v2.1 接口补充：** 普通上传完成与 PDF 应用均须带内容版本。见[三项边界、实测断言与 UI Agent 同步说明](reviews/2026-11-04-v2.1-handoff.md)。
+**v2.1 以 commit 合并交接。** 分支 `codex/slice-7a1-file-integrity` 的本地修复提交为 `474befb9cb8c63ba9862579b47e49367b782e08f`，父提交 `3f40424d4a1a923c6f1d3e541f5e3238b69f1a49`。91 个变动路径、文件内容和模式与已验收快照完全相同，tree 为 `a19789587d9b5f8962fcbe1b130715e9812533f9`，迁移头为 `0034_public_revision_advice`。同步请合并提交；ZIP 只作校验与备份，旧报告里的补丁同步步骤不再作为交接方式。[v2 业务合同](reviews/2026-11-04-v2-handoff.md) · [v2.1 边界与验收](reviews/2026-11-04-v2.1-handoff.md)。
 
-**当前工作树（2026-11-04）：** 基线 `3f40424`，BUG-01～09 和 DOC-01 按[缺陷复核 v2 的证据与接口合同](reviews/2026-11-04-v2-handoff.md)交接。保留未提交的代码、三项迁移、测试和证据；先核对 Git，不要从旧基线覆盖。此轮无开发库迁移、提交或部署授权。以下为前一轮状态。
+**CI 单独修补。** [旧 Checks 41773857187](https://github.com/Zhong0118/paper-review-platform/actions/runs/41773857187) 在旧基线上为 514 通过、31 失败，前端步骤未运行。13 项首先失败在恢复演练找不到指定 PostgreSQL 容器，5 项在 PDF 镜像/运行时，13 项在评阅测试登录。CI 工作流取 [GitHub 本次 job 的服务容器 ID](https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#job-context)，为该容器设置恢复演练要求的名字，并只在 loopback 发布 5433；在测试前用项目脚本构建固定的 PDF worker；评阅测试读取和 seed 相同的配置。业务权限、恢复身份校验、PDF 沙箱及测试断言没有放宽。旧 run 的记录不会随本地提交而改变。
+
+本地复验：按该 run 的 pytest 节点名复跑全部 31 项，加上 `test_thesis_draft_revision.py`、`test_review_draft_cas.py`、`test_draft_abandon.py` 三组 21 项，合计 **52 passed**（退出 0）。使用非默认种子口令、独立测试 schema 与受限账号配置；真实 PostgreSQL 恢复与 Docker PDF 转换均执行。修复前在同样的非默认口令条件下复现过评阅登录失败。前端 3 个定向文件 **48 passed**，类型检查、真实模式构建、actionlint 及统一检查脚本自身的行为测试均通过。未重跑整个后端或 GitHub 托管 CI。
 
 **当前边界（2026-11-03）：** 01、02、06、13、20 已提交为 `7d607bc`，见[统一检查](reviews/2026-11-03-school-pilot-checkpoint.md)。随后的本地提交收录 [11 无候选原因](reviews/2026-11-03-dispatch-exclusions.md)及 [15 批次期限、18 任务负荷、16 延期审批](reviews/2026-11-03-dispatch-timing.md)。四项提交前已跑完整后端回归（545 通过）；新迁移头为 `0031_task_extensions`，仅在 5433 测试库隔离 schema 验证。后续先以虚构学校批次试用，再依环境门禁决定部署；没有待定的 15/18/16 规则。以下是历史检查点。
 
