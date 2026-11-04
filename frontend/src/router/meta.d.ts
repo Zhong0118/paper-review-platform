@@ -7,5 +7,7 @@ declare module 'vue-router' {
     roleCodes: RoleCode[]
     layout: 'auth' | 'admin' | 'portal' | 'review'
     pageId: string
+    /** U1 原型路由，仅开发环境存在 */
+    prototype?: boolean
   }
 }

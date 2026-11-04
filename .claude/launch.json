@@ -30,6 +30,11 @@
       "name": "frontend-demo-attach",
       "url": "http://127.0.0.1:5173",
       "port": 5173
+    },
+    {
+      "name": "ui-prototypes",
+      "url": "http://127.0.0.1:5187",
+      "port": 5187
     }
   ]
 }

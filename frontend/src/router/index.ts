@@ -22,6 +22,8 @@ const router = createRouter({
   routes: [
     { path: '/', redirect: '/login' },
     ...appRoutes,
+    // U1 原型：仅开发服务器注册，生产构建经 DEV 常量折叠后整体移除
+    ...(import.meta.env.DEV ? (await import('@/prototypes/routes')).prototypeRoutes : []),
     { path: '/:pathMatch(.*)*', redirect: '/login' },
   ],
 })
@@ -30,6 +32,7 @@ router.beforeEach((to) => {
   const authStore = useAuthStore()
   if (!authStore.user) authStore.hydrateFromStorage()
   if (to.path === '/login') return true
+  if (import.meta.env.DEV && to.meta.prototype) return true
 
   const role = authStore.user?.role
   if (!role) return { path: '/login', query: { redirect: to.fullPath } }
