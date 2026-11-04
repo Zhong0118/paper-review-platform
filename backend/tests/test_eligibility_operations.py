@@ -14,7 +14,7 @@ from app.modules.user.models import StudentEligibility, TenantUserMembership, Us
 from app.modules.workflow.models import WorkflowEvent
 from app.seed import seed_database
 
-from tests.helpers import attach_files, auth, create_draft, login
+from tests.helpers import attach_files, auth, create_draft, login, submit_current_draft
 
 
 @pytest.mark.asyncio
@@ -155,10 +155,10 @@ async def test_closed_batch_blocks_new_draft_but_existing_draft_can_be_edited(cl
     batch = next(row for row in (await client.get("/api/v1/school-admin/batches", headers=auth(school))).json()["data"] if row["code"] == "2026-spring")
     closed = await client.post(f"/api/v1/school-admin/batches/{batch['id']}:close-submissions", headers=auth(school, "close-draft-batch"), json={"expected_version": batch["version"]})
     assert closed.status_code == 200
-    edited = await client.patch(f"/api/v1/theses/{thesis['id']}", headers=auth(student), json={"title": "关闭后仍可编辑", "abstract": "", "discipline_code": "0812", "discipline_name": "计算机科学与技术", "keywords": ["盲审"]})
+    edited = await client.patch(f"/api/v1/theses/{thesis['id']}", headers=auth(student), json={"expected_content_revision":thesis["current_version"]["content_revision"],"title": "关闭后仍可编辑", "abstract": "", "discipline_code": "0812", "discipline_name": "计算机科学与技术", "keywords": ["盲审"]})
     assert edited.status_code == 200, edited.text
     await attach_files(client, student, thesis["id"])
-    submitted = await client.post(
+    submitted = await submit_current_draft(client,
         f"/api/v1/theses/{thesis['id']}:submit", headers=auth(student, "submit-after-close"),
         json={"version": thesis["version"]},
     )
@@ -218,12 +218,12 @@ async def test_suspended_eligibility_blocks_new_draft_but_preserves_existing_dra
     assert await db_session.scalar(select(func.count()).select_from(Thesis)) == before_theses
     assert await db_session.scalar(select(func.count()).select_from(WorkflowEvent)) == before_events
     edited = await client.patch(f"/api/v1/theses/{thesis['id']}", headers=auth(student), json={
-        "title": "暂停后仍可编辑", "abstract": "", "discipline_code": "0812",
+        "expected_content_revision":thesis["current_version"]["content_revision"], "title": "暂停后仍可编辑", "abstract": "", "discipline_code": "0812",
         "discipline_name": "计算机科学与技术", "keywords": ["盲审"],
     })
     assert edited.status_code == 200, edited.text
     await attach_files(client, student, thesis["id"])
-    submitted = await client.post(
+    submitted = await submit_current_draft(client,
         f"/api/v1/theses/{thesis['id']}:submit", headers=auth(student, "submit-suspended"),
         json={"version": thesis["version"]},
     )

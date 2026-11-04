@@ -1,0 +1,43 @@
+{
+  "browser": "Chrome headless",
+  "scenario": "accepted",
+  "ports": [
+    18446,
+    15446
+  ],
+  "exit": {
+    "inputToExitClickMs": 5.5,
+    "waitedForRealPutAck": true,
+    "putStatus": 200,
+    "readbackStatus": 200,
+    "readbackRevision": 1,
+    "restoredAllFields": true
+  },
+  "conflict": {
+    "status": 409,
+    "body": {
+      "request_id": "[redacted]",
+      "code": "VERSION_CONFLICT",
+      "message": "草稿已在其他窗口更新",
+      "data": {
+        "expected_revision": 1,
+        "current_revision": 2
+      }
+    },
+    "localInputPreserved": true,
+    "comparedWinner": true
+  },
+  "foreignExpert": {
+    "formVisible": false,
+    "get": {
+      "status": 404,
+      "code": "RESOURCE_NOT_FOUND"
+    },
+    "put": {
+      "status": 404,
+      "code": "RESOURCE_NOT_FOUND"
+    },
+    "winnerUnchanged": true
+  },
+  "pageErrors": []
+}

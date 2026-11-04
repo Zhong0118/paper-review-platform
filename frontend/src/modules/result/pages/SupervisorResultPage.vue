@@ -6,6 +6,7 @@ import BlindRail from '@/components/app/BlindRail.vue'
 import PageHeader from '@/components/app/PageHeader.vue'
 import { useScenarioService } from '@/demo/serviceProvider'
 import { getPublishedResult, listSupervisedPublishedTheses, type ReviewOutcome, type SupervisedPublishedThesis } from '@/api/results'
+import { toAnonymousResult } from '@/api/adapters'
 import type { DemoPublishedResult } from '@/demo/types'
 import PortalLayout from '@/layouts/PortalLayout.vue'
 import { portalMenus } from '@/router/menus'
@@ -46,10 +47,7 @@ async function loadSelected(id: string) {
     outcome.value = published.outcome
     correctionPending.value = published.correction_pending
     ruleVersion.value = published.rule_snapshot.version
-    rows.value = published.items.map(item => ({
-      expertAlias: item.alias, score: item.total, recommendation: item.recommendation,
-      comment: item.overall_comment, submittedAt: '',
-    }))
+    rows.value = published.items.map(toAnonymousResult)
   } catch (err) {
     if (request === generation) error.value = err instanceof Error ? err.message : '结果加载失败，请重试。'
   } finally {

@@ -289,6 +289,7 @@ async def serialize_batch(session: AsyncSession, batch: ReviewBatch) -> dict:
         pending = (
             await session.execute(select(Thesis.id).where(
                 Thesis.review_batch_id == batch.id,
+                Thesis.draft_abandoned_at.is_(None),
                 Thesis.stage.notin_(["COMPLETED", "TERMINATED"]),
             ).limit(1))
         ).scalar_one_or_none()
@@ -384,6 +385,7 @@ async def change_batch_status(
     if target == "ARCHIVED":
         pending = (await session.execute(select(Thesis.id).where(
             Thesis.review_batch_id == batch.id,
+            Thesis.draft_abandoned_at.is_(None),
             Thesis.stage.notin_(["COMPLETED", "TERMINATED"]),
         ).limit(1))).scalar_one_or_none()
         if pending is not None:

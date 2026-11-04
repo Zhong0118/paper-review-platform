@@ -20,17 +20,19 @@ export function getReviewRules(taskId: string) {
   return httpApi.get<ReviewRule>(`/expert/tasks/${taskId}/rules`)
 }
 
+export type SavedReviewDraft = Partial<ReviewScoreInput> & { revision: number }
+
 export function getReviewDraft(taskId: string) {
-  return httpApi.get<Partial<ReviewScoreInput>>(`/expert/tasks/${taskId}/draft`)
+  return httpApi.get<SavedReviewDraft>(`/expert/tasks/${taskId}/draft`)
 }
 
-export function saveReviewDraft(taskId: string, payload: ReviewScoreInput) {
-  return httpApi.put(`/expert/tasks/${taskId}/draft`, payload)
+export function saveReviewDraft(taskId: string, payload: ReviewScoreInput, expectedRevision: number) {
+  return httpApi.put<SavedReviewDraft>(`/expert/tasks/${taskId}/draft`, { ...payload, expected_revision: expectedRevision })
 }
 
-export function submitFinalReview(taskId: string, payload: ReviewScoreInput, checkAck?: CheckAck) {
-  return httpApi.post(`/expert/tasks/${taskId}:submit-final`, { ...payload, ...(checkAck ? { check_ack: checkAck } : {}) }, {
-    idempotencyKey: crypto.randomUUID(),
+export function submitFinalReview(taskId: string, payload: ReviewScoreInput, checkAck: CheckAck | undefined, expectedRevision: number, idempotencyKey: string) {
+  return httpApi.post(`/expert/tasks/${taskId}:submit-final`, { ...payload, expected_revision: expectedRevision, ...(checkAck ? { check_ack: checkAck } : {}) }, {
+    idempotencyKey,
   })
 }
 

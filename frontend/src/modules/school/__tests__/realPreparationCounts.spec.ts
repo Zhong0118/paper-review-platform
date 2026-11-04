@@ -68,3 +68,10 @@ it('checks the selected school anonymous file and reloads server allowed actions
   expect(api.checkSensitiveThesis).toHaveBeenCalledWith('a',{expected_version:3,file_id:'file-a'},true)
   expect(api.listSchoolTheses).toHaveBeenCalledTimes(2)
 })
+
+it('describes available intake actions without claiming school upload or batch import',async()=>{
+  const w=await page()
+  expect(w.text()).not.toContain('代传')
+  expect(w.text()).not.toContain('批量导入')
+  expect(w.text()).toContain('匿名核验')
+})

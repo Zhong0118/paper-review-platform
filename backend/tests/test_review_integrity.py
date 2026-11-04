@@ -49,8 +49,9 @@ async def test_stale_task_cannot_write_after_final(independent_sessions, operati
         await reviews.submit_final(first, actor, stale.id, reviews.ReviewPayload(**VALID_DRAFT))
         await first.commit()
         action = reviews.submit_final if operation == 'final' else reviews.save_draft
+        model = reviews.ReviewPayload if operation == 'final' else reviews.ReviewDraftWrite
         with pytest.raises(AppError) as error:
-            await action(second, actor, stale.id, reviews.ReviewPayload(**{**VALID_DRAFT, 'topicValue': 1}))
+            await action(second, actor, stale.id, model(**{**VALID_DRAFT, 'topicValue': 1, 'expected_revision': 0}))
         assert error.value.code == 'STATE_TRANSITION_DENIED'
         await second.rollback()
     await assert_one_result(sessions, task_id)
@@ -138,7 +139,8 @@ async def test_waiting_write_rechecks_after_commit_or_rollback(independent_sessi
         pid = (await second.execute(text('SELECT pg_backend_pid()'))).scalar_one()
         await reviews.submit_final(first, actor, stale.id, reviews.ReviewPayload(**VALID_DRAFT))
         action = reviews.submit_final if operation == 'final' else reviews.save_draft
-        pending = asyncio.create_task(action(second, actor, stale.id, reviews.ReviewPayload(**VALID_DRAFT)))
+        model = reviews.ReviewPayload if operation == 'final' else reviews.ReviewDraftWrite
+        pending = asyncio.create_task(action(second, actor, stale.id, model(**VALID_DRAFT, expected_revision=0)))
         try:
             await wait_for_db_lock(sessions, pid)
             if commit_first:

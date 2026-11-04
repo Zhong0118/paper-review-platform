@@ -8,7 +8,7 @@ import PageHeader from '@/components/app/PageHeader.vue'
 import { useScenarioService } from '@/demo/serviceProvider'
 import { downloadPublishedReview, getSchoolResults, publishThesis, type ReviewOutcome } from '@/api/results'
 import { getSchoolThesis,listSchoolTheses } from '@/api/schoolReview'
-import { selectSchoolResultQueue } from '@/api/adapters'
+import { selectSchoolResultQueue, toAnonymousResult } from '@/api/adapters'
 import type { ThesisDetail } from '@/api/theses'
 import type { DemoPublishedResult } from '@/demo/types'
 import PortalLayout from '@/layouts/PortalLayout.vue'
@@ -52,16 +52,6 @@ const selectedTitle = computed(
   () => queue.value.find((item) => item.id === thesisId.value)?.current_version?.title ?? '',
 )
 
-function mapItems(items: Array<{ alias: string; total: number; recommendation: string; overall_comment: string }>): DemoPublishedResult[] {
-  return items.map((item) => ({
-    expertAlias: item.alias,
-    score: item.total,
-    recommendation: item.recommendation,
-    comment: item.overall_comment,
-    submittedAt: '',
-  }))
-}
-
 async function loadThesis(id: string) {
   const request = ++generation
   exportError.value = ''
@@ -82,7 +72,7 @@ async function loadThesis(id: string) {
     summaryTotal.value = results.summary_total
     outcome.value = results.outcome
     ruleVersion.value = results.rule_snapshot?.version ?? ''
-    rows.value = mapItems(results.items)
+    rows.value = results.items.map(toAnonymousResult)
     checkSummaries.value = results.items.map(item => ({ alias: item.alias, summary: item.check_summary }))
     published.value = results.published
   } catch (err) {

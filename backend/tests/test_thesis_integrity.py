@@ -16,11 +16,15 @@ from app.modules.dispatch.models import ReviewRound, ExpertTask
 from app.modules.files.models import FileObject
 from app.modules.user.models import User, TenantUserMembership
 from tests.test_file_concurrency import independent_sessions, wait_for_db_lock
-from tests.helpers import login, auth, create_draft, attach_files, ready_thesis
+from tests.helpers import login, auth, create_draft, attach_files, ready_thesis, submit_current_draft
 from tests.test_dispatch import expert_id
 from tests.test_review import VALID_DRAFT
 
 EDIT = theses.DraftInput(title='更新标题', abstract='更新摘要', discipline_code='0835', discipline_name='软件工程', keywords=['测试'])
+
+
+def edit_for(draft):
+    return theses.DraftEditInput(**EDIT.model_dump(), expected_content_revision=draft["current_version"]["content_revision"])
 
 
 async def actor(session, username, role):
@@ -33,7 +37,7 @@ async def draft_with_files(client):
     student = await login(client, 'student.lin', get_settings().seed_password)
     draft = await create_draft(client, student)
     await attach_files(client, student, draft['id'])
-    return student, draft
+    return student, (await client.get("/api/v1/theses/"+draft["id"], headers=auth(student))).json()["data"]
 
 
 @pytest.mark.asyncio
@@ -46,10 +50,10 @@ async def test_stale_patch_cannot_mutate_frozen_version(independent_sessions):
         user = await actor(first, 'student.lin', 'student')
         stale = await second.get(Thesis, UUID(draft['id']))
         version = await second.get(ThesisVersion, stale.current_version_id)
-        await theses.submit(first, user, stale.id, draft['version'], None)
+        await theses.submit(first, user, stale.id, draft['version'], None, draft['current_version']['content_revision'])
         await first.commit()
         with pytest.raises(AppError) as error:
-            await theses.patch_draft(second, user, stale.id, EDIT)
+            await theses.patch_draft(second, user, stale.id, edit_for(draft))
         assert error.value.code == 'STATE_TRANSITION_DENIED'
         await second.rollback()
     async with sessions() as session:
@@ -68,9 +72,10 @@ async def test_submit_freezes_latest_metadata_after_patch(independent_sessions):
         user = await actor(first, 'student.lin', 'student')
         stale = await second.get(Thesis, UUID(draft['id']))
         version = await second.get(ThesisVersion, stale.current_version_id)
-        await theses.patch_draft(first, user, stale.id, EDIT)
+        await theses.patch_draft(first, user, stale.id, edit_for(draft))
         await first.commit()
-        await theses.submit(second, user, stale.id, draft['version'], None)
+        fresh=(await client.get('/api/v1/theses/'+draft['id'],headers=auth(student))).json()['data']
+        await theses.submit(second, user, stale.id, draft['version'], None, fresh['current_version']['content_revision'])
         assert version.title == '更新标题'
         assert version.discipline_code == '0835'
         assert not version.is_editable
@@ -127,7 +132,7 @@ async def test_withdraw_retires_old_round_and_resubmission_uses_new_version(inde
         assert old.status == 'CANCELLED'
         assert old.thesis_version_id == UUID(thesis['current_version']['id'])
         assert (await session.get(ThesisVersion, old.thesis_version_id)).is_editable is False
-    submitted = await client.post(f'/api/v1/theses/{tid}:submit', headers=auth(student), json={'version': draft['version']})
+    submitted = await submit_current_draft(client, f'/api/v1/theses/{tid}:submit', headers=auth(student), json={'version': draft['version']})
     assert submitted.status_code == 200, submitted.text
     ready = await client.post(f'/api/v1/school-review/theses/{tid}:confirm-anonymization', headers=auth(school), json={'version': submitted.json()['data']['version'], 'decision': 'PASS'})
     assert ready.status_code == 200, ready.text
@@ -164,14 +169,15 @@ async def test_thesis_writes_serialize_on_same_row(independent_sessions, winner)
         tid = stale.id
         pid = (await second.execute(text('SELECT pg_backend_pid()'))).scalar_one()
         if winner == 'submit':
-            await theses.submit(first, user, tid, draft['version'], None)
+            await theses.submit(first, user, tid, draft['version'], None, draft['current_version']['content_revision'])
             operation = theses.delete_draft(second, user, tid)
         elif winner == 'delete':
             await theses.delete_draft(first, user, tid)
-            operation = theses.submit(second, user, tid, draft['version'], None)
+            operation = theses.submit(second, user, tid, draft['version'], None, draft['current_version']['content_revision'])
         else:
-            await theses.patch_draft(first, user, tid, EDIT)
-            operation = theses.submit(second, user, tid, draft['version'], None)
+            saved = await theses.patch_draft(first, user, tid, edit_for(draft))
+            fresh = await theses.serialize_thesis(first, user, saved)
+            operation = theses.submit(second, user, tid, draft['version'], None, fresh['current_version']['content_revision'])
         pending = asyncio.create_task(operation)
         try:
             await wait_for_db_lock(sessions, pid)
@@ -254,7 +260,7 @@ async def test_foreign_student_cannot_modify_or_delete_draft(independent_session
     _, draft = await draft_with_files(client)
     other = await login(client, 'other.student', get_settings().seed_password)
     url = f"/api/v1/theses/{draft['id']}"
-    assert (await client.patch(url, headers=auth(other), json=EDIT.model_dump())).status_code == 404
+    assert (await client.patch(url, headers=auth(other), json=edit_for(draft).model_dump())).status_code == 404
     assert (await client.delete(url, headers=auth(other))).status_code == 404
     async with sessions() as session:
         assert (await session.get(Thesis, UUID(draft['id']))).stage == 'DRAFT'

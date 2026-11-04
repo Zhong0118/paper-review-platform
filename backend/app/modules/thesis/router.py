@@ -9,7 +9,7 @@ from app.core.response import ok
 from app.db.session import get_session
 from app.modules.auth.deps import CurrentUser, get_current_user, require_roles
 from app.modules.thesis import service as thesis_service
-from app.modules.thesis.service import ConfirmInput, DraftInput, SubmitInput, WithdrawInput
+from app.modules.thesis.service import ConfirmInput, DraftEditInput, DraftInput, SubmitInput, WithdrawInput
 from app.shared.enums import RoleCode
 
 student_router = APIRouter(prefix="/api/v1", tags=["theses"])
@@ -63,7 +63,7 @@ async def get_thesis(
 @student_router.patch("/theses/{thesis_id}")
 async def patch_thesis(
     thesis_id: UUID,
-    body: DraftInput,
+    body: DraftEditInput,
     request: Request,
     current: CurrentUser = Depends(require_roles(RoleCode.STUDENT)),
     session: AsyncSession = Depends(get_session),
@@ -95,17 +95,18 @@ async def submit_thesis(
     session: AsyncSession = Depends(get_session),
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
 ):
+    command = {"id": str(thesis_id), **body.model_dump(exclude_none=True)}
     cached = await thesis_service.remember_idempotent(
-        session, current, idempotency_key, "submit", {"id": str(thesis_id), "version": body.version}
+        session, current, idempotency_key, "submit", command
     )
     if cached:
         return ok(cached, request_id=getattr(request.state, "request_id", None))
     thesis = await thesis_service.submit(
-        session, current, thesis_id, body.version, getattr(request.state, "request_id", None)
+        session, current, thesis_id, body.version, getattr(request.state, "request_id", None), body.expected_content_revision
     )
     data = await thesis_service.serialize_thesis(session, current, thesis)
     await thesis_service.store_idempotent(
-        session, current, idempotency_key, "submit", {"id": str(thesis_id), "version": body.version}, data
+        session, current, idempotency_key, "submit", command, data
     )
     await session.commit()
     return ok(data, request_id=getattr(request.state, "request_id", None))

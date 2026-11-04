@@ -252,6 +252,9 @@ describe('review workspace page (PAGE-010)', () => {
     await flushPromises()
 
     expect((await service.listExpertTasks())[0].status).toBe('SUBMITTED')
+    const leave = new Event('beforeunload', { cancelable: true })
+    window.dispatchEvent(leave)
+    expect(leave.defaultPrevented).toBe(false)
     // 整页只读锁定：表单与材料区均不可编辑/不可提交（按钮保留在 DOM 中但被禁用）
     expect(wrapper.get('[data-review-locked="true"]').exists()).toBe(true)
     expect(wrapper.get('textarea[name="overallComment"]').attributes('disabled')).toBeDefined()
@@ -427,4 +430,13 @@ describe('review form pane (six-dimension template)', () => {
     // 实时总分随输入更新（模板合计 100）
     expect(wrapper.get('[data-total-score]').text()).toContain('21 / 100')
   })
+})
+
+it('does not mark a server refill as an edit; a real edit immediately exposes all fields before debounce', async () => {
+  const form = mount(ReviewFormPane, {props:{locked:false}})
+  await form.setProps({draft:completeInput})
+  expect(form.emitted('edited')).toBeUndefined()
+  await form.get('[name="evaluations.innovation"]').setValue('当前分项意见')
+  expect(form.emitted('edited')?.at(-1)).toEqual([{...completeInput,evaluations:{innovation:'当前分项意见'}}])
+  expect(form.emitted('autosave')).toBeUndefined()
 })

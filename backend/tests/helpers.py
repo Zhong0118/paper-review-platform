@@ -46,6 +46,9 @@ async def attach_files(
     original_type: str = "application/pdf",
     anonymous_type: str = "application/pdf",
 ) -> None:
+    detail = await client.get(f"/api/v1/theses/{thesis_id}", headers=auth(tokens))
+    assert detail.status_code == 200, detail.text
+    revision = detail.json()["data"]["current_version"]["content_revision"]
     for purpose, raw, name, ctype in (
         ("original", original_bytes, original_name, original_type),
         ("anonymous", anonymous_bytes, anonymous_name, anonymous_type),
@@ -60,8 +63,17 @@ async def attach_files(
         upload_url = prepared.json()["data"]["upload_url"]
         put = await client.put(upload_url, headers=auth(tokens), content=raw)
         assert put.status_code == 200, put.text
-        done = await client.post(f"/api/v1/files/{file_id}:complete", headers=auth(tokens))
+        done = await client.post(f"/api/v1/files/{file_id}:complete", headers={**auth(tokens), "If-Draft-Revision": revision})
         assert done.status_code == 200, done.text
+        revision = done.json()["data"]["content_revision"]
+
+
+async def submit_current_draft(client, endpoint, *, headers, json):
+    """Existing scenario clients read the material snapshot before confirming submission."""
+    snapshot = await client.get(endpoint.removesuffix(":submit"), headers=headers)
+    assert snapshot.status_code == 200, snapshot.text
+    revision = snapshot.json()["data"]["current_version"]["content_revision"]
+    return await client.post(endpoint, headers=headers, json={**json, "expected_content_revision": revision})
 
 
 async def ready_thesis(client: AsyncClient, seed: SimpleNamespace) -> tuple[dict, dict, dict]:
@@ -69,7 +81,7 @@ async def ready_thesis(client: AsyncClient, seed: SimpleNamespace) -> tuple[dict
     school = await login(client, "school.wang", seed.password)
     thesis = await create_draft(client, student)
     await attach_files(client, student, thesis["id"])
-    submitted = await client.post(
+    submitted = await submit_current_draft(client,
         f"/api/v1/theses/{thesis['id']}:submit",
         headers=auth(student, idempotency=f"s-{thesis['id'][:8]}"),
         json={"version": thesis["version"]},

@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Header, Query, Request
 from fastapi.responses import Response
 from fastapi.security import HTTPAuthorizationCredentials
 from jwt import InvalidTokenError
@@ -67,12 +67,23 @@ async def put_content(
 async def complete(
     file_id: UUID,
     request: Request,
+    expected: str = Header(alias="If-Draft-Revision", pattern=r"^[0-9a-f]{64}$"),
     current: CurrentUser = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
-    obj = await files_service.complete_upload(session, current, file_id)
+    obj = await files_service.complete_upload(session, current, file_id, expected_content_revision=expected)
+    from app.modules.thesis.models import ThesisVersion, ThesisVersionFile
+    from app.modules.thesis.service import locked_content_revision
+    from sqlalchemy import select
+    link = await session.scalar(select(ThesisVersionFile.id).where(
+        ThesisVersionFile.thesis_version_id == obj.upload_version_id, ThesisVersionFile.file_id == obj.id))
+    if link is None:
+        raise AppError("VERSION_CONFLICT", 409, "此文件已不再绑定")
+    v = await session.get(ThesisVersion, obj.upload_version_id, populate_existing=True)
+    revision = await locked_content_revision(session, v)
     await session.commit()
-    return ok({"file_id": str(obj.id), "sha256": obj.sha256}, request_id=getattr(request.state, "request_id", None))
+    return ok({"file_id": str(obj.id), "sha256": obj.sha256, "content_revision": revision},
+              request_id=getattr(request.state, "request_id", None))
 
 
 async def authorize_user(

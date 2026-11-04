@@ -1,3 +1,4 @@
+from tests.helpers import submit_current_draft
 from io import BytesIO
 from types import SimpleNamespace
 
@@ -87,7 +88,7 @@ async def test_school_terms_bound_reports_and_stale_confirmation():
             assert data['source_metadata']['terms_version'] == 1 and len(data['source_metadata']['file_sha256']) == 64
             assert any(f['kind'] == 'SCHOOL_TERM' and f['page_number'] == 1 for f in data['findings'])
             assert data['auto_conclusion'] == 'REVIEW_REQUIRED'
-            submitted = (await client.post(f"/api/v1/theses/{draft['id']}:submit", headers=auth(student), json={'version': detail['version']})).json()['data']
+            submitted = (await submit_current_draft(client, f"/api/v1/theses/{draft['id']}:submit", headers=auth(student), json={'version': detail['version']})).json()['data']
             assert submitted['stage'] == 'PREPARING'
             no_reason = await client.post(f"/api/v1/school-review/theses/{draft['id']}:confirm-anonymization", headers=auth(school), json={'version': submitted['version'], 'decision':'PASS'})
             assert no_reason.status_code == 422
@@ -175,7 +176,7 @@ async def test_terms_scope_races_and_report_input_freshness():
                     await bind_candidate_identity(session, verified_access_claims(actors[name]['access_token']))
                     assert await session.scalar(text('SELECT count(*) FROM anonymization_checks')) == 0
             version = detail['current_version']
-            edited = await client.patch(path, headers=auth(student), json={key: ('已编辑标题' if key=='title' else version[key]) for key in ('title','abstract','discipline_code','discipline_name','keywords')})
+            edited = await client.patch(path, headers=auth(student), json={"expected_content_revision":version["content_revision"], **{key: ('已编辑标题' if key=='title' else version[key]) for key in ('title','abstract','discipline_code','discipline_name','keywords')}})
             assert edited.status_code == 200, edited.text
             assert edited.json()['data']['anonymization']['stale'] is True
             assert (await client.post(path+'/sensitive-checks', headers=auth(student), json=payload)).status_code == 200

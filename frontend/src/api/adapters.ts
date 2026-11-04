@@ -1,5 +1,7 @@
+import type { PublishedItem } from '@/api/results'
 import type { ThesisDetail } from '@/api/theses'
 import type {
+  DemoPublishedResult,
   DemoThesisSummary,
   StudentEligibility,
   StudentThesisDetail,
@@ -42,7 +44,7 @@ export function toStudentThesisDetail(detail: ThesisDetail): StudentThesisDetail
     abstract: version?.abstract ?? '',
     studentId: detail.student?.student_no ?? '',
     studentName: detail.student?.name ?? '',
-    batchId: '',
+    batchId: detail.review_batch?.id ?? '',
     batchName: detail.batch_name ?? '',
     discipline: displayDiscipline(version),
     keywords: version?.keywords ?? [],
@@ -54,7 +56,7 @@ export function toStudentThesisDetail(detail: ThesisDetail): StudentThesisDetail
     timeline: detail.recent_events.map((event, index) => ({
       id: `${event.action}-${index}`,
       kind: 'THESIS_SUBMITTED',
-      occurredAt: new Date().toISOString(),
+      occurredAt: '时间未提供',
       message: event.reason ?? event.to_stage,
     })),
     publicReason: detail.return_reason ?? undefined,
@@ -71,7 +73,7 @@ export function toStudentThesisDetail(detail: ThesisDetail): StudentThesisDetail
       keywords: version?.keywords ?? [],
     },
     files,
-    updatedAt: new Date().toISOString(),
+    updatedAt: '时间未提供',
     version: detail.version,
   } as StudentThesisDetail & { version: number }
 }
@@ -107,9 +109,15 @@ export function toSchoolRow(detail: ThesisDetail): DemoThesisSummary {
     originalFileName: '',
     anonymousFileName: '',
     submissionSource: 'STUDENT',
-    updatedAt: new Date().toISOString(),
+    updatedAt: '时间未提供',
     allowedActions: detail.allowed_actions as DemoThesisSummary['allowedActions'],
     taskProgress: detail.stage,
     version: detail.version,
   } as unknown as DemoThesisSummary & { version: number }
+}
+
+/** An absent advice field means the original publication predates the public advice schema. */
+export function toAnonymousResult(item: PublishedItem): DemoPublishedResult {
+  return { expertAlias: item.alias, score: item.total, recommendation: item.recommendation,
+    comment: item.overall_comment, issues: item.issues, revisionAdvice: item.revision_advice ?? null, submittedAt: '' }
 }

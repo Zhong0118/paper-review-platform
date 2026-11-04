@@ -1,11 +1,13 @@
 from app.shared.time_scope import apply_thesis_scope
 from starlette.concurrency import run_in_threadpool
 from app.modules.files.pdf import validated_bytes
+import hashlib
+import json
 from datetime import datetime, timezone
 from uuid import UUID
 
 from pydantic import BaseModel, Field
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AppError
@@ -31,8 +33,13 @@ class DraftInput(BaseModel):
     keywords: list[str] = Field(default_factory=list)
 
 
+class DraftEditInput(DraftInput):
+    expected_content_revision: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
 class SubmitInput(BaseModel):
     version: int
+    expected_content_revision: str = Field(pattern=r"^[0-9a-f]{64}$")
 
 
 class WithdrawInput(BaseModel):
@@ -159,6 +166,33 @@ def allowed_actions(
     return actions
 
 
+def content_revision(version, program, files):
+    # Fingerprint the actual editable snapshot, including a cloned version's identity.
+    data = [str(version.id), version.title, version.abstract, version.discipline_code,
+            version.discipline_name, version.keywords,
+            [str(program["catalog_id"]), program["code"]] if program else None,
+            sorted((f["purpose"], str(f["file_id"])) for f in files)]
+    return hashlib.sha256(json.dumps(data, ensure_ascii=False, separators=(",", ":")).encode()).hexdigest()
+
+
+async def locked_content_revision(session, version, *, prior_binding=None):
+    # Callers already hold the thesis lock, shared by all binding and metadata commands.
+    links = (await session.execute(select(ThesisVersionFile.purpose, ThesisVersionFile.file_id)
+             .where(ThesisVersionFile.thesis_version_id == version.id))).mappings().all()
+    if prior_binding is not None:
+        # Reconstruct only the one link changed by this PDF operation for an ACK replay.
+        purpose, previous_id = prior_binding
+        links = [link for link in links if link["purpose"] != purpose]
+        if previous_id is not None:
+            links.append({"purpose": purpose, "file_id": previous_id})
+    return content_revision(version, await programs.display_choice(session, version.id), links)
+
+
+async def require_content_revision(session, version, expected):
+    if await locked_content_revision(session, version) != expected:
+        raise AppError("VERSION_CONFLICT", 409, "论文内容或材料已变更；请核对后再保存")
+
+
 async def serialize_thesis(session: AsyncSession, user: CurrentUser, thesis: Thesis) -> dict:
     version = await session.get(ThesisVersion, thesis.current_version_id) if thesis.current_version_id else None
     files = []
@@ -212,6 +246,7 @@ async def serialize_thesis(session: AsyncSession, user: CurrentUser, thesis: The
             "tenant_name": tenant.name if tenant else "",
             "college_name": org.name if org else "",
         }
+    program = await programs.display_choice(session, version.id) if version and user.role in {RoleCode.STUDENT, RoleCode.SCHOOL_REVIEWER} else None
     return {
         "id": str(thesis.id),
         "stage": thesis.stage,
@@ -232,8 +267,9 @@ async def serialize_thesis(session: AsyncSession, user: CurrentUser, thesis: The
         "current_version": None
         if version is None
         else {
-            **({"school_program": await programs.display_choice(session,version.id)}
+            **({"school_program": program}
                if user.role in {RoleCode.STUDENT,RoleCode.SCHOOL_REVIEWER} else {}),
+            **({"content_revision": content_revision(version, program, files)} if user.role == RoleCode.STUDENT else {}),
             "id": str(version.id),
             "title": version.title,
             "abstract": version.abstract,
@@ -264,6 +300,7 @@ async def create_draft(session: AsyncSession, user: CurrentUser, data: DraftInpu
                 Thesis.student_membership_id == elig.student_membership_id,
                 Thesis.review_batch_id == elig.review_batch_id,
                 Thesis.stage != ThesisStage.TERMINATED,
+                Thesis.draft_abandoned_at.is_(None),
             )
         )
     ).scalar_one_or_none()
@@ -302,11 +339,22 @@ async def create_draft(session: AsyncSession, user: CurrentUser, data: DraftInpu
     return thesis
 
 
+async def _active_thesis_by_id(session: AsyncSession, thesis_id: UUID, for_update: bool) -> Thesis | None:
+    # A 0028 database can still read the original snapshot and refuse an uninstalled
+    # return trigger. Only primary-key lookups need a column-name-independent test.
+    # 0033 refuses downgrade if any tombstones exist. RLS always applies.
+    row = Thesis.__table__.table_valued()
+    q = select(Thesis).where(Thesis.id == thesis_id,
+        func.jsonb_extract_path_text(func.to_jsonb(row), "draft_abandoned_at").is_(None))
+    if for_update:
+        q = q.with_for_update()
+    return await session.scalar(q.execution_options(populate_existing=True))
+
+
 async def get_student_thesis(
     session: AsyncSession, user: CurrentUser, thesis_id: UUID, *, for_update: bool = False
 ) -> Thesis:
-    thesis = (await session.get(Thesis, thesis_id, with_for_update=True, populate_existing=True)
-              if for_update else await session.get(Thesis, thesis_id))
+    thesis = await _active_thesis_by_id(session, thesis_id, for_update)
     if thesis is None or user.tenant_id != thesis.tenant_id or user.role != RoleCode.STUDENT:
         raise _hidden()
     membership = (
@@ -337,19 +385,20 @@ async def list_student_theses(session: AsyncSession, user: CurrentUser, *, time_
     return list(
         (
             await session.execute(
-                apply_thesis_scope(select(Thesis).where(Thesis.student_membership_id == membership.id).order_by(Thesis.created_at.desc()), time_scope, as_of)
+                apply_thesis_scope(select(Thesis).where(Thesis.student_membership_id == membership.id, Thesis.draft_abandoned_at.is_(None)).order_by(Thesis.created_at.desc()), time_scope, as_of)
             )
         ).scalars()
     )
 
 
-async def patch_draft(session: AsyncSession, user: CurrentUser, thesis_id: UUID, data: DraftInput) -> Thesis:
+async def patch_draft(session: AsyncSession, user: CurrentUser, thesis_id: UUID, data: DraftEditInput) -> Thesis:
     thesis = await get_student_thesis(session, user, thesis_id, for_update=True)
     if thesis.stage != ThesisStage.DRAFT:
         raise AppError("STATE_TRANSITION_DENIED", 409, "当前状态不允许编辑")
     version = await session.get(ThesisVersion, thesis.current_version_id, populate_existing=True)
     if version is None or not version.is_editable:
         raise AppError("STATE_TRANSITION_DENIED", 409, "当前版本不可编辑")
+    await require_content_revision(session, version, data.expected_content_revision)
     changed = (version.discipline_code,version.discipline_name) != (data.discipline_code,data.discipline_name)
     if changed or data.program:
         data.discipline_code,data.discipline_name = await programs.resolve(session,thesis.review_batch_id,user.tenant_id,data.program,
@@ -407,7 +456,7 @@ async def _clone_editable_version(session: AsyncSession, thesis: Thesis) -> Thes
     return new
 
 
-async def submit(session: AsyncSession, user: CurrentUser, thesis_id: UUID, expected_version: int, request_id: str | None) -> Thesis:
+async def submit(session: AsyncSession, user: CurrentUser, thesis_id: UUID, expected_version: int, request_id: str | None, expected_content_revision: str) -> Thesis:
     locked = await get_student_thesis(session, user, thesis_id, for_update=True)
     elig = (await session.execute(select(StudentEligibility).where(
         StudentEligibility.student_membership_id == locked.student_membership_id,
@@ -420,6 +469,7 @@ async def submit(session: AsyncSession, user: CurrentUser, thesis_id: UUID, expe
     version = await session.get(ThesisVersion, locked.current_version_id, populate_existing=True)
     if version is None:
         raise AppError("VALIDATION_FAILED", 422, "缺少论文版本")
+    await require_content_revision(session, version, expected_content_revision)
     await _require_discipline(session, version.discipline_code, version.discipline_name)
     from app.modules.tenant.catalog_service import require_school_discipline
     await require_school_discipline(session, user.tenant_id, version.discipline_code)
@@ -511,6 +561,25 @@ async def delete_draft(session: AsyncSession, user: CurrentUser, thesis_id: UUID
     events = await _events(session, thesis.id)
     if any(e.action == "submit" for e in events) or thesis.stage != ThesisStage.DRAFT:
         raise AppError("STATE_TRANSITION_DENIED", 409, "已提交过的论文不能删除")
+    from app.modules.files.transform_models import PdfTransformOperation
+    has_provenance = await session.scalar(select(
+        select(AnonymizationCheck.id).join(ThesisVersion, ThesisVersion.id == AnonymizationCheck.thesis_version_id)
+        .where(ThesisVersion.thesis_id == thesis_id).exists() |
+        select(PdfTransformOperation.id).where(PdfTransformOperation.thesis_id == thesis_id).exists()
+    ))
+    if has_provenance:
+        # A regular UPDATE ... WHERE id requires SELECT on the new (hidden) row.
+        # A positioned update uses the exact locked row and ordinary UPDATE RLS.
+        await session.execute(text('DECLARE abandon_draft NO SCROLL CURSOR FOR '
+            'SELECT id FROM theses WHERE id=:id AND draft_abandoned_at IS NULL FOR UPDATE'), {'id': thesis_id})
+        if (await session.execute(text('FETCH NEXT FROM abandon_draft'))).scalar_one_or_none() != thesis_id:
+            raise _hidden()
+        changed = await session.execute(text('UPDATE theses SET draft_abandoned_at=now() WHERE CURRENT OF abandon_draft'))
+        await session.execute(text('CLOSE abandon_draft'))
+        if changed.rowcount != 1:
+            raise _hidden()
+        await audit_service.record(session, user=user, action="delete_draft", object_type="thesis", object_id=str(thesis_id))
+        return
     version_ids = list((await session.execute(
         select(ThesisVersion.id).where(ThesisVersion.thesis_id == thesis.id)
     )).scalars())
@@ -532,7 +601,7 @@ async def list_school_theses(session: AsyncSession, user: CurrentUser, *, time_s
     return list(
         (
             await session.execute(
-                apply_thesis_scope(select(Thesis).where(Thesis.tenant_id == user.tenant_id).order_by(Thesis.updated_at.desc()), time_scope, as_of)
+                apply_thesis_scope(select(Thesis).where(Thesis.tenant_id == user.tenant_id, Thesis.draft_abandoned_at.is_(None)).order_by(Thesis.updated_at.desc()), time_scope, as_of)
             )
         ).scalars()
     )
@@ -541,7 +610,7 @@ async def list_school_theses(session: AsyncSession, user: CurrentUser, *, time_s
 async def get_school_thesis(session: AsyncSession, user: CurrentUser, thesis_id: UUID, *, for_update: bool = False) -> Thesis:
     if user.role != RoleCode.SCHOOL_REVIEWER or user.tenant_id is None:
         raise AppError("ACCESS_DENIED", 403, "无权执行该操作")
-    thesis = await session.get(Thesis, thesis_id, with_for_update=for_update, populate_existing=for_update)
+    thesis = await _active_thesis_by_id(session, thesis_id, for_update)
     if thesis is None or thesis.tenant_id != user.tenant_id:
         raise _hidden()
     return thesis

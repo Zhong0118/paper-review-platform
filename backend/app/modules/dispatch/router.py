@@ -11,7 +11,7 @@ from app.db.session import get_session
 from app.modules.auth.deps import CurrentUser, require_roles
 from app.modules.dispatch import service as dispatch_service
 from app.modules.dispatch import extensions
-from app.modules.review.service import ReviewPayload, ReviewSubmission
+from app.modules.review.service import ReviewDraftWrite, ReviewPayload, ReviewSubmission
 from app.modules.review import service as review_service
 from app.modules.thesis import service as thesis_service
 from app.shared.enums import RoleCode
@@ -140,7 +140,7 @@ async def expert_get_result(
 @expert_router.put("/tasks/{task_id}/draft")
 async def expert_put_draft(
     task_id: UUID,
-    body: ReviewPayload,
+    body: ReviewDraftWrite,
     request: Request,
     current: CurrentUser = Depends(require_roles(RoleCode.EXPERT)),
     session: AsyncSession = Depends(get_session),
@@ -160,9 +160,11 @@ async def expert_submit_final(
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
 ):
     await dispatch_service.get_task_for_expert(session, current, task_id)
-    review = ReviewPayload(**body.model_dump(exclude={'check_ack'}))
+    review = ReviewPayload(**body.model_dump(exclude={'check_ack', 'expected_revision'}))
     ack = body.check_ack.model_dump() if body.check_ack else None
     payload = {"id": str(task_id), "review": json.dumps(review.model_dump(), sort_keys=True, ensure_ascii=False)}
+    if body.expected_revision:
+        payload['expected_revision'] = body.expected_revision
     if ack is not None:
         payload['check_ack'] = ack
     cached = await thesis_service.remember_idempotent(
@@ -171,7 +173,7 @@ async def expert_submit_final(
     if cached:
         return ok(cached, request_id=getattr(request.state, "request_id", None))
     await dispatch_service.get_task_for_expert(session, current, task_id, for_update=True)
-    data = await review_service.submit_final(session, current, task_id, review, check_ack=ack)
+    data = await review_service.submit_final(session, current, task_id, review, check_ack=ack, expected_revision=body.expected_revision)
     await thesis_service.store_idempotent(session, current, idempotency_key, "submit-final", payload, data)
     await session.commit()
     return ok(data, request_id=getattr(request.state, "request_id", None))

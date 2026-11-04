@@ -13,7 +13,8 @@ from app.modules.files import service as files, transform_runtime
 from app.modules.files.models import FileObject
 from app.modules.files.pdf import validated_bytes
 from app.modules.files.transform_models import PdfTransformOperation
-from app.modules.thesis.models import ThesisVersionFile
+from app.modules.thesis.models import ThesisVersion, ThesisVersionFile
+from app.modules.thesis.service import locked_content_revision, require_content_revision
 
 
 def response(operation):
@@ -112,7 +113,7 @@ async def generate(session, user, thesis_id, payload, key):
     return result
 
 
-async def finish(session, user, operation_id, expected_version, *, cancel=False):
+async def finish(session, user, operation_id, expected_version, *, cancel=False, expected_content_revision=None):
     operation = await session.get(PdfTransformOperation, operation_id)
     if operation is None:
         raise files._hidden()
@@ -120,13 +121,28 @@ async def finish(session, user, operation_id, expected_version, *, cancel=False)
     # The thesis lock serializes apply/cancel and competing file uploads.
     await session.refresh(operation)
     target = 'CANCELLED' if cancel else 'APPLIED'
+    if not cancel:
+        if expected_content_revision is None:
+            raise AppError('VALIDATION_FAILED', 422, '应用转换必须提供论文内容版本')
+        await files._require_editable(session, thesis, operation.source_version)
+        if expected_version != operation.expected_version or thesis.version != expected_version:
+            raise AppError('VERSION_CONFLICT', 409, '草稿版本不匹配')
+        version = await session.get(ThesisVersion, operation.source_version, populate_existing=True)
     if operation.status == target:
-        return response(operation)
+        if cancel:
+            return response(operation)
+        bound = await session.scalar(select(ThesisVersionFile.file_id).where(
+            ThesisVersionFile.thesis_version_id == version.id, ThesisVersionFile.purpose == operation.purpose))
+        current = await locked_content_revision(session, version)
+        if bound != operation.new_file_id or (current != expected_content_revision and
+                await locked_content_revision(session, version, prior_binding=(operation.purpose, operation.bound_file_id))
+                != expected_content_revision):
+            raise AppError('VERSION_CONFLICT', 409, '应用后论文内容或材料已改变')
+        return {**response(operation), 'content_revision': current}
     if operation.status != 'READY':
         raise AppError('VERSION_CONFLICT', 409, '该转换已处理')
     if not cancel:
-        if expected_version != operation.expected_version:
-            raise AppError('VERSION_CONFLICT', 409, '草稿版本不匹配')
+        await require_content_revision(session, version, expected_content_revision)
         payload = {'expected_version': expected_version, 'purpose': operation.purpose,
                    'sources': [{'file_id': s['file_id'], 'pages': s['pages']} for s in operation.sources]}
         _, snapshot, _ = await _snapshot(session, user, thesis.id, payload, output_id=operation.new_file_id)
@@ -149,4 +165,4 @@ async def finish(session, user, operation_id, expected_version, *, cancel=False)
     await audit.record(session, user=user, action='PDF_TRANSFORM_' + target, object_type='pdf_transform',
         object_id=str(operation.id), detail={'new_file_id': str(operation.new_file_id)})
     await session.flush()
-    return response(operation)
+    return response(operation) if cancel else {**response(operation), 'content_revision': await locked_content_revision(session, version)}

@@ -101,6 +101,7 @@ def _alias_items(results: list[ReviewResultVersion]) -> list[dict]:
                 "recommendation": comments.get("recommendation", ""),
                 "overall_comment": comments.get("overallComment", ""),
                 "issues": comments.get("issues", ""),
+                "revision_advice": comments.get("revisionAdvice", ""),
             }
         )
     return items
@@ -110,6 +111,7 @@ def publication_snapshot(thesis: Thesis, summary: ResultSummary, results: list) 
     """Persist exactly what was released; later summary changes cannot change it."""
     rule = validate_rule_snapshot(summary.rule_snapshot)
     return {
+        "snapshot_schema_version": 2,
         "thesis_id": str(thesis.id), "thesis_version_id": str(thesis.current_version_id),
         "round_id": str(summary.round_id), "result_task_ids": list(summary.result_task_ids),
         "base_result_id": str(getattr(results[0], "base_result_id", results[0].id)),
@@ -151,15 +153,30 @@ async def school_results(session: AsyncSession, user: CurrentUser, thesis_id: UU
     thesis = await session.get(Thesis, thesis_id)
     if thesis is None or thesis.tenant_id != user.tenant_id:
         raise _hidden()
+    from app.modules.review.comment_checks import anonymous_summary
+    if thesis.stage == ThesisStage.COMPLETED:
+        _, publication = await latest_publication(session, thesis)
+        snapshot = publication.snapshot
+        # The school-only check summary belongs to the exact published source.
+        # Never project comments from a live result into a historical publication.
+        source = ReviewResultRevision if snapshot["revision_id"] else ReviewResultVersion
+        checks = await session.scalar(select(source.check_summary).where(
+            source.id == UUID(snapshot["revision_id"] or snapshot["base_result_id"])))
+        public = _public_result(snapshot)
+        public["summary_total"] = public.pop("total")
+        return {
+            **public, "stage": thesis.stage, "version": thesis.version, "published": True,
+            "items": [{**item, "check_summary": anonymous_summary(checks)} for item in snapshot["items"]],
+        }
     summary = (
         await session.execute(select(ResultSummary).where(ResultSummary.thesis_id == thesis.id))
     ).scalar_one_or_none()
     results = await _summary_results(session, summary) if summary else []
-    from app.modules.review.comment_checks import anonymous_summary
     items = [{**item, 'check_summary': anonymous_summary(row.check_summary)}
              for item, row in zip(_alias_items(results), results)]
     return {
         "thesis_id": str(thesis.id),
+        "snapshot_schema_version": 2,
         "stage": thesis.stage,
         "version": thesis.version,
         "summary_total": summary.total if summary else None,
@@ -272,17 +289,20 @@ async def published_result(session: AsyncSession, user: CurrentUser, thesis_id: 
     else:
         raise _hidden()
     summary, publication = await latest_publication(session, thesis)
-    snapshot = publication.snapshot
+    return {
+        **_public_result(publication.snapshot),
+        "correction_pending": bool(await session.scalar(select(func.has_open_review_correction(summary.round_id)))),
+    }
+
+
+def _public_result(snapshot: dict) -> dict:
     rule = validate_rule_snapshot(snapshot["rule_snapshot"])
     return {
-        "thesis_id": str(thesis.id),
-        "total": snapshot["total"],
-        "base_result_id": snapshot["base_result_id"],
-        "effective_revision_id": snapshot["revision_id"],
-        "rule_snapshot": rule,
-        "outcome": outcome_for_total(rule, snapshot["total"]),
+        "snapshot_schema_version": snapshot.get("snapshot_schema_version", 1),
+        "thesis_id": snapshot["thesis_id"], "total": snapshot["total"],
+        "base_result_id": snapshot["base_result_id"], "effective_revision_id": snapshot["revision_id"],
+        "rule_snapshot": rule, "outcome": outcome_for_total(rule, snapshot["total"]),
         "items": snapshot["items"],
-        "correction_pending": bool(await session.scalar(select(func.has_open_review_correction(summary.round_id)))),
     }
 
 

@@ -30,6 +30,10 @@ class ReviewPayload(BaseModel):
     evaluations: dict[str, str] = Field(default_factory=dict)
 
 
+class ReviewDraftWrite(ReviewPayload):
+    expected_revision: StrictInt = Field(ge=0)
+
+
 class CheckAck(BaseModel):
     model_config = ConfigDict(extra='forbid')
     payload_hash: str = Field(pattern=r'^[0-9a-f]{64}$')
@@ -38,6 +42,8 @@ class CheckAck(BaseModel):
 
 
 class ReviewSubmission(ReviewPayload):
+    # Legacy direct final submissions are safe only if no draft exists.
+    expected_revision: StrictInt = Field(default=0, ge=0)
     check_ack: CheckAck | None = None
 
 
@@ -62,7 +68,7 @@ def total_score(payload: ReviewPayload, rule_snapshot: dict) -> int:
 async def get_draft(session: AsyncSession, user: CurrentUser, task_id: UUID) -> dict:
     await get_task_for_expert(session, user, task_id)
     draft = (await session.execute(select(ReviewDraft).where(ReviewDraft.task_id == task_id))).scalar_one_or_none()
-    return draft.payload if draft else {}
+    return {**draft.payload, "revision": draft.revision} if draft else {"revision": 0}
 
 
 async def get_result(session: AsyncSession, user: CurrentUser, task_id: UUID) -> dict:
@@ -80,24 +86,39 @@ async def get_result(session: AsyncSession, user: CurrentUser, task_id: UUID) ->
     return {**result.comments, **result.scores}
 
 
-async def save_draft(session: AsyncSession, user: CurrentUser, task_id: UUID, payload: ReviewPayload) -> dict:
+def _check_revision(expected: int, current: int) -> None:
+    if expected != current:
+        raise AppError("VERSION_CONFLICT", 409, "草稿已在其他窗口更新",
+                       {"expected_revision": expected, "current_revision": current})
+
+
+async def save_draft(session: AsyncSession, user: CurrentUser, task_id: UUID, payload: ReviewDraftWrite) -> dict:
     task = await get_task_for_expert(session, user, task_id, for_update=True)
     if task.status != ExpertTaskStatus.IN_REVIEW:
         raise AppError("STATE_TRANSITION_DENIED", 409, "当前状态不允许保存草稿")
-    data = payload.model_dump()
-    draft = (await session.execute(select(ReviewDraft).where(ReviewDraft.task_id == task_id))).scalar_one_or_none()
+    data = payload.model_dump(exclude={"expected_revision"})
+    # The same parent lock serializes first INSERT, updates and final submission.
+    draft = (await session.execute(select(ReviewDraft).where(ReviewDraft.task_id == task_id)
+                                   .execution_options(populate_existing=True))).scalar_one_or_none()
+    revision = draft.revision if draft else 0
+    if draft and revision == payload.expected_revision + 1 and draft.payload == data:
+        return {**data, "revision": revision}
+    _check_revision(payload.expected_revision, revision)
     if draft:
         draft.payload = data
+        draft.revision = revision + 1
     else:
-        session.add(ReviewDraft(task_id=task_id, payload=data))
+        session.add(ReviewDraft(task_id=task_id, payload=data, revision=1))
     await session.flush()
-    return data
+    return {**data, "revision": revision + 1}
 
 
-async def submit_final(session: AsyncSession, user: CurrentUser, task_id: UUID, payload: ReviewPayload, check_ack: dict | None = None) -> dict:
+async def submit_final(session: AsyncSession, user: CurrentUser, task_id: UUID, payload: ReviewPayload, check_ack: dict | None = None, expected_revision: int = 0) -> dict:
     task = await get_task_for_expert(session, user, task_id, for_update=True)
     if task.status != ExpertTaskStatus.IN_REVIEW:
         raise AppError("STATE_TRANSITION_DENIED", 409, "当前状态不允许最终提交")
+    current_revision = await session.scalar(select(ReviewDraft.revision).where(ReviewDraft.task_id == task_id))
+    _check_revision(expected_revision, current_revision or 0)
     round_ = await session.get(ReviewRound, task.round_id, populate_existing=True)
     thesis = await session.get(Thesis, round_.thesis_id) if round_ else None
     if (thesis is None or thesis.stage != ThesisStage.UNDER_REVIEW

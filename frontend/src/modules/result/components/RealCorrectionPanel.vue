@@ -4,6 +4,7 @@ import { correctionCommand, getTaskCorrections, listCorrections, type Correction
 import type { CheckAck } from '@/api/reviewChecks'
 import type { ReviewRuleDimension } from '@/api/review'
 import type { ReviewScoreInput } from '@/demo/types'
+import { useAuthStore } from '@/stores/auth'
 import ReviewFormPane from '@/modules/review/components/ReviewFormPane.vue'
 import ReviewCheckSummary from '@/components/app/ReviewCheckSummary.vue'
 
@@ -18,7 +19,10 @@ const error = ref('')
 const notice = ref('')
 const selectedId = ref('')
 const confirmation = ref<{ action: CorrectionAction; target: string; body: unknown } | null>(null)
+const auth = useAuthStore()
+const ready = ref(false)
 let generation = 0
+let readId = 0
 let retryCommand: { signature: string; key: string } | null = null
 const visibleRows = computed(() => props.mode === 'school' && props.thesisId
   ? rows.value.filter(row => row.thesis_id === props.thesisId && (!props.initialCorrectionId || row.id === props.initialCorrectionId)) : rows.value)
@@ -30,59 +34,105 @@ const labels: Record<Correction['status'], string> = {
 }
 const fieldLabels: Record<string, string> = { topicValue: '选题价值', literatureTheory: '文献与理论基础', methodology: '研究方法', innovation: '创新性', writingStandards: '写作与学术规范', resultsWorkload: '研究成果与工作量', recommendation: '评审建议', overallComment: '总体评价', issues: '主要问题', strengths: '主要优点', revisionAdvice: '修改建议', evaluations: '分项评价' }
 function fieldValue(value: unknown): string {
-  return value && typeof value === 'object' ? Object.entries(value).map(([key, text]) => `${fieldLabels[key] ?? key}：${text}`).join('；') : String(value ?? '')
+  return value && typeof value === 'object' ? Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([key, text]) => `${fieldLabels[key] ?? key}：${text}`).join('；') : String(value ?? '')
 }
-const editDraft = computed(() => selected.value?.draft_payload && Object.keys(selected.value.draft_payload).length
+const seed = ref<ReviewScoreInput>()
+const local = ref<ReviewScoreInput>()
+const baseVersion = ref<number>()
+const compare = ref(false)
+const needsRefresh = ref(false)
+const remote = computed(() => selected.value?.draft_payload && Object.keys(selected.value.draft_payload).length
   ? selected.value.draft_payload as ReviewScoreInput : context.value?.current_payload)
+const differences = computed(() => Object.keys(fieldLabels).filter(field => {
+  const key = field as keyof ReviewScoreInput
+  return fieldValue(remote.value?.[key]) !== fieldValue(local.value?.[key])
+}))
+
+function resetEditing() {
+  seed.value = undefined; local.value = undefined; baseVersion.value = undefined
+  compare.value = false; needsRefresh.value = false
+}
+function takeRemote() {
+  seed.value = remote.value; local.value = undefined; baseVersion.value = selected.value?.version
+  compare.value = false
+}
+function keepLocal() {
+  if (!compare.value || needsRefresh.value || selected.value?.status !== 'APPROVED') return
+  baseVersion.value = selected.value.version; compare.value = false
+}
+function clearRecords() {
+  rows.value = []; context.value = null; ready.value = false; reason.value = ''; confirmation.value = null
+  selectedId.value = ''; notice.value = ''; retryCommand = null; resetEditing()
+}
+function denied(err: unknown) {
+  return [401, 403, 404].includes((err as { response?: { status?: number } })?.response?.status ?? 0)
+}
+watch(selectedId, () => { confirmation.value = null; retryCommand = null; resetEditing(); takeRemote() }, { flush: 'sync' })
 
 async function load() {
-  const own = ++generation
-  loading.value = true
-  error.value = ''
+  const own = ++readId
+  loading.value = true; error.value = ''
   try {
     if (props.mode === 'expert' && props.taskId) {
       const data = await getTaskCorrections(props.taskId)
-      if (own !== generation) return
+      if (own !== readId) return
       context.value = data
       rows.value = data.requests
     } else if (props.mode !== 'expert') {
       const data = await listCorrections(props.mode)
-      if (own !== generation) return
+      if (own !== readId) return
       rows.value = data
     }
     if (!visibleRows.value.some(row => row.id === selectedId.value)) selectedId.value = visibleRows.value[0]?.id ?? ''
+    if (selected.value?.status !== 'APPROVED' || props.mode !== 'expert') resetEditing()
+    else if (!local.value) takeRemote()
+    else if (selected.value.version !== baseVersion.value || needsRefresh.value) compare.value = true
+    needsRefresh.value = false; ready.value = true
   } catch (err) {
-    if (own === generation) error.value = err instanceof Error ? err.message : '更正记录加载失败'
+    if (own !== readId) return
+    if (denied(err)) clearRecords()
+    error.value = err instanceof Error ? err.message : '更正记录加载失败'
   } finally {
-    if (own === generation) loading.value = false
+    if (own === readId) loading.value = false
   }
 }
-watch(() => [props.mode, props.taskId, props.thesisId, props.initialCorrectionId], () => {
-  rows.value = []; context.value = null; reason.value = ''; confirmation.value = null
-  selectedId.value = ''; notice.value = ''; retryCommand = null
-  void load()
-}, { immediate: true })
-onBeforeUnmount(() => { generation++ })
+watch(() => [props.mode, props.taskId, props.thesisId, props.initialCorrectionId,
+  auth.user?.id, auth.user?.role, auth.user?.tenantId, auth.accessToken], () => {
+  generation++; pending.value = false; clearRecords(); void load()
+}, { immediate: true, flush: 'sync' })
+onBeforeUnmount(() => { generation++; readId++ })
 
 async function act(action: CorrectionAction, target: string, body: unknown) {
-  if (pending.value) return
+  if (pending.value || loading.value || needsRefresh.value || !ready.value) return
+  if (['draft','submit'].includes(action) && (compare.value || selected.value?.id !== target || selected.value.status !== 'APPROVED')) return
   const own = generation
   const signature = JSON.stringify({ action, target, body })
   if (!retryCommand || retryCommand.signature !== signature) retryCommand = { signature, key: crypto.randomUUID() }
   pending.value = true; error.value = ''; notice.value = ''
   try {
-    await correctionCommand(action, target, body, retryCommand.key)
+    const result = await correctionCommand(action, target, body, retryCommand.key)
     if (own !== generation) return
     retryCommand = null; confirmation.value = null; reason.value = ''
+    rows.value = [result, ...rows.value.filter(row => row.id !== result.id)]
+    if (action === 'draft') takeRemote()
+    else resetEditing()
     notice.value = action === 'draft' ? '更正草稿已保存' : '操作已完成，记录已刷新'
     await load()
-    emit('changed')
+    if (own === generation) emit('changed')
   } catch (err) {
     if (own !== generation) return
+    confirmation.value = null
+    if (denied(err)) clearRecords()
     const status = (err as { response?: { status?: number } }).response?.status
-    if (status === 409) { retryCommand = null; confirmation.value = null; await load() }
-    error.value = status === 409 ? '记录已变化，请核对刷新后的内容再操作。' : (err instanceof Error ? err.message : '操作失败，可重试')
-  } finally { pending.value = false }
+    if (status === 409) {
+      retryCommand = null; needsRefresh.value = true; await load()
+      if (own !== generation || error.value) return
+      error.value = '记录已变化，请核对刷新后的内容再操作。'
+    } else {
+      error.value = err instanceof Error ? err.message : '操作失败，可重试'
+      if (local.value) error.value += '。本地更正内容已保留。'
+    }
+  } finally { if (own === generation) pending.value = false }
 }
 function requestCorrection() {
   if (!context.value || !props.taskId || !reason.value.trim()) return
@@ -95,7 +145,8 @@ function decide(action: 'decide' | 'activate' | 'reject', decision?: string) {
     reason: reason.value.trim(), ...(decision ? { decision } : {}) } }
 }
 function draftAction(payload: ReviewScoreInput, submit: boolean, ack?: CheckAck) {
-  if (!selected.value) return
+  if (selected.value?.status !== 'APPROVED' || compare.value || needsRefresh.value || pending.value || loading.value) return
+  local.value = payload
   const body = { version: selected.value.version, payload, ...(submit && ack ? { check_ack: ack } : {}) }
   if (submit) confirmation.value = { action: 'submit', target: selected.value.id, body }
   else void act('draft', selected.value.id, body)
@@ -108,8 +159,8 @@ function draftAction(payload: ReviewScoreInput, submit: boolean, ack?: CheckAck)
     <p>学校确认前，已发布的旧结果继续有效。更正保留原记录，不恢复论文阅读权限。</p>
     <p v-if="notice" role="status">{{ notice }}</p>
     <p v-if="loading" role="status">正在加载更正记录…</p>
-    <p v-if="error" role="alert">{{ error }} <button type="button" :disabled="pending" @click="load">刷新记录</button></p>
-    <template v-if="!loading && !error">
+    <p v-if="error" role="alert">{{ error }} <button type="button" :disabled="pending || loading" @click="load">刷新记录</button></p>
+    <template v-if="ready">
       <p v-if="!visibleRows.length">暂无更正申请。</p>
       <label v-if="visibleRows.length">更正记录
         <select v-model="selectedId" :disabled="pending || !!confirmation" @change="reason = ''">
@@ -117,7 +168,7 @@ function draftAction(payload: ReviewScoreInput, submit: boolean, ack?: CheckAck)
         </select>
       </label>
       <div v-if="selected">
-        <p>{{ labels[selected.status] }}</p>
+        <p><span>{{ labels[selected.status] }}</span> · 版本 {{ selected.version }}</p>
         <p v-for="(note, index) in selected.notes" :key="index">{{ note.reason }}</p>
         <div v-if="mode === 'school' && selected.before && selected.revision" class="comparison">
           <section><h3>原生效版本 · {{ selected.before.total }} 分</h3>
@@ -126,9 +177,17 @@ function draftAction(payload: ReviewScoreInput, submit: boolean, ack?: CheckAck)
             <p v-for="(value, field) in selected.revision.payload" :key="field">{{ fieldLabels[field] ?? field }}：{{ fieldValue(value) }}</p></section>
         </div>
         <ReviewCheckSummary v-if="selected.revision" :summary="selected.revision.check_summary" />
+        <section v-if="compare && selected.status === 'APPROVED'" aria-label="更正草稿版本对照">
+          <h3>核对草稿后再保存</h3>
+          <p>本地草稿基于版本 {{ baseVersion }}，服务器当前为版本 {{ selected.version }}</p>
+          <p v-for="field in differences" :key="field">{{ fieldLabels[field] }} · 服务器：{{ fieldValue(remote?.[field as keyof ReviewScoreInput]) || '未填写' }}；本地：{{ fieldValue(local?.[field as keyof ReviewScoreInput]) || '未填写' }}</p>
+          <p v-if="!differences.length">两份草稿的内容一致</p>
+          <button type="button" data-action="keep-local-correction" :disabled="loading || needsRefresh" @click="keepLocal">保留本地内容，继续编辑</button>
+          <button type="button" :disabled="loading || needsRefresh" @click="takeRemote">使用服务器草稿</button>
+        </section>
         <ReviewFormPane v-if="mode === 'expert' && selected.status === 'APPROVED'" :key="selected.id"
-          :locked="pending || !!confirmation" :saving="pending" :hide-exit="true" :check-target="{ kind: 'correction', id: selected.id }" :draft="editDraft" :dimensions="dimensions"
-          @save="draftAction($event, false)" @submit="(payload, ack) => draftAction(payload, true, ack)" />
+          :locked="pending || loading || needsRefresh || compare || !!confirmation" :saving="pending" :hide-exit="true" :check-target="{ kind: 'correction', id: selected.id }" :draft="seed" :dimensions="dimensions"
+          @edited="local = $event" @save="draftAction($event, false)" @submit="(payload, ack) => draftAction(payload, true, ack)" />
         <button v-if="mode === 'expert' && ['REQUESTED','APPROVED'].includes(selected.status)" type="button" :disabled="pending"
           @click="act('cancel', selected.id, { version: selected.version })">取消申请</button>
       </div>

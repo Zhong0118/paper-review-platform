@@ -1,0 +1,18 @@
+统一验收输出摘录（仅保留检查阶段、结果与数量）
+基线：3f40424d4a1a923c6f1d3e541f5e3238b69f1a49 + 本轮工作树
+执行入口：./scripts/check.sh；进程退出码：0
+
+[check] database target verified: 127.0.0.1:5433/paper_review_test
+[check] backend tests
+564 passed, 8 warnings in 1430.13s (0:23:50)
+[check] backend tests passed (exit 0)
+[check] frontend unit tests
+ Test Files  75 passed (75)
+      Tests  571 passed (571)
+[check] frontend unit tests passed (exit 0)
+[check] frontend type check
+[check] frontend type check passed (exit 0)
+[check] frontend real-mode build
+✓ built in 970ms
+[check] frontend real-mode build passed (exit 0)
+[check] all checks passed

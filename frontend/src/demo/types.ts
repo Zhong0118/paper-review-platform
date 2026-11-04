@@ -367,6 +367,8 @@ export interface DemoPublishedResult {
   dimensionScores?: StudentScoreDimension[]
   recommendation: string
   comment: string
+  issues?: string
+  revisionAdvice?: string | null
   submittedAt: string
   publishedAt?: string
 }

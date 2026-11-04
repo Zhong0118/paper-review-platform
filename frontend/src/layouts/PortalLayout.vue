@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { NavigationItem } from '@/types/roles'
 
+import { useAuthStore } from '@/stores/auth'
 import AppHeader from '@/components/app/AppHeader.vue'
 
 const props = withDefaults(
@@ -13,6 +14,9 @@ const props = withDefaults(
   }>(),
   { backgroundLocked: false },
 )
+
+const demoEnabled=import.meta.env.VITE_DEMO_MODE==='true'
+const auth=demoEnabled ? undefined : useAuthStore()
 
 function blockBackgroundInteraction(event: Event) {
   if (!props.backgroundLocked) return
@@ -32,7 +36,7 @@ function blockBackgroundInteraction(event: Event) {
       @focusin.capture="blockBackgroundInteraction"
       @keydown.capture="blockBackgroundInteraction"
     >
-      <AppHeader :context-label="contextLabel" :user-name="userName" />
+      <AppHeader :context-label="contextLabel" :user-name="demoEnabled ? userName : (auth?.user?.displayName || '身份未取得')" />
       <nav class="portal-layout__nav" aria-label="主导航">
         <RouterLink
           v-for="item in menuItems"

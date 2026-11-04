@@ -9,7 +9,7 @@ from app.core.config import get_settings
 from app.modules.thesis.detector import run_anonymization_check
 from app.modules.files.models import FileObject
 from tests.pdf_samples import pdf_bytes
-from tests.helpers import login, auth, create_draft, attach_files
+from tests.helpers import login, auth, create_draft, attach_files, submit_current_draft
 from tests.test_file_lifecycle import prepare
 
 
@@ -40,7 +40,7 @@ async def test_reject_invalid_pdf_at_complete(client, raw):
     draft = await create_draft(client, user)
     data = (await prepare(client, user, draft['id'])).json()['data']
     assert (await client.put(data['upload_url'], headers=auth(user), content=raw)).status_code == 200
-    res = await client.post(f"/api/v1/files/{data['file_id']}:complete", headers=auth(user))
+    res = await client.post(f"/api/v1/files/{data['file_id']}:complete", headers={**auth(user),"If-Draft-Revision":draft["current_version"]["content_revision"]})
     assert res.status_code == 422, res.text
 
 
@@ -71,7 +71,7 @@ async def test_historical_fake_pdf_cannot_submit(client, db_session):
     obj.size_bytes = len(raw)
     obj.sha256 = sha256(raw).hexdigest()
     await db_session.flush()
-    res = await client.post(f"/api/v1/theses/{draft['id']}:submit", headers=auth(user), json={'version':draft['version']})
+    res = await submit_current_draft(client, f"/api/v1/theses/{draft['id']}:submit", headers=auth(user), json={'version':draft['version']})
     assert res.status_code == 422, res.text
 
 
@@ -103,7 +103,7 @@ async def test_thesis_cannot_be_declared_plain_text(client, purpose):
     })
     data = res.json()["data"]
     await client.put(data["upload_url"], headers=auth(user), content=b"ordinary text")
-    res = await client.post(f"/api/v1/files/{data['file_id']}:complete", headers=auth(user))
+    res = await client.post(f"/api/v1/files/{data['file_id']}:complete", headers={**auth(user),"If-Draft-Revision":draft["current_version"]["content_revision"]})
     assert res.status_code == 422
 
 

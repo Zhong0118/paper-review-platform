@@ -9,7 +9,7 @@ const props = withDefaults(
   }>(),
   {
     contextLabel: '',
-    userName: '演示用户',
+    userName: '',
     demoMode: import.meta.env.VITE_DEMO_MODE === 'true',
   },
 )
@@ -29,7 +29,7 @@ const props = withDefaults(
       >
         切换演示角色
       </RouterLink>
-      <span class="app-header__user">{{ userName }}</span>
+      <span class="app-header__user">{{ userName || (demoMode ? '演示用户' : '身份未取得') }}</span>
     </div>
   </header>
 </template>

@@ -4,7 +4,7 @@ import http, { httpApi } from './request'
 
 export function prepareUpload(payload: {
   thesis_id: string
-  purpose: 'original' | 'anonymous' | 'attachment'
+  purpose: 'original' | 'anonymous'
   filename: string
   content_type: string
 }) {
@@ -20,11 +20,12 @@ export async function uploadFileContent(uploadUrl: string, file: Blob, token: st
   })
 }
 
-export function completeUpload(fileId: string) {
-  return httpApi.post<{ file_id: string; sha256: string | null }>(`/files/${fileId}:complete`)
+export function completeUpload(fileId: string, revision: string) {
+  return httpApi.post<{ file_id: string; sha256: string | null; content_revision: string }>(`/files/${fileId}:complete`, undefined, {headers:{'If-Draft-Revision':revision}})
 }
 
 export async function uploadThesisFile(options: {
+  revision: string
   thesisId: string
   purpose: 'original' | 'anonymous'
   file: File
@@ -37,8 +38,7 @@ export async function uploadThesisFile(options: {
     content_type: options.file.type || 'application/pdf',
   })
   await uploadFileContent(prepared.upload_url, options.file, options.token)
-  await completeUpload(prepared.file_id)
-  return prepared.file_id
+  return completeUpload(prepared.file_id, options.revision)
 }
 
 

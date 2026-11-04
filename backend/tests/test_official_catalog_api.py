@@ -4,7 +4,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 from app.db.rls_context import bind_candidate_identity, verified_access_claims
 from scripts.acceptance_server import acceptance_environment
-from tests.helpers import auth, login
+from tests.helpers import auth, login, submit_current_draft
 
 
 @pytest.mark.asyncio
@@ -81,11 +81,11 @@ async def test_scope_rejects_new_selection_but_preserves_existing_draft_snapshot
             assert created.status_code in {200,201}, created.text
             item = created.json()['data']
             assert (await c.put('/api/v1/school-admin/discipline-settings',headers=auth(school),json={'codes':['0812'],'expected_version':0})).status_code==200
-            patched = await c.patch(f"/api/v1/theses/{item['id']}",headers=auth(student),json={**draft,'title':'保留历史学科'})
+            patched = await c.patch(f"/api/v1/theses/{item['id']}",headers=auth(student),json={**draft,'expected_content_revision':item['current_version']['content_revision'],'title':'保留历史学科'})
             assert patched.status_code==200
-            wrong = await c.patch(f"/api/v1/theses/{item['id']}",headers=auth(student),json={**draft,'discipline_code':'0201','discipline_name':'理论经济学'})
+            wrong = await c.patch(f"/api/v1/theses/{item['id']}",headers=auth(student),json={**draft,'expected_content_revision':patched.json()['data']['current_version']['content_revision'],'discipline_code':'0201','discipline_name':'理论经济学'})
             assert wrong.status_code==422
-            submit = await c.post(f"/api/v1/theses/{item['id']}:submit",headers=auth(student),json={'version':patched.json()['data']['version']})
+            submit = await submit_current_draft(c, f"/api/v1/theses/{item['id']}:submit",headers=auth(student),json={'version':patched.json()['data']['version']})
             assert submit.status_code==422
             assert '本校' in submit.json()['message']
             assert (await c.get('/api/v1/school-admin/discipline-settings',headers=auth(other))).json()['data']['configured'] is False

@@ -21,7 +21,7 @@ const emit = defineEmits<{
   /** 输入变化自动保存（表单内防抖 800ms 后发出，页面收到即落盘）。 */
   autosave: [input: ReviewScoreInput]
   submit: [input: ReviewScoreInput, ack?: CheckAck]
-  edited: []
+  edited: [input: ReviewScoreInput]
   exit: []
 }>()
 
@@ -44,9 +44,14 @@ const issues = ref('')
 const revisionAdvice = ref('')
 const overallComment = ref('')
 
+let applyingDraft = false
+let autosaveTimer: ReturnType<typeof setTimeout> | null = null
+
 /** 回填已保存草稿（页面刷新后恢复表单内容）。 */
 function applyDraft(draft: ReviewScoreInput | null | undefined) {
   if (!draft) return
+  applyingDraft = true
+  if (autosaveTimer !== null) clearTimeout(autosaveTimer)
   for (const dimension of dimensions.value) {
     const value = draft[dimension.key]
     if (Number.isFinite(value)) scores[dimension.key] = value
@@ -59,6 +64,7 @@ function applyDraft(draft: ReviewScoreInput | null | undefined) {
   for (const dimension of dimensions.value) {
     evaluations[dimension.key] = draft.evaluations?.[dimension.key] ?? ''
   }
+  applyingDraft = false
 }
 // 草稿以属性传入（页面刷新后由服务读回）；页面再次装载时也会触发回填。
 watch(
@@ -124,8 +130,6 @@ const payload = (): ReviewScoreInput => {
 // 自动保存：输入变化即触发防抖保存（评审修复：把「保存草稿」按钮扩展为真实自动保存）。
 // 锁定时（提交后只读）不自动保存；输入停止 800ms 后发出 autosave 事件，页面收到即落盘。
 // 空表单输入也会触发，由服务端强制完整性校验并报字段级错误。
-let autosaveTimer: ReturnType<typeof setTimeout> | null = null
-
 function scheduleAutosave() {
   if (props.locked) return
   if (autosaveTimer !== null) clearTimeout(autosaveTimer)
@@ -137,8 +141,8 @@ function scheduleAutosave() {
 
 watch(
   [scores, evaluations, recommendation, strengths, issues, revisionAdvice, overallComment],
-  () => { emit('edited'); scheduleAutosave() },
-  { deep: true },
+  () => { if (!props.locked && !applyingDraft) { emit('edited', payload()); scheduleAutosave() } },
+  { deep: true, flush: 'sync' },
 )
 
 function locate(finding: CheckFinding) {

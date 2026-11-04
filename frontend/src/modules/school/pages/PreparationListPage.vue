@@ -191,7 +191,7 @@ onBeforeUnmount(() => { listGeneration++ })
 <template>
   <PortalLayout :menu-items="portalMenus('school_reviewer', demoEnabled)" active-path="/school/preparation" :context-label="demoEnabled ? '学校端 · 海岳大学' : '学校端 · ' + (authStore.user?.tenantCode ?? '本校')" :user-name="authStore.user?.displayName ?? '王老师'">
     <div class="preparation-page">
-      <PageHeader eyebrow="PAGE-004 · REVIEW PREPARATION" title="送审准备" description="统一管理学生自提、学校单篇代传与批量导入论文，并在送出前完成材料与匿名化核验。">
+      <PageHeader eyebrow="PAGE-004 · REVIEW PREPARATION" title="送审准备"  :description="demoEnabled ? '统一管理学生自提、学校单篇代传与批量导入论文，并在送出前完成材料与匿名化核验。' : '核对本校学生提交的材料，完成匿名核验并确认送出。'">
         <template #actions>
           <button v-if="demoEnabled" type="button" class="action secondary" data-action="open-school-submission" @click="drawerOpen = true">单篇代传</button>
           <button v-if="demoEnabled" type="button" class="action primary" data-action="open-batch-preview" @click="showBatchPreview">批量导入</button>
@@ -201,7 +201,7 @@ onBeforeUnmount(() => { listGeneration++ })
       <p v-if="target">正在查看收尾清单中的论文 · <RouterLink to="/school/preparation">返回完整列表</RouterLink></p>
       <TimeScopeSelect v-if="!demoEnabled && !target" :model-value="timeScope.scope.value" :meta="timeScope.meta.value" @update:model-value="timeScope.setScope" />
       <BlindRail audience="本校学生身份、原始论文与匿名材料" hidden-from="专家身份与专家联系方式不在学校准备页展示" stage="材料准备与匿名核验" />
-      <p class="submission-policy">学校可直接提交，无需学生再次确认；学生仍可在“我的论文”查看学校代传记录。</p>
+      <p v-if="demoEnabled" class="submission-policy">学校可直接提交，无需学生再次确认；学生仍可在“我的论文”查看学校代传记录。</p>
       <p v-if="loading" role="status">正在加载本校论文与检测统计…</p>
       <div v-else-if="loadError" role="alert">
         <p>{{ loadError }}</p>

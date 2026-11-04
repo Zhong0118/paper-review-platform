@@ -1,7 +1,7 @@
 import pytest
 from httpx import AsyncClient
 
-from tests.helpers import attach_files, auth, create_draft, login
+from tests.helpers import attach_files, auth, create_draft, login, submit_current_draft
 
 
 @pytest.mark.asyncio
@@ -11,7 +11,7 @@ async def test_student_submit_pass_then_school_confirms(client: AsyncClient, see
     school = await login(client, "school.wang", seed.password)
     thesis = await create_draft(client, student)
     await attach_files(client, student, thesis["id"])
-    submitted = await client.post(
+    submitted = await submit_current_draft(client,
         f"/api/v1/theses/{thesis['id']}:submit",
         headers=auth(student, idempotency="sub-1"),
         json={"version": thesis["version"]},
@@ -35,12 +35,12 @@ async def test_idempotent_submit(client: AsyncClient, seed):
     student = await login(client, "student.lin", seed.password)
     thesis = await create_draft(client, student)
     await attach_files(client, student, thesis["id"])
-    first = await client.post(
+    first = await submit_current_draft(client,
         f"/api/v1/theses/{thesis['id']}:submit",
         headers=auth(student, idempotency="same-key"),
         json={"version": thesis["version"]},
     )
-    second = await client.post(
+    second = await submit_current_draft(client,
         f"/api/v1/theses/{thesis['id']}:submit",
         headers=auth(student, idempotency="same-key"),
         json={"version": thesis["version"]},
@@ -55,7 +55,7 @@ async def test_cannot_delete_after_submit(client: AsyncClient, seed):
     student = await login(client, "student.lin", seed.password)
     thesis = await create_draft(client, student)
     await attach_files(client, student, thesis["id"])
-    submitted = await client.post(
+    submitted = await submit_current_draft(client,
         f"/api/v1/theses/{thesis['id']}:submit",
         headers=auth(student, idempotency="del-1"),
         json={"version": thesis["version"]},
@@ -71,7 +71,7 @@ async def test_withdraw_before_dispatch_returns_draft(client: AsyncClient, seed)
     student = await login(client, "student.lin", seed.password)
     thesis = await create_draft(client, student)
     await attach_files(client, student, thesis["id"])
-    submitted = await client.post(
+    submitted = await submit_current_draft(client,
         f"/api/v1/theses/{thesis['id']}:submit",
         headers=auth(student, idempotency="wd-1"),
         json={"version": thesis["version"]},

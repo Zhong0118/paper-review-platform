@@ -19,7 +19,7 @@ from app.modules.user.models import User
 from app.core.exceptions import AppError
 from app.seed import seed_database
 from tests.conftest import migrated_test_schema, _test_url
-from tests.helpers import login, create_draft, attach_files
+from tests.helpers import login, create_draft, attach_files, auth
 from tests.test_file_lifecycle import pending, submit, file_for
 
 
@@ -71,7 +71,8 @@ async def test_late_upload_rechecks_state_after_waiting(independent_sessions, ac
         user = CurrentUser(id=student_id, tenant_id=stale.tenant_id, role='student', data_scope={})
         pid = (await second.execute(text('SELECT pg_backend_pid()'))).scalar_one()
         if action == 'submit':
-            await theses.submit(first, user, stale.id, thesis['version'], None)
+            fresh=(await client.get('/api/v1/theses/'+thesis['id'],headers=auth(tokens))).json()['data']
+            await theses.submit(first, user, stale.id, thesis['version'], None, fresh['current_version']['content_revision'])
         else:
             await theses.withdraw(first, user, stale.id, thesis['version'], '修改')
         operation = (files.put_content(second, user, file_id, b'late content') if upload_action == 'put'
@@ -103,8 +104,10 @@ async def test_submit_waits_for_completed_upload(independent_sessions):
         student_id = (await first.execute(select(User.id).where(User.username == 'student.lin'))).scalar_one()
         user = CurrentUser(id=student_id, tenant_id=row.tenant_id, role='student', data_scope={})
         pid = (await second.execute(text('SELECT pg_backend_pid()'))).scalar_one()
-        await files.complete_upload(first, user, file_id)
-        task = asyncio.create_task(theses.submit(second, user, row.id, thesis['version'], None))
+        before = (await client.get('/api/v1/theses/'+thesis['id'],headers=auth(tokens))).json()['data']
+        await files.complete_upload(first, user, file_id, expected_content_revision=before['current_version']['content_revision'])
+        fresh=await theses.serialize_thesis(first,user,await first.get(Thesis,row.id))
+        task = asyncio.create_task(theses.submit(second, user, row.id, thesis['version'], None, fresh['current_version']['content_revision']))
         try:
             await wait_for_db_lock(sessions, pid)
             await first.commit()
@@ -131,14 +134,14 @@ async def test_rolled_back_put_cannot_complete_until_reuploaded(independent_sess
         await session.rollback()
     async with sessions() as session:
         with pytest.raises(AppError) as error:
-            await files.complete_upload(session, user, file_id)
+            await files.complete_upload(session, user, file_id, expected_content_revision=thesis['current_version']['content_revision'])
         assert error.value.code == 'FILE_NOT_READY'
         await session.rollback()
     async with sessions() as session:
         await files.put_content(session, user, file_id, pdf_bytes('recovered'))
         await session.commit()
     async with sessions() as session:
-        obj = await files.complete_upload(session, user, file_id)
+        obj = await files.complete_upload(session, user, file_id, expected_content_revision=thesis['current_version']['content_revision'])
         assert obj.completed_at is not None
         assert (await file_for(session, thesis['current_version']['id'])).id == file_id
         await session.commit()
