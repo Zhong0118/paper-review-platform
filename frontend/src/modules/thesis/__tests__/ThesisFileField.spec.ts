@@ -1,3 +1,4 @@
+import '@/__tests__/demoMode'
 import { mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 

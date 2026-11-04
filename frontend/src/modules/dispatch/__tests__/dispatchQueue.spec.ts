@@ -1,3 +1,4 @@
+import '@/__tests__/demoMode'
 import { describe, expect, it } from 'vitest'
 
 import { createScenarioService } from '@/demo/scenarioService'

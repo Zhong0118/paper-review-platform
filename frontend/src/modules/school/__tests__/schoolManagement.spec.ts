@@ -1,3 +1,4 @@
+import '@/__tests__/demoMode'
 import { mount } from '@vue/test-utils'
 import { createPinia } from 'pinia'
 import { createMemoryHistory, createRouter, type RouteComponent } from 'vue-router'
