@@ -19,7 +19,10 @@ export const appRoutes: RouteRecordRaw[] = [
   {
     path: '/school/preparation',
     name: '送审准备',
-    component: () => import('@/modules/school/pages/PreparationListPage.vue'),
+    // U2-1：真实模式用新清单与核验台；demo 模式保留旧页（U2 计划 §4.1）
+    component: () => import.meta.env.VITE_DEMO_MODE === 'true'
+      ? import('@/modules/school/pages/PreparationListPage.vue')
+      : import('@/modules/school/preparation/SchoolPreparationPage.vue'),
     meta: { roleCodes: ['school_reviewer'], layout: 'admin', pageId: 'PAGE-004' },
   },
   {

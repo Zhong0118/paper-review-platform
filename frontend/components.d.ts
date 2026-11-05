@@ -11,6 +11,7 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    AccountMenu: typeof import('./src/components/workspace/AccountMenu.vue')['default']
     AppHeader: typeof import('./src/components/app/AppHeader.vue')['default']
     AppSidebar: typeof import('./src/components/app/AppSidebar.vue')['default']
     BlindRail: typeof import('./src/components/app/BlindRail.vue')['default']
@@ -18,8 +19,10 @@ declare module 'vue' {
     CatalogMultiSelect: typeof import('./src/components/app/CatalogMultiSelect.vue')['default']
     ColumnPreferences: typeof import('./src/components/app/ColumnPreferences.vue')['default']
     ExpertImportDialog: typeof import('./src/components/app/ExpertImportDialog.vue')['default']
+    FocusShell: typeof import('./src/components/workspace/FocusShell.vue')['default']
     InstitutionSelector: typeof import('./src/components/app/InstitutionSelector.vue')['default']
     OfficialCatalogImport: typeof import('./src/components/app/OfficialCatalogImport.vue')['default']
+    OperationsShell: typeof import('./src/components/workspace/OperationsShell.vue')['default']
     PageHeader: typeof import('./src/components/app/PageHeader.vue')['default']
     PdfTransformDialog: typeof import('./src/components/app/PdfTransformDialog.vue')['default']
     ReviewCheckPanel: typeof import('./src/components/app/ReviewCheckPanel.vue')['default']
@@ -28,8 +31,11 @@ declare module 'vue' {
     RouterView: typeof import('vue-router')['RouterView']
     ScenarioStageRibbon: typeof import('./src/components/app/ScenarioStageRibbon.vue')['default']
     SensitiveFindingPanel: typeof import('./src/components/app/SensitiveFindingPanel.vue')['default']
+    StateBlock: typeof import('./src/components/workspace/StateBlock.vue')['default']
+    StatusPill: typeof import('./src/components/workspace/StatusPill.vue')['default']
     StatusTag: typeof import('./src/components/app/StatusTag.vue')['default']
     TimeScopeSelect: typeof import('./src/components/app/TimeScopeSelect.vue')['default']
     WorkflowSteps: typeof import('./src/components/app/WorkflowSteps.vue')['default']
+    WorkspaceBrandMark: typeof import('./src/components/workspace/WorkspaceBrandMark.vue')['default']
   }
 }

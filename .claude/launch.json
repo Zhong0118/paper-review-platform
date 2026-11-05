@@ -35,6 +35,11 @@
       "name": "ui-prototypes",
       "url": "http://127.0.0.1:5187",
       "port": 5187
+    },
+    {
+      "name": "u2-school-real-attach",
+      "url": "http://127.0.0.1:5196",
+      "port": 5196
     }
   ]
 }

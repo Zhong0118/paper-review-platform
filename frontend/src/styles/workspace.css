@@ -1,0 +1,200 @@
+/**
+ * 工作空间语义令牌（U2-1 起为正式令牌文件）。
+ * 只作用于 .ws 根节点，不改全局 theme.css；新页面只引用这里的变量，不写死色值。
+ * 主色学术蓝 #1B4F8A（用户 2026-11-04 定），日后调色只改本文件。
+ */
+.ws {
+  --ws-page: #f7f8fa;
+  --ws-surface: #ffffff;
+  --ws-sunken: #f1f3f6;
+  --ws-border: #e3e7ec;
+  --ws-border-strong: #cdd3db;
+  --ws-text: #17202a;
+  --ws-muted: #5d6675;
+  --ws-faint: #6b7480;
+
+  --ws-action: #1b4f8a;
+  --ws-action-hover: #163f6e;
+  --ws-action-soft: #e8f0f9;
+  --ws-focus: #2f6db3;
+  --ws-on-action: #ffffff;
+  --ws-scrim: rgb(23 32 42 / 0.3);
+
+  --ws-danger: #b42318;
+  --ws-danger-hover: #931c13;
+  --ws-danger-soft: #fdecea;
+  --ws-warning: #9a5b00;
+  --ws-warning-soft: #fff4e0;
+  --ws-success: #1e7a46;
+  --ws-success-soft: #e7f4ec;
+  --ws-info-soft: #eef1f5;
+
+  --ws-radius: 6px;
+  --ws-radius-panel: 8px;
+  --ws-shadow-float: 0 8px 28px rgb(23 32 42 / 0.14), 0 1px 3px rgb(23 32 42 / 0.08);
+
+  --ws-sidebar: 220px;
+  --ws-bar: 52px;
+  --ws-row: 44px;
+  --ws-control: 34px;
+  --ws-motion: 150ms;
+
+  --ws-font: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei',
+    'Noto Sans CJK SC', 'Segoe UI', sans-serif;
+  --ws-font-reading: 'Songti SC', 'STSong', 'Noto Serif CJK SC', 'SimSun', serif;
+
+  min-height: 100vh;
+  background: var(--ws-page);
+  color: var(--ws-text);
+  font-family: var(--ws-font);
+  font-size: 14px;
+  line-height: 1.55;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+
+.ws *,
+.ws *::before,
+.ws *::after {
+  box-sizing: border-box;
+}
+
+.ws h1,
+.ws h2,
+.ws h3,
+.ws h4,
+.ws p {
+  margin: 0;
+}
+
+.ws button,
+.ws input,
+.ws select,
+.ws textarea {
+  font: inherit;
+  color: inherit;
+}
+
+.ws :focus-visible {
+  outline: 2px solid var(--ws-focus);
+  outline-offset: 2px;
+}
+
+/* 按钮：主操作唯一强调色；危险动作只在确认处用红色实底 */
+.ws .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: var(--ws-control);
+  padding: 0 14px;
+  border: 1px solid var(--ws-border-strong);
+  border-radius: var(--ws-radius);
+  background: var(--ws-surface);
+  font-size: 14px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--ws-motion), border-color var(--ws-motion);
+}
+.ws .btn:hover:not(:disabled) {
+  background: var(--ws-sunken);
+}
+.ws .btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.ws .btn--primary {
+  border-color: var(--ws-action);
+  background: var(--ws-action);
+  color: var(--ws-on-action);
+  font-weight: 500;
+}
+.ws .btn--primary:hover:not(:disabled) {
+  background: var(--ws-action-hover);
+}
+.ws .btn--danger {
+  border-color: var(--ws-danger);
+  background: var(--ws-danger);
+  color: var(--ws-on-action);
+}
+.ws .btn--danger:hover:not(:disabled) {
+  background: var(--ws-danger-hover);
+}
+.ws .btn--outline {
+  border-color: var(--ws-action);
+  color: var(--ws-action);
+  font-weight: 500;
+}
+.ws .btn--outline:hover:not(:disabled) {
+  background: var(--ws-action-soft);
+}
+.ws .btn--quiet {
+  border-color: transparent;
+  background: transparent;
+}
+.ws .btn--sm {
+  min-height: 28px;
+  padding: 0 10px;
+  font-size: 13px;
+}
+
+.ws .field {
+  display: grid;
+  gap: 6px;
+}
+.ws .field > span {
+  font-size: 13px;
+  font-weight: 500;
+}
+.ws .field small {
+  color: var(--ws-muted);
+  font-size: 12px;
+}
+.ws .input,
+.ws .select,
+.ws .textarea {
+  width: 100%;
+  min-height: var(--ws-control);
+  padding: 6px 10px;
+  border: 1px solid var(--ws-border-strong);
+  border-radius: var(--ws-radius);
+  background: var(--ws-surface);
+}
+.ws .textarea {
+  min-height: 96px;
+  line-height: 1.7;
+  resize: vertical;
+}
+.ws .input[aria-invalid='true'],
+.ws .textarea[aria-invalid='true'],
+.ws .select[aria-invalid='true'] {
+  border-color: var(--ws-danger);
+}
+.ws .field-error {
+  color: var(--ws-danger);
+  font-size: 12px;
+}
+
+.ws .muted {
+  color: var(--ws-muted);
+}
+.ws .num {
+  font-variant-numeric: tabular-nums;
+}
+.ws .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ws *,
+  .ws *::before,
+  .ws *::after {
+    transition-duration: 0ms !important;
+    animation-duration: 0ms !important;
+  }
+}
