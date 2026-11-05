@@ -67,8 +67,8 @@ export function patchThesis(id: string, payload: DraftPayload & {expected_conten
   return httpApi.patch<ThesisDetail>(`/theses/${id}`, payload)
 }
 
-export function deleteThesis(id: string) {
-  return httpApi.delete(`/theses/${id}`)
+export function deleteThesis(id: string, options?: RequestOptions) {
+  return httpApi.delete(`/theses/${id}`, options)
 }
 
 export function submitThesis(id: string, version: number, expectedContentRevision: string, options?: RequestOptions) {

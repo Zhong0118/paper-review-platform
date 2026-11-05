@@ -15,7 +15,7 @@ const LIVE_PATHS: Partial<Record<RoleCode, string[]>> = {
   student: ['/student/dashboard', '/student/results'],
   supervisor: ['/supervisor/results'],
   expert: ['/expert/tasks'],
-  system_admin: ['/system/tenants'],
+  system_admin: ['/system/tenants', '/system/catalog'],
 }
 
 export const menusByRole: Partial<Record<RoleCode, NavigationItem[]>> = {
@@ -48,6 +48,7 @@ export const menusByRole: Partial<Record<RoleCode, NavigationItem[]>> = {
     { label: '个人资料与资格', path: '/expert/profile' },
     { label: '消息通知', path: '/notifications' },
   ],
+  system_admin: [{ label: '学校管理', path: '/system/tenants' }],
 }
 
 export function portalMenus(
@@ -59,6 +60,8 @@ export function portalMenus(
   const allowed = new Set(LIVE_PATHS[role] ?? [])
   const liveItems = role === 'school_reviewer'
     ? [...items, { label: '成员与送审资格', path: '/school/members' }, {label:'本校送审学科',path:'/school/disciplines'}, {label:'材料检测词表',path:'/school/sensitive-terms'}]
-    : items
+    : role === 'system_admin'
+      ? [...items, { label: '官方基础目录', path: '/system/catalog' }]
+      : items
   return liveItems.filter((item) => allowed.has(item.path)).map(({ badge, ...item }) => item)
 }

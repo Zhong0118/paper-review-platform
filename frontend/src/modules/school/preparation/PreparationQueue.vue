@@ -4,7 +4,7 @@
  * 视图计数 = 已加载集合（时间范围内）的条数，并写明口径；不冒充服务端全量待办。
  * 视图、搜索、专业与选中行放在查询参数里，进入核验台再返回时原样恢复。
  */
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRoute, useRouter, type LocationQuery } from 'vue-router'
 
 import type { TimeScope } from '@/api/timeScope'
@@ -12,9 +12,11 @@ import type { ThesisDetail } from '@/api/theses'
 import OperationsShell from '@/components/workspace/OperationsShell.vue'
 import StateBlock from '@/components/workspace/StateBlock.vue'
 import StatusPill from '@/components/workspace/StatusPill.vue'
+import ConfirmDialog from '@/components/workspace/ConfirmDialog.vue'
+import { confirmDispatch } from '@/api/dispatch'
 import type { NavGroup, WorkspaceAccount } from '@/components/workspace/types'
 
-import { findingCounts, readReport, reportPills, stageLabel } from './checkReport'
+import { apiFailure, findingCounts, isNotFound, readReport, reportPills, stageLabel } from './checkReport'
 
 const props = defineProps<{
   rows: ThesisDetail[]
@@ -24,17 +26,20 @@ const props = defineProps<{
   account: WorkspaceAccount
   scope: TimeScope
 }>()
-const emit = defineEmits<{ setScope: [value: string]; retry: [] }>()
+const emit = defineEmits<{ setScope: [value: string]; retry: []; changed: [] }>()
 const route = useRoute()
 const router = useRouter()
 
-type View = 'verify' | 'all'
+// U2-4：补齐“可送出”“已退回”视图；视图计数只数已加载集合
+type View = 'verify' | 'dispatch' | 'returned' | 'all'
 const views: { key: View; label: string }[] = [
   { key: 'verify', label: '待核验' },
+  { key: 'dispatch', label: '可送出' },
+  { key: 'returned', label: '已退回' },
   { key: 'all', label: '全部' },
 ]
 const text = (value: LocationQuery[string]) => (typeof value === 'string' ? value : '')
-const view = computed<View>(() => (route.query.view === 'all' ? 'all' : 'verify'))
+const view = computed<View>(() => views.find((item) => item.key === route.query.view)?.key ?? 'verify')
 const keyword = computed(() => text(route.query.q))
 const program = computed(() => text(route.query.program))
 const selectedId = computed(() => text(route.query.sel))
@@ -48,7 +53,12 @@ function setQuery(patch: Record<string, string | undefined>) {
 
 const programOf = (row: ThesisDetail) => row.current_version?.school_program?.name || row.current_version?.discipline_name || '未填写专业'
 const programs = computed(() => [...new Set(props.rows.map(programOf))].sort())
-const inView = (row: ThesisDetail, key: View) => key === 'all' || row.stage === 'PREPARING'
+function inView(row: ThesisDetail, key: View) {
+  if (key === 'verify') return row.stage === 'PREPARING'
+  if (key === 'dispatch') return row.stage === 'READY_FOR_DISPATCH'
+  if (key === 'returned') return row.stage === 'DRAFT' && Boolean(row.return_reason)
+  return true
+}
 const countOf = (key: View) => props.rows.filter((row) => inView(row, key)).length
 const filtered = computed(() => {
   const needle = keyword.value.trim().toLowerCase()
@@ -79,6 +89,42 @@ function open(row: ThesisDetail) {
 }
 function select(row: ThesisDetail) {
   setQuery({ sel: row.id })
+}
+
+// ── 可送出视图：行内确认送出（与核验台同一规则：只看 allowed_actions，单独确认，重试沿用同一键） ──
+const dispatchRow = ref<ThesisDetail | null>(null)
+const dispatchBusy = ref(false)
+const dispatchError = ref('')
+const notice = ref('')
+let dispatchAttempt: { id: string; version: number; key: string } | null = null
+function askDispatch(row: ThesisDetail) {
+  dispatchError.value = ''
+  if (dispatchAttempt?.id !== row.id) dispatchAttempt = null
+  dispatchRow.value = row
+}
+async function sendOut() {
+  const row = dispatchRow.value
+  if (!row || dispatchBusy.value) return
+  dispatchAttempt ??= { id: row.id, version: row.version, key: crypto.randomUUID() }
+  dispatchBusy.value = true
+  dispatchError.value = ''
+  try {
+    await confirmDispatch(dispatchAttempt.id, dispatchAttempt.version, { idempotencyKey: dispatchAttempt.key, quiet: true })
+    dispatchAttempt = null
+    dispatchRow.value = null
+    notice.value = `已确认送出《${row.current_version?.title || '未命名论文'}》，论文交给百杰运营派单。`
+    emit('changed')
+  } catch (error) {
+    const failure = apiFailure(error)
+    if (failure.status === 409 || isNotFound(error)) {
+      dispatchAttempt = null
+      dispatchRow.value = null
+      notice.value = '这篇论文的状态已经变化，没有送出。清单已刷新。'
+      emit('changed')
+    } else dispatchError.value = failure.message
+  } finally {
+    dispatchBusy.value = false
+  }
 }
 </script>
 
@@ -130,6 +176,7 @@ function select(row: ThesisDetail) {
           计数为本页已加载的 {{ rows.length }} 篇（{{ scope === 'past_year' ? '近一年，按论文创建日' : '全部年份' }}）；搜索与筛选只在已加载范围内进行。
         </p>
 
+        <p v-if="notice" class="notice" role="status">{{ notice }}</p>
         <StateBlock v-if="loading" kind="loading" title="正在读取本校论文…" />
         <StateBlock v-else-if="error" kind="error" title="论文清单没有加载出来">
           {{ error }}。筛选条件已保留。
@@ -146,7 +193,7 @@ function select(row: ThesisDetail) {
           <template #actions><button type="button" class="btn" @click="setQuery({ q: undefined, program: undefined })">清除筛选</button></template>
         </StateBlock>
         <StateBlock v-else-if="!filtered.length" kind="empty" title="这个视图里没有论文" compact>
-          {{ view === 'verify' ? '待核验的论文都已处理。' : '暂无记录。' }}
+          {{ { verify: '待核验的论文都已处理。', dispatch: '没有等待送出的论文。', returned: '没有退回后待学生修改的论文。', all: '暂无记录。' }[view] }}
         </StateBlock>
 
         <div v-else class="table-wrap">
@@ -165,6 +212,7 @@ function select(row: ThesisDetail) {
                 <td class="col-title">
                   <button type="button" class="row-title" :aria-expanded="row.id === selectedId" @click.stop="select(row)">{{ row.current_version?.title || '未命名论文' }}</button>
                   <span class="muted row-sub">{{ row.student?.name }}　{{ row.student?.student_no }}<template v-if="view === 'all'">　{{ stageLabel(row.stage) }}</template></span>
+                  <span v-if="view === 'returned' && row.return_reason" class="muted row-reason">退回原因：{{ row.return_reason }}</span>
                 </td>
                 <td class="col-program">{{ programOf(row) }}</td>
                 <td class="col-material">{{ materials(row) }}</td>
@@ -173,7 +221,14 @@ function select(row: ThesisDetail) {
                   <span v-if="findingCounts(readReport(row))" class="muted counts">{{ findingCounts(readReport(row)) }}</span>
                 </td>
                 <td class="col-action">
-                  <button type="button" class="btn btn--sm" :class="{ 'btn--outline': row.stage === 'PREPARING' }" @click.stop="open(row)">
+                  <button
+                    v-if="row.stage === 'READY_FOR_DISPATCH' && row.allowed_actions.includes('CONFIRM_DISPATCH')"
+                    type="button"
+                    class="btn btn--sm btn--outline"
+                    data-action="row-dispatch"
+                    @click.stop="askDispatch(row)"
+                  >确认送出…</button>
+                  <button v-else type="button" class="btn btn--sm" :class="{ 'btn--outline': row.stage === 'PREPARING' }" @click.stop="open(row)">
                     {{ row.stage === 'PREPARING' ? '开始核验' : '打开' }}
                   </button>
                 </td>
@@ -209,9 +264,33 @@ function select(row: ThesisDetail) {
       </aside>
     </div>
   </OperationsShell>
+
+  <ConfirmDialog :open="Boolean(dispatchRow)" title="确认送出这篇论文？" :busy="dispatchBusy" @close="dispatchRow = null">
+    <p>《{{ dispatchRow?.current_version?.title || '未命名论文' }}》（{{ dispatchRow?.student?.name }}）将交给百杰运营派单。送出后学生不能再自行撤回；如需中止，只能永久终止。</p>
+    <p v-if="dispatchError" class="field-error" role="alert">没有送出：{{ dispatchError }}</p>
+    <template #actions>
+      <button type="button" class="btn" :disabled="dispatchBusy" @click="dispatchRow = null">暂不送出</button>
+      <button type="button" class="btn btn--primary" data-action="confirm-row-dispatch" :disabled="dispatchBusy" @click="sendOut">{{ dispatchBusy ? '正在送出…' : '确认送出' }}</button>
+    </template>
+  </ConfirmDialog>
 </template>
 
 <style scoped>
+.notice {
+  margin: 0 0 8px;
+  padding: 8px 12px;
+  border-radius: var(--ws-radius);
+  background: var(--ws-success-soft);
+  font-size: 13px;
+}
+.row-reason {
+  display: block;
+  overflow: hidden;
+  max-width: 48ch;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .title {
   font-size: 17px;
   font-weight: 600;

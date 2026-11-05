@@ -1,4 +1,5 @@
 import { httpApi, type RequestOptions } from './request'
+import { optionArgs } from './optionArgs'
 
 export interface ObjectionRow {
   id: string
@@ -20,14 +21,15 @@ export function listMyObjections(thesisId: string) {
   return httpApi.get<ObjectionRow[]>(`/my/theses/${thesisId}/objections`)
 }
 
-export function listSchoolObjections() {
-  return httpApi.get<ObjectionRow[]>('/school-review/objections')
+export function listSchoolObjections(options?: RequestOptions) {
+  return httpApi.get<ObjectionRow[]>('/school-review/objections', ...optionArgs(options))
 }
 
-export function startObjection(id: string) {
-  return httpApi.post<ObjectionRow>(`/school-review/objections/${id}:start`)
+export function startObjection(id: string, options?: RequestOptions) {
+  const url = `/school-review/objections/${id}:start`
+  return options ? httpApi.post<ObjectionRow>(url, undefined, options) : httpApi.post<ObjectionRow>(url)
 }
 
-export function resolveObjection(id: string, body: { channel: 'ONLINE' | 'OFFLINE'; conclusion: string }) {
-  return httpApi.post<ObjectionRow>(`/school-review/objections/${id}:record-resolution`, body)
+export function resolveObjection(id: string, body: { channel: 'ONLINE' | 'OFFLINE'; conclusion: string }, options?: RequestOptions) {
+  return httpApi.post<ObjectionRow>(`/school-review/objections/${id}:record-resolution`, body, ...optionArgs(options))
 }

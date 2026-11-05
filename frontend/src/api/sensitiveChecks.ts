@@ -1,4 +1,5 @@
-import { httpApi } from './request'
+import { httpApi, type RequestOptions } from './request'
+import { optionArgs } from './optionArgs'
 
 export interface SensitiveFinding {
   field: string
@@ -24,8 +25,8 @@ export interface SensitiveReport {
 }
 export interface SensitiveTerm { text: string; severity: 'WARN' | 'BLOCK'; description: string }
 export interface SensitiveTerms { version: number; terms: SensitiveTerm[] }
-export const getSensitiveTerms = () => httpApi.get<SensitiveTerms>('/school-admin/sensitive-terms')
-export const saveSensitiveTerms = (body: {expected_version: number; terms: SensitiveTerm[]}) =>
-  httpApi.put<SensitiveTerms>('/school-admin/sensitive-terms', body)
+export const getSensitiveTerms = (options?: RequestOptions) => httpApi.get<SensitiveTerms>('/school-admin/sensitive-terms', ...optionArgs(options))
+export const saveSensitiveTerms = (body: {expected_version: number; terms: SensitiveTerm[]}, options?: RequestOptions) =>
+  httpApi.put<SensitiveTerms>('/school-admin/sensitive-terms', body, ...optionArgs(options))
 export const checkSensitiveThesis = (id: string, body: {expected_version: number; file_id: string}, school = false) =>
   httpApi.post<SensitiveReport>(`${school ? '/school-review' : ''}/theses/${id}/sensitive-checks`, body)

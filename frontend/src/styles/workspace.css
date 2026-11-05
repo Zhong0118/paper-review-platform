@@ -190,6 +190,341 @@
   white-space: nowrap;
 }
 
+/*
+ * 清单与对象区的共用样式（来自已验收的 U3 原型，wsd- 前缀）。
+ * 不用原型里的短类名：U2 页面已有同名私有类，全局化会串样式。原型继续用 kit/desk.css。
+ */
+.ws .wsd-title {
+  font-size: 17px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.ws .wsd-ctx {
+  overflow: hidden;
+  color: var(--ws-muted);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 清单头：视图页签 + 搜索 */
+.ws .wsd-lhead {
+  position: sticky;
+  z-index: 2;
+  top: 0;
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--ws-border);
+  background: var(--ws-surface);
+}
+.ws .wsd-views {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+.ws .wsd-views__tab {
+  display: inline-flex;
+  flex: none;
+  gap: 6px;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--ws-radius);
+  background: transparent;
+  color: var(--ws-muted);
+  cursor: pointer;
+}
+.ws .wsd-views__tab:hover {
+  background: var(--ws-sunken);
+}
+.ws .wsd-views__tab[aria-selected='true'] {
+  background: var(--ws-action-soft);
+  color: var(--ws-action);
+  font-weight: 600;
+}
+.ws .wsd-views__count {
+  font-size: 12px;
+  opacity: 0.85;
+}
+.ws .wsd-scope {
+  color: var(--ws-muted);
+  font-size: 12px;
+}
+.ws .wsd-tlist {
+  margin: 0;
+  padding: 4px 0;
+  list-style: none;
+}
+.ws .wsd-titem {
+  display: grid;
+  width: 100%;
+  gap: 3px;
+  padding: 10px 16px;
+  border: 0;
+  border-left: 3px solid transparent;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+.ws .wsd-titem:hover {
+  background: var(--ws-sunken);
+}
+.ws .wsd-titem--on,
+.ws .wsd-titem--on:hover {
+  border-left-color: var(--ws-action);
+  background: var(--ws-action-soft);
+}
+.ws .wsd-titem__top {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+.ws .wsd-titem__title {
+  font-weight: 500;
+  line-height: 1.45;
+}
+.ws .wsd-titem__meta {
+  color: var(--ws-muted);
+  font-size: 12px;
+}
+.ws .wsd-titem__line {
+  font-size: 12px;
+}
+.ws .wsd-titem__line--warn {
+  color: var(--ws-warning);
+  font-weight: 500;
+}
+
+/* 对象区 */
+.ws .wsd-obj {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  width: 100%;
+  max-width: 960px;
+  padding: 20px 24px 32px;
+}
+.ws .wsd-obj__head {
+  display: grid;
+  gap: 8px;
+}
+.ws .wsd-obj__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  justify-content: space-between;
+}
+.ws .wsd-obj__title {
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+.ws .wsd-obj__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: 0;
+  color: var(--ws-muted);
+  font-size: 13px;
+}
+.ws .wsd-obj__meta dt {
+  display: inline;
+}
+.ws .wsd-obj__meta dd {
+  display: inline;
+  margin: 0 0 0 4px;
+  color: var(--ws-text);
+}
+.ws .wsd-sec {
+  display: grid;
+  gap: 12px;
+  padding: 16px 18px;
+  border: 1px solid var(--ws-border);
+  border-radius: var(--ws-radius-panel);
+  background: var(--ws-surface);
+}
+.ws .wsd-sec--attention {
+  border-color: #e7c27a;
+  box-shadow: inset 3px 0 0 var(--ws-warning);
+}
+.ws .wsd-sec__head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.ws .wsd-sec__head h3 {
+  font-size: 15px;
+  font-weight: 600;
+}
+.ws .wsd-sec__head p {
+  color: var(--ws-muted);
+  font-size: 13px;
+}
+.ws .wsd-kv {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 8px 12px;
+  margin: 0;
+  font-size: 13px;
+}
+.ws .wsd-kv dt {
+  color: var(--ws-muted);
+}
+.ws .wsd-kv dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.ws .wsd-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.ws .wsd-acts--end {
+  justify-content: flex-end;
+}
+.ws .wsd-hint {
+  color: var(--ws-muted);
+  font-size: 13px;
+}
+.ws .wsd-grid2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 16px;
+}
+.ws .wsd-grid2 .wsd-wide {
+  grid-column: 1 / -1;
+}
+.ws .wsd-choice {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 14px;
+  cursor: pointer;
+}
+.ws .wsd-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+}
+
+/* 横幅：成功、注意、冲突 */
+.ws .wsd-banner {
+  display: grid;
+  gap: 6px;
+  padding: 10px 14px;
+  border-left: 3px solid var(--ws-action);
+  border-radius: var(--ws-radius);
+  background: var(--ws-action-soft);
+  font-size: 13px;
+}
+.ws .wsd-banner strong {
+  font-weight: 600;
+}
+.ws .wsd-banner--ok {
+  border-left-color: var(--ws-success);
+  background: var(--ws-success-soft);
+}
+.ws .wsd-banner--warn {
+  border-left-color: var(--ws-warning);
+  background: var(--ws-warning-soft);
+}
+.ws .wsd-banner--danger {
+  border-left-color: var(--ws-danger);
+  background: var(--ws-danger-soft);
+}
+
+/* 数据表 */
+.ws .wsd-twrap {
+  overflow-x: auto;
+}
+.ws .wsd-dtable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.ws .wsd-dtable th {
+  height: 34px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--ws-border);
+  color: var(--ws-muted);
+  font-weight: 500;
+  text-align: left;
+  white-space: nowrap;
+}
+.ws .wsd-dtable td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--ws-border);
+  vertical-align: middle;
+}
+.ws .wsd-dtable tbody tr:last-child td {
+  border-bottom: 0;
+}
+.ws .wsd-dtable .wsd-n {
+  text-align: right;
+  white-space: nowrap;
+}
+.ws .wsd-dtable .wsd-shrink {
+  width: 1%;
+  white-space: nowrap;
+}
+
+/* 底部提交条 */
+.ws .wsd-commit {
+  position: sticky;
+  z-index: 3;
+  bottom: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: center;
+  margin-top: auto;
+  padding: 10px 24px;
+  border-top: 1px solid var(--ws-border);
+  background: var(--ws-surface);
+}
+.ws .wsd-commit__text {
+  flex: 1;
+  min-width: 12em;
+  color: var(--ws-muted);
+  font-size: 13px;
+}
+
+.ws .wsd-tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: 4px;
+  background: var(--ws-sunken);
+  font-size: 12px;
+}
+.ws .wsd-plain {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 899px) {
+  .ws .wsd-obj {
+    padding: 12px 14px 24px;
+  }
+  .ws .wsd-grid2 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ws .wsd-commit {
+    padding: 10px 14px;
+  }
+  .ws .wsd-ctx {
+    display: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .ws *,
   .ws *::before,

@@ -6,6 +6,9 @@
  */
 import type { SensitiveFinding } from '@/api/sensitiveChecks'
 import type { ThesisDetail } from '@/api/theses'
+import { apiFailure } from '@/api/failure'
+
+export { apiFailure }
 
 export type AutoConclusion = 'PASS' | 'REVIEW_REQUIRED' | 'FAIL' | null
 export type Tone = 'neutral' | 'action' | 'warning' | 'danger' | 'success'
@@ -103,15 +106,6 @@ const STAGES: Record<string, string> = {
 
 export function stageLabel(stage: string) {
   return STAGES[stage] ?? stage
-}
-
-export function apiFailure(error: unknown): { status?: number; code?: string; message: string } {
-  const response = (error as { response?: { status?: number; data?: { code?: string; message?: string } } })?.response
-  return {
-    status: response?.status,
-    code: response?.data?.code,
-    message: response?.data?.message ?? (error instanceof Error ? error.message : '请求失败'),
-  }
 }
 
 export const isNotFound = (error: unknown) => {

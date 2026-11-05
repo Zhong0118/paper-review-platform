@@ -1,4 +1,5 @@
-import { httpApi } from './request'
+import { httpApi, type RequestOptions } from './request'
+import { optionArgs } from './optionArgs'
 import type { CheckSummary } from './reviewChecks'
 import type { ReviewScoreInput } from '@/demo/types'
 
@@ -18,17 +19,17 @@ export interface TaskCorrections {
 export function getTaskCorrections(taskId: string) {
   return httpApi.get<TaskCorrections>(`/expert-tasks/${taskId}/corrections`)
 }
-export function listCorrections(mode: 'platform' | 'school') {
-  return httpApi.get<Correction[]>(`/${mode}-review/corrections`)
+export function listCorrections(mode: 'platform' | 'school', options?: RequestOptions) {
+  return httpApi.get<Correction[]>(`/${mode}-review/corrections`, ...optionArgs(options))
 }
 export type CorrectionAction = 'request' | 'cancel' | 'decide' | 'draft' | 'submit' | 'activate' | 'reject'
-export function correctionCommand(action: CorrectionAction, target: string, body: unknown, key: string) {
+export function correctionCommand(action: CorrectionAction, target: string, body: unknown, key: string, options?: RequestOptions) {
   const path = {
     request: `/expert-tasks/${target}/corrections`, cancel: `/corrections/${target}:cancel`,
     decide: `/platform-review/corrections/${target}:decide`, draft: `/expert-corrections/${target}/draft`,
     submit: `/expert-corrections/${target}:submit`, activate: `/school-review/corrections/${target}:activate`,
     reject: `/school-review/corrections/${target}:reject`,
   }[action]
-  return action === 'draft' ? httpApi.put<Correction>(path, body, { idempotencyKey: key })
-    : httpApi.post<Correction>(path, body, { idempotencyKey: key })
+  const config = { ...options, idempotencyKey: key }
+  return action === 'draft' ? httpApi.put<Correction>(path, body, config) : httpApi.post<Correction>(path, body, config)
 }

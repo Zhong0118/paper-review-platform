@@ -18,3 +18,6 @@ export interface NavGroup {
   label?: string
   items: NavItem[]
 }
+
+/** 保存状态：只有服务器确认最新内容时才是 saved */
+export type DraftState = 'clean' | 'dirty' | 'saving' | 'saved' | 'failed' | 'conflict' | 'locked'

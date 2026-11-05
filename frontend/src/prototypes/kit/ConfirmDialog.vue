@@ -34,7 +34,11 @@ watch(
 
 <style scoped>
 .dlg {
+  /* Tailwind preflight 把 dialog 的 margin 归零，需显式居中 */
   width: min(480px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  margin: auto;
+  overflow-y: auto;
   padding: 0;
   border: 1px solid var(--ws-border);
   border-radius: 10px;

@@ -3,11 +3,12 @@
  * 账户菜单（WAI-ARIA menu button）：只读本人信息 + 退出登录。
  * 不提供切换角色、头像上传或假邮箱；“退出登录”调用现有 auth.logout() 后回到登录页。
  */
-import { nextTick, onBeforeUnmount, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import { useAuthStore } from '@/stores/auth'
 
+import { accountInitial } from './accountInitial'
 import type { WorkspaceAccount } from './types'
 
 const props = defineProps<{ account: WorkspaceAccount; compact?: boolean }>()
@@ -40,7 +41,7 @@ async function signOut() {
   await auth.logout()
   await router.replace('/login')
 }
-const initial = props.account.name.slice(-1) || '我'
+const initial = computed(() => accountInitial(props.account.name))
 </script>
 
 <template>

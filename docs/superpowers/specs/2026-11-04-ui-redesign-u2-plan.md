@@ -205,7 +205,7 @@ C-CHECK 字段与原型假设一致：`auto_conclusion`、`manual_conclusion`、
 
 **验收中发现、不在本切片修的问题（已报告，未改动）：**
 - 后端：学生提交的匿名稿含本人姓名、自动检测为 FAIL 时，服务端写 `PREPARING → DRAFT` 的 `anonymization_failed` 工作流事件被 `workflow_events` 的 RLS 拒绝（`new row violates row-level security policy`），提交请求以连接中断失败，论文仍为草稿。复现：隔离验收服务中学生上传含本人姓名的匿名稿后提交。
-- 前端（既有）：登录页不读取 `redirect` 参数，未登录时打开 `/school/preparation?thesis=…` 等深链接，登录后落到角色默认页而不是原链接。
+- 前端（既有）：登录页不读取 `redirect` 参数，未登录时打开 `/school/preparation?thesis=…` 等深链接，登录后落到角色默认页而不是原链接。**已在第二轮优化中修复（见 §4.3）。**
 - 前端（既有）：全局请求拦截器对 404/409 另弹通用提示（如“数据已变更，请刷新后重试”），与核验台自己的说明并存。
 
 **过渡做法（确认送出、终止送审）：** 新页面替换旧页面后，旧页面里的“确认送出”“终止送审”不能在 U2-1 和 U2-4 之间消失，否则主链会断。U2-1 在核验台原样沿用旧页面的这两项行为：按钮只看 `allowed_actions`；终止要求填写原因并二次确认；调用、参数和幂等键与旧页面相同。交互重做留给 U2-4。旧页面在 demo 模式下继续使用，按 `VITE_DEMO_MODE` 切换（同 `/platform/experts` 的现有做法）；其既有 spec 不改。
@@ -218,6 +218,40 @@ C-CHECK 字段与原型假设一致：`auto_conclusion`、`manual_conclusion`、
 - `vue-tsc --build` 通过；`vitest run` 在 `VITE_DEMO_MODE=true` 与不设两种情况下各跑一次，均无失败（§2.2 起基线为全绿）；
 - 生产构建不含原型；
 - 在 §2 的环境里用真实浏览器走一遍。
+
+### 4.3 U2-2～U2-6 实现记录（2026-11-05，待用户统一检查）
+
+全部只在真实模式替换路由；`VITE_DEMO_MODE=true` 时仍是旧页面，旧 spec 一行未改。
+
+| 切片 | 新页面 | 复用与搬家 | 新 spec |
+|---|---|---|---|
+| U2-2 | `review/desk/ExpertReviewDesk.vue`、`ReviewDeskForm.vue` | 旧页与旧表单的状态原样搬进 `useReviewSession`、`useReviewForm`，旧页改为调用 composable；旧 spec 不改即通过。匿名稿阅读、评语检查、更正面板沿用旧组件（`:deep` 换样式） | `expertReviewDesk.spec.ts`（10） |
+| U2-3 | `thesis/workspace/StudentPortalPage.vue`、`StudentThesisEditor.vue` | 编辑页脚本原样搬进 `useThesisEditor`；材料表单、文件字段、学科选择、PDF 转换、检测结果沿用旧组件 | `studentWorkspace.spec.ts`（12） |
+| U2-4 | 核验台与清单在 U2-1 基础上补齐 | 去掉过渡用的 `window.confirm`；确认送出、终止各用确认对话框，幂等键按一次尝试稳定；清单加“可送出”“已退回”视图与行内确认送出 | 在 U2-1 两个 spec 里追加 7 条 |
+| U2-5 | `dispatch/desk/PlatformDispatchDesk.vue` | 指派/改派调用与参数同旧工作台；不可派原因只用服务端字段（`candidateUnavailableReason`）；延期审批沿用 `ExtensionPanel` | `platformDispatchDesk.spec.ts`（10） |
+| U2-6 | `result/feedback/StudentFeedbackPage.vue`、`SupervisorFeedbackPage.vue`、`FeedbackArticle.vue` | 快照按 `snapshot_schema_version` 解读（`publishedFeedback.ts`）：v1 无修改建议、v2 空字符串、未知版本或结构不对整页按接口错误处理（D7） | `publishedFeedback.spec.ts`（4）、`feedbackPages.spec.ts`（9） |
+
+**U2-5 要点：** 视图“待指派 / 进行中 / 需跟进 / 全部”与选中论文放在查询参数里；候选按规则分排序，在途任务只作参考；拒绝后的再次指派文案为“重新指派”，与“改派”分开，改派另有确认对话框，当前任务专家不可选；409 刷新候选并清空选择；成功提示放在清单上方，论文离开“待指派”后仍可见。
+
+**U2-6 要点：** 阅读顺序为元数据 → 结论与总分 → 总体评价 → 主要问题 → 修改建议 → 分项得分；不显示发布日期、主要优点和分项评价文字。未完成的论文不请求结果；404/403 显示“还没有发布”。学生异议需要理由与诉求、二次确认、幂等键稳定，409 时重读异议记录；导师页只读、没有异议入口。
+
+**验收（2026-11-05）：**
+- `vue-tsc --build` 通过；`vitest run` 两种模式均 84 个文件、666 passed；生产构建不含原型代码。
+- 真实浏览器：隔离验收服务（5433 / `paper_review_test`，独立 schema，退出即清理），准备一篇已核验待送出的论文，按学校确认送出 → 运营指派 → 专家接受、评阅、提交 → 学校发布（旧结果处理页）→ 学生阅读反馈并登记异议 → 导师阅读走通。确认送出、指派、异议登记用键盘完成。1440×900、1366×768、390×844 抽查。
+- 走查中修掉的问题：全局 preflight 把原生 `<dialog>` 的 margin 清零，确认对话框贴在左上角（`ConfirmDialog` 恢复居中）；评语必填框在未输入前就标红（改为尝试提交后才标）；评阅表单切换页签沿用上一页签的滚动位置；反馈页分项评分名称被压成一字一行、得分条没有满分轨道。
+
+**第二轮优化（2026-11-05）：**
+- 全局错误提示不再与页面说明重复：请求选项新增 `quiet`，新页面自己说明结果的请求（核验、送出、终止、指派、改派、候选、撤回、删除、送审资格、已发布结果、异议登记）不再弹全局提示；401 跳转登录不变。失败文案统一走 `api/failure.ts`，不再显示 axios 的英文默认消息。专家评阅与论文编辑的保存请求仍在原样搬来的 composable 里，没有加 `quiet`（加了会改动旧 spec 的调用断言），这两处冲突时仍会多一条全局提示。
+- 登录页按 `redirect` 回到原深链：只接受站内路径，且目标路由允许当前角色，否则回角色默认页（`auth/loginRedirect.ts`）。
+- 头像字去掉职称后取末字（“周明远教授”→“远”）。
+- 专家已提交视图改为单栏居中，不再留空的阅读栏；评语检查面板的规则与词表版本收成一行灰字。
+- 派单台窄屏的清单/详情切换补了测试。
+- 验收：`vue-tsc --build` 通过；`vitest run` 两种模式均 87 个文件、672 passed；生产构建不含原型；真实浏览器复核了深链登录、已提交视图与头像。
+
+**验收中发现、未改动（已报告）：**
+- 后端：学校“确认送出”只建评审轮次，论文仍是 `READY_FOR_DISPATCH` 且仍返回 `CONFIRM_DISPATCH`，学校端分不出“已送出待派单”和“未送出”，论文会继续留在“可送出”视图；工作流事件里也没有这一步，学生处理记录缺“学校送出”。
+- 仍未重做：`/school/progress`（评审进度，没有原型）、`/school/results`（结果处理）、`/expert/tasks`（专家任务列表），走查中仍是旧页面。
+- 过渡做法：U2-2、U2-3 的若干子组件仍是旧组件换样式（见上表），评语检查面板仍显示完整规则哈希等技术信息。
 
 ## 5. 已定与仍未决
 

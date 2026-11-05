@@ -9,9 +9,9 @@ import { useRoute } from 'vue-router'
 
 import type { ThesisDetail } from '@/api/theses'
 import { listSchoolTheses } from '@/api/schoolReview'
-import type { NavGroup, WorkspaceAccount } from '@/components/workspace/types'
+import type { WorkspaceAccount } from '@/components/workspace/types'
 import { useTimeScope } from '@/composables/useTimeScope'
-import { portalMenus } from '@/router/menus'
+import { workspaceNav } from '@/router/workspaceNav'
 import { useAuthStore } from '@/stores/auth'
 import '@/styles/workspace.css'
 
@@ -49,16 +49,7 @@ watch([timeScope.scope, timeScope.identity], () => void load(), { immediate: tru
 onBeforeUnmount(() => generation++)
 
 const verifyCount = computed(() => (loading.value || error.value ? undefined : rows.value.filter((row) => row.stage === 'PREPARING').length))
-const nav = computed<NavGroup[]>(() => [
-  {
-    items: portalMenus('school_reviewer').map((item) => ({
-      label: item.label,
-      to: item.path,
-      active: item.path === '/school/preparation',
-      count: item.path === '/school/preparation' ? verifyCount.value : undefined,
-    })),
-  },
-])
+const nav = computed(() => workspaceNav('school_reviewer', '/school/preparation', { '/school/preparation': verifyCount.value }))
 const account = computed<WorkspaceAccount>(() => ({
   name: auth.user?.displayName || '身份未取得',
   username: auth.user?.username ?? '',
@@ -88,6 +79,7 @@ const account = computed<WorkspaceAccount>(() => ({
       :scope="timeScope.scope.value"
       @set-scope="timeScope.setScope"
       @retry="load"
+      @changed="load"
     />
   </div>
 </template>

@@ -13,7 +13,10 @@ export const appRoutes: RouteRecordRaw[] = [
   {
     path: '/student/thesis/edit',
     name: '论文编辑与提交',
-    component: () => import('@/modules/thesis/pages/ThesisEditPage.vue'),
+    // U2-3：真实模式用新的编辑页（新建态 + 分段编辑）；demo 模式保留旧页
+    component: () => import.meta.env.VITE_DEMO_MODE === 'true'
+      ? import('@/modules/thesis/pages/ThesisEditPage.vue')
+      : import('@/modules/thesis/workspace/StudentThesisEditor.vue'),
     meta: { roleCodes: ['student'], layout: 'portal', pageId: 'PAGE-003' },
   },
   {
@@ -36,13 +39,17 @@ export const appRoutes: RouteRecordRaw[] = [
     name: '专家库',
     component: () => import.meta.env.VITE_DEMO_MODE === 'true'
       ? import('@/modules/expert-management/pages/ExpertLibraryPage.vue')
-      : import('@/modules/expert-management/pages/RealExpertLibraryPage.vue'),
+      // U4-6：真实模式改用专家库工作空间（旧 RealExpertLibraryPage 已在 U4-9 删除）
+      : import('@/modules/expert-management/library/ExpertLibraryDesk.vue'),
     meta: { roleCodes: ['platform_reviewer'], layout: 'admin', pageId: 'PAGE-006' },
   },
   {
     path: '/platform/dispatch',
     name: '送审运营台',
-    component: () => import('@/modules/dispatch/pages/DispatchWorkbenchPage.vue'),
+    // U2-5：真实模式用派单台；demo 模式保留旧工作台（U2 计划 §4）
+    component: () => import.meta.env.VITE_DEMO_MODE === 'true'
+      ? import('@/modules/dispatch/pages/DispatchWorkbenchPage.vue')
+      : import('@/modules/dispatch/desk/PlatformDispatchDesk.vue'),
     meta: { roleCodes: ['platform_reviewer'], layout: 'admin', pageId: 'PAGE-007' },
   },
   {
@@ -60,19 +67,28 @@ export const appRoutes: RouteRecordRaw[] = [
   {
     path: '/expert/review',
     name: '在线评阅',
-    component: () => import('@/modules/review/pages/ReviewWorkspacePage.vue'),
+    // U2-2：真实模式用专注评阅；demo 模式保留旧页（U2 计划 §4）
+    component: () => import.meta.env.VITE_DEMO_MODE === 'true'
+      ? import('@/modules/review/pages/ReviewWorkspacePage.vue')
+      : import('@/modules/review/desk/ExpertReviewDesk.vue'),
     meta: { roleCodes: ['expert'], layout: 'review', pageId: 'PAGE-010' },
   },
   {
     path: '/school/results',
     name: '结果处理',
-    component: () => import('@/modules/result/pages/ResultProcessingPage.vue'),
+    // U4-1：真实模式用结果处理工作空间；demo 模式保留旧页
+    component: () => import.meta.env.VITE_DEMO_MODE === 'true'
+      ? import('@/modules/result/pages/ResultProcessingPage.vue')
+      : import('@/modules/result/processing/SchoolResultsDesk.vue'),
     meta: { roleCodes: ['school_reviewer'], layout: 'admin', pageId: 'PAGE-011' },
   },
   {
     path: '/supervisor/results',
     name: '导师评审结果',
-    component: () => import('@/modules/result/pages/SupervisorResultPage.vue'),
+    // U2-6：真实模式用只读正式反馈；demo 模式保留旧页
+    component: () => import.meta.env.VITE_DEMO_MODE === 'true'
+      ? import('@/modules/result/pages/SupervisorResultPage.vue')
+      : import('@/modules/result/feedback/SupervisorFeedbackPage.vue'),
     meta: { roleCodes: ['supervisor'], layout: 'portal', pageId: 'PAGE-013' },
   },
   {
@@ -94,8 +110,18 @@ export const appRoutes: RouteRecordRaw[] = [
   {
     path: '/system/tenants',
     name: '租户与权限',
-    component: () => import('@/modules/system/pages/TenantPermissionsPage.vue'),
+    // U4-8：真实模式用学校管理工作空间；demo 模式保留旧页
+    component: () => import.meta.env.VITE_DEMO_MODE === 'true'
+      ? import('@/modules/system/pages/TenantPermissionsPage.vue')
+      : import('@/modules/system/tenants/TenantDesk.vue'),
     meta: { roleCodes: ['system_admin'], layout: 'admin', pageId: 'PAGE-017' },
+  },
+  {
+    // U4-8（E10）：官方基础目录从学校管理页分出；同为 system_admin，不设 pageId
+    path: '/system/catalog',
+    name: '官方基础目录',
+    component: () => import('@/modules/system/catalog/OfficialCatalogPage.vue'),
+    meta: { roleCodes: ['system_admin'], layout: 'admin' },
   },
   {
     path: '/audit',
@@ -110,13 +136,19 @@ export const appRoutes: RouteRecordRaw[] = [
   {
     path: '/school/objections',
     name: '异议处理',
-    component: () => import('@/modules/school/pages/ObjectionWorkbenchPage.vue'),
+    // U4-2：真实模式用异议处理工作空间；demo 模式保留旧页
+    component: () => import.meta.env.VITE_DEMO_MODE === 'true'
+      ? import('@/modules/school/pages/ObjectionWorkbenchPage.vue')
+      : import('@/modules/school/objections/SchoolObjectionsDesk.vue'),
     meta: { roleCodes: ['school_reviewer'], layout: 'admin', pageId: 'PAGE-019' },
   },
   {
     path: '/platform/corrections',
     name: '评阅更正审批',
-    component: () => import('@/modules/expert-management/pages/CorrectionApprovalPage.vue'),
+    // U4-7：真实模式用更正审批工作空间；demo 模式保留旧页
+    component: () => import.meta.env.VITE_DEMO_MODE === 'true'
+      ? import('@/modules/expert-management/pages/CorrectionApprovalPage.vue')
+      : import('@/modules/expert-management/corrections/CorrectionApprovalDesk.vue'),
     meta: { roleCodes: ['platform_reviewer'], layout: 'admin', pageId: 'PAGE-020' },
   },
   {
@@ -134,7 +166,10 @@ export const appRoutes: RouteRecordRaw[] = [
   {
     path: '/school/batch-rules',
     name: '批次与评审规则',
-    component: () => import('@/modules/school/pages/BatchRulesPage.vue'),
+    // U4-3：真实模式用批次与规则工作空间；demo 模式保留旧页
+    component: () => import.meta.env.VITE_DEMO_MODE === 'true'
+      ? import('@/modules/school/pages/BatchRulesPage.vue')
+      : import('@/modules/school/settings/BatchSettingsPage.vue'),
     meta: { roleCodes: ['school_reviewer'], layout: 'admin', pageId: 'PAGE-023' },
   },
   {
@@ -146,19 +181,22 @@ export const appRoutes: RouteRecordRaw[] = [
   {
     path: '/school/sensitive-terms',
     name: '本校材料检测词表',
-    component: () => import('@/modules/school/pages/SensitiveTermsPage.vue'),
+    // U4-5 检测词表工作空间；U4-9 起两种模式共用（旧页已删除，演示菜单不显示此项）
+    component: () => import('@/modules/school/settings/TermSettingsPage.vue'),
     meta: { roleCodes: ['school_reviewer'], layout: 'admin', pageId: 'PAGE-027' },
   },
   {
     path: '/school/disciplines',
     name: '本校送审学科',
-    component: () => import('@/modules/school/pages/SchoolDisciplinesPage.vue'),
+    // U4-5 学科与专业工作空间；U4-9 起两种模式共用（旧页已删除，演示菜单不显示此项）
+    component: () => import('@/modules/school/settings/DisciplineSettingsPage.vue'),
     meta: { roleCodes: ['school_reviewer'], layout: 'admin', pageId: 'PAGE-026' },
   },
   {
     path: '/school/members',
     name: '成员与送审资格',
-    component: () => import('@/modules/school/pages/SchoolMembersPage.vue'),
+    // U4-4 成员与资格工作空间；U4-9 起两种模式共用（旧页已删除，演示菜单不显示此项）
+    component: () => import('@/modules/school/settings/MemberSettingsPage.vue'),
     meta: { roleCodes: ['school_reviewer'], layout: 'admin', pageId: 'PAGE-025' },
   },
 ]

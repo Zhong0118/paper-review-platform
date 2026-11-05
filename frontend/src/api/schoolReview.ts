@@ -1,13 +1,16 @@
 import { scopeOptions, type TimeScope, type TimeScopeReporter } from './timeScope'
 import { httpApi, type RequestOptions } from './request'
+import { optionArgs } from './optionArgs'
 import type { ThesisDetail } from './theses'
 
-export function listSchoolTheses(scope?: TimeScope, report?: TimeScopeReporter) {
-  return scope === undefined ? httpApi.get<ThesisDetail[]>('/school-review/theses') : httpApi.get<ThesisDetail[]>('/school-review/theses', scopeOptions(scope, report))
+export function listSchoolTheses(scope?: TimeScope, report?: TimeScopeReporter, options?: RequestOptions) {
+  return scope === undefined
+    ? httpApi.get<ThesisDetail[]>('/school-review/theses', ...optionArgs(options))
+    : httpApi.get<ThesisDetail[]>('/school-review/theses', options ? { ...scopeOptions(scope, report), ...options } : scopeOptions(scope, report))
 }
 
-export function getSchoolThesis(id: string) {
-  return httpApi.get<ThesisDetail>(`/school-review/theses/${id}`)
+export function getSchoolThesis(id: string, options?: RequestOptions) {
+  return httpApi.get<ThesisDetail>(`/school-review/theses/${id}`, ...optionArgs(options))
 }
 
 export function confirmAnonymization(

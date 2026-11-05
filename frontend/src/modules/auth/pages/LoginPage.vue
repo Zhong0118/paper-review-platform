@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 
+import { failureText } from '@/api/failure'
 import AuthLayout from '@/layouts/AuthLayout.vue'
 import InvitationActivationPanel from '@/modules/auth/components/InvitationActivationPanel.vue'
 import LoginChannelTabs, { type LoginChannel } from '@/modules/auth/components/LoginChannelTabs.vue'
 import SchoolIdentityPanel from '@/modules/auth/components/SchoolIdentityPanel.vue'
+import { safeRedirect } from '@/modules/auth/loginRedirect'
 import { defaultRouteByRole } from '@/router/menus'
 import { useAuthStore } from '@/stores/auth'
 import type { RoleCode } from '@/types/roles'
@@ -15,6 +17,7 @@ const props = withDefaults(defineProps<{ demoMode?: boolean }>(), {
 })
 
 const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
 const form = reactive({ account: '', password: '' })
 const notice = ref('')
@@ -45,9 +48,11 @@ async function submitFormalLogin() {
   try {
     await authStore.loginWithPassword(form.account.trim(), form.password)
     const role = authStore.user?.role
-    await router.push(role ? defaultRouteByRole[role] : '/login')
+    // 未登录时打开的深链（如 /school/preparation?thesis=…）登录后原样回去；不合法或无权限则回角色默认页
+    const back = role ? safeRedirect(router, route.query.redirect, role) : null
+    await router.push(back ?? (role ? defaultRouteByRole[role] : '/login'))
   } catch (error) {
-    notice.value = error instanceof Error ? error.message : '登录失败，请检查账号密码。'
+    notice.value = failureText(error, '登录失败，请检查账号密码。')
   } finally {
     submitting.value = false
   }
@@ -87,7 +92,8 @@ async function submitFormalLogin() {
         <button class="login-form__submit" type="submit" :disabled="submitting">
           {{ submitting ? '登录中…' : '登录' }}
         </button>
-        <p v-if="notice" class="login-form__notice" role="status">{{ notice }}</p>
+        <!-- 提示位常驻并预留高度：出现错误时卡片不变高，不会因垂直居中而整体跳动 -->
+        <p class="login-form__notice" :class="{ 'login-form__notice--shown': notice }" role="status" aria-live="polite">{{ notice }}</p>
       </form>
 
       <SchoolIdentityPanel v-else-if="activeChannel === 'school'" />
@@ -188,11 +194,17 @@ async function submitFormalLogin() {
 }
 
 .login-form__notice {
+  min-height: 2.5rem;
   margin: 0;
   padding: 0.625rem 0.75rem;
-  background: #fff6e8;
+  border-radius: 0.375rem;
   color: #8d440c;
   font-size: 0.75rem;
+  line-height: 1.25rem;
+}
+
+.login-form__notice--shown {
+  background: #fff6e8;
 }
 
 .demo-entry {

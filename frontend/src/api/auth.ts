@@ -1,4 +1,4 @@
-import { httpApi } from './request'
+import { httpApi, type RequestOptions } from './request'
 
 export interface LoginUser {
   id: string
@@ -18,7 +18,8 @@ export interface LoginResult {
 }
 
 export function loginWithPassword(username: string, password: string) {
-  return httpApi.post<LoginResult>('/auth/login', { username, password })
+  // 登录页在表单里原位说明失败原因，不再另弹全局提示
+  return httpApi.post<LoginResult>('/auth/login', { username, password }, { quiet: true })
 }
 
 export function logoutSession(refreshToken: string) {
@@ -43,6 +44,6 @@ export interface Eligibility {
   deadline: string
 }
 
-export function fetchEligibility() {
-  return httpApi.get<Eligibility>('/me/eligibility')
+export function fetchEligibility(options?: RequestOptions) {
+  return httpApi.get<Eligibility>('/me/eligibility', options)
 }

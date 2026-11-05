@@ -5,7 +5,8 @@
  * - 409 先重读详情，再分“已被处理”“已更新”“已不可用”，已写说明一律保留。
  * - 同一次提交尝试重试时沿用同一个幂等键。
  * - 只有服务器确认后才出现“下一篇”。
- * - 确认送出、终止送审原样沿用旧页行为，交互重做属 U2-4。
+ * - U2-4：确认送出与“通过核验”分开，单独确认；永久终止放在“更多操作”，填原因后独立确认。
+ *   两者都只按 allowed_actions 出现，重试沿用同一幂等键，409 与核验一样先重读再分类。
  */
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -15,6 +16,7 @@ import { getFileContent } from '@/api/files'
 import { confirmAnonymization, getSchoolThesis, terminateThesis } from '@/api/schoolReview'
 import { checkSensitiveThesis, type SensitiveFinding } from '@/api/sensitiveChecks'
 import type { ThesisDetail } from '@/api/theses'
+import ConfirmDialog from '@/components/workspace/ConfirmDialog.vue'
 import FocusShell from '@/components/workspace/FocusShell.vue'
 import StateBlock from '@/components/workspace/StateBlock.vue'
 import StatusPill from '@/components/workspace/StatusPill.vue'
@@ -122,7 +124,7 @@ async function submit() {
   submitting.value = true
   submitError.value = ''
   try {
-    await confirmAnonymization(current.id, body, { idempotencyKey: idempotencyKey(JSON.stringify(body)) })
+    await confirmAnonymization(current.id, body, { idempotencyKey: idempotencyKey(JSON.stringify(body)), quiet: true })
     attempt = null
     // 保留作出判断时的报告与材料；服务端新状态只用于刷新清单
     outcome.value = decision.value === 'pass' ? 'passed' : 'returned'
@@ -182,43 +184,89 @@ async function recheck() {
   }
 }
 
-// ── 确认送出与终止（沿用旧页行为） ──
-const transitionBusy = ref(false)
-const transitionNotice = ref('')
-const terminateReason = ref('')
+// ── 确认送出与永久终止（U2-4） ──
+const done = ref<null | 'dispatched' | 'terminated'>(null)
+const canDispatchNow = computed(() => !done.value && !conflict.value && (outcome.value === 'passed' || (!outcome.value && actions.value.has('CONFIRM_DISPATCH'))))
+const canTerminate = computed(() => !outcome.value && !done.value && !locked.value && actions.value.has('TERMINATE'))
+
+const dispatchOpen = ref(false)
+const dispatchBusy = ref(false)
+const dispatchError = ref('')
+/** 一次送出尝试固定目标版本与幂等键；回执丢失后重试原样重发 */
+let dispatchAttempt: { id: string; version: number; key: string } | null = null
+function openDispatch() {
+  dispatchError.value = ''
+  dispatchOpen.value = true
+}
 async function sendOut() {
-  const current = detail.value
-  if (!current || transitionBusy.value) return
-  transitionBusy.value = true
-  transitionNotice.value = ''
+  if (dispatchBusy.value) return
+  dispatchBusy.value = true
+  dispatchError.value = ''
   try {
-    await confirmDispatch(current.id, current.version, { idempotencyKey: crypto.randomUUID() })
-    transitionNotice.value = '已确认送出，论文交给百杰运营派单。'
-    await fetchDetail(true)
+    if (!dispatchAttempt) {
+      // 通过核验后本页保留作出判断时的详情；送出要按服务端当前版本
+      const base = outcome.value === 'passed' ? await getSchoolThesis(props.thesisId) : detail.value
+      if (!base) return
+      if (!base.allowed_actions.includes('CONFIRM_DISPATCH')) {
+        dispatchOpen.value = false
+        conflict.value = { kind: 'taken', latest: base }
+        emit('changed')
+        return
+      }
+      dispatchAttempt = { id: base.id, version: base.version, key: crypto.randomUUID() }
+    }
+    await confirmDispatch(dispatchAttempt.id, dispatchAttempt.version, { idempotencyKey: dispatchAttempt.key, quiet: true })
+    dispatchAttempt = null
+    dispatchOpen.value = false
+    done.value = 'dispatched'
     emit('changed')
   } catch (error) {
-    transitionNotice.value = apiFailure(error).message || '确认送出失败'
+    if (apiFailure(error).status === 409) {
+      dispatchAttempt = null
+      dispatchOpen.value = false
+      await classifyConflict()
+    } else if (isNotFound(error)) {
+      dispatchOpen.value = false
+      conflict.value = { kind: 'gone', latest: null }
+    } else dispatchError.value = apiFailure(error).message
   } finally {
-    transitionBusy.value = false
+    dispatchBusy.value = false
   }
+}
+
+const terminateOpen = ref(false)
+const terminateReason = ref('')
+const terminateBusy = ref(false)
+const terminateError = ref('')
+let terminateAttempt: { signature: string; key: string } | null = null
+function openTerminate() {
+  terminateError.value = ''
+  terminateOpen.value = true
 }
 async function terminate() {
   const current = detail.value
   const reason = terminateReason.value.trim()
-  if (!current || transitionBusy.value || !reason || !actions.value.has('TERMINATE')) return
-  if (!window.confirm(`确认永久终止“${current.current_version?.title ?? '这篇论文'}”？未完成专家任务将取消，历史记录保留。`)) return
-  transitionBusy.value = true
-  transitionNotice.value = ''
+  if (!current || terminateBusy.value || !reason || !actions.value.has('TERMINATE')) return
+  const signature = JSON.stringify([current.id, current.version, reason])
+  if (terminateAttempt?.signature !== signature) terminateAttempt = { signature, key: crypto.randomUUID() }
+  terminateBusy.value = true
+  terminateError.value = ''
   try {
-    await terminateThesis(current.id, { version: current.version, reason }, { idempotencyKey: crypto.randomUUID() })
-    terminateReason.value = ''
-    transitionNotice.value = '已终止送审，未完成任务已取消。'
-    await fetchDetail(true)
+    await terminateThesis(current.id, { version: current.version, reason }, { idempotencyKey: terminateAttempt.key, quiet: true })
+    terminateAttempt = null
+    terminateOpen.value = false
+    done.value = 'terminated'
     emit('changed')
   } catch (error) {
-    transitionNotice.value = apiFailure(error).message || '终止失败'
+    if (apiFailure(error).status === 409) {
+      terminateOpen.value = false
+      await classifyConflict()
+    } else if (isNotFound(error)) {
+      terminateOpen.value = false
+      conflict.value = { kind: 'gone', latest: null }
+    } else terminateError.value = apiFailure(error).message
   } finally {
-    transitionBusy.value = false
+    terminateBusy.value = false
   }
 }
 
@@ -409,7 +457,10 @@ onBeforeUnmount(() => {
 
         <aside v-show="!narrow || mobileTab === 'decide'" class="col col--decide" aria-label="核验判断">
           <div class="decide">
-            <div v-if="conflict?.kind === 'taken'" class="banner" role="status">
+            <div v-if="done" class="banner banner--ok" role="status" data-desk-done>
+              <strong>{{ done === 'dispatched' ? '已确认送出，论文交给百杰运营派单。' : '已永久终止送审，未完成的专家任务已取消。' }}</strong>
+            </div>
+            <div v-else-if="conflict?.kind === 'taken'" class="banner" role="status">
               <strong>这篇论文已被处理，当前为“{{ stageLabel(conflict.latest?.stage ?? '') }}”。</strong>
               <span>你的操作没有生效。下方输入保留在本页，可以复制后离开。</span>
             </div>
@@ -469,6 +520,15 @@ onBeforeUnmount(() => {
               </div>
             </section>
 
+            <section v-if="!deciding && !outcome && !done" class="state-now" aria-label="当前状态">
+              <h2>当前状态</h2>
+              <p><StatusPill :tone="detail.stage === 'TERMINATED' ? 'danger' : detail.stage === 'DRAFT' ? 'warning' : 'action'">{{ detail.stage === 'DRAFT' && detail.return_reason ? '已退回修改' : stageLabel(detail.stage) }}</StatusPill></p>
+              <template v-if="detail.stage === 'DRAFT'">
+                <blockquote v-if="detail.return_reason" class="state-now__reason">{{ detail.return_reason }}</blockquote>
+                <p class="muted">学生修改并重新提交后，论文会回到“待核验”。</p>
+              </template>
+            </section>
+
             <template v-if="deciding || outcome">
               <fieldset class="choice" :disabled="locked || Boolean(outcome)">
                 <legend>你的判断</legend>
@@ -516,33 +576,35 @@ onBeforeUnmount(() => {
               <span v-if="touched && validation && !outcome" id="decision-err" class="field-error">{{ validation }}</span>
             </template>
 
-            <section v-if="!outcome && (actions.has('CONFIRM_DISPATCH') || actions.has('TERMINATE'))" class="transition" aria-label="其他操作">
-              <h2>其他操作</h2>
-              <button v-if="actions.has('CONFIRM_DISPATCH')" type="button" class="btn btn--primary" :disabled="transitionBusy" @click="sendOut">确认送出</button>
-              <template v-if="actions.has('TERMINATE')">
-                <label class="field">
-                  <span>终止原因（终止送审时必填）</span>
-                  <textarea v-model="terminateReason" class="textarea textarea--short" data-terminate-reason :disabled="transitionBusy" />
-                </label>
-                <button type="button" class="btn btn--danger-outline" data-action="terminate-thesis" :disabled="transitionBusy || !terminateReason.trim()" @click="terminate">终止送审</button>
-              </template>
-              <p v-if="transitionNotice" role="status" class="muted">{{ transitionNotice }}</p>
+            <section v-if="canDispatchNow" class="sendout" aria-label="确认送出">
+              <h2>确认送出</h2>
+              <p class="muted">{{ outcome === 'passed' ? '核验已通过。' : '这篇论文已通过核验。' }}送出后交给百杰运营派单，学生不能再自行撤回。</p>
+              <button type="button" class="btn btn--primary" data-action="open-dispatch" @click="openDispatch">确认送出…</button>
             </section>
+
+            <details v-if="canTerminate" class="more-ops">
+              <summary>更多操作</summary>
+              <p class="muted">永久终止会结束这篇论文的送审，未完成的专家任务一并取消，历史记录保留，不能恢复。需要学生修改时，请用“退回修改”。</p>
+              <button type="button" class="btn btn--danger-outline" data-action="open-terminate" @click="openTerminate">永久终止送审…</button>
+            </details>
           </div>
         </aside>
       </div>
 
-      <footer v-if="deciding || outcome" class="decide-bar">
-        <div v-if="outcome" class="decide-bar__done" role="status">
+      <footer v-if="deciding || outcome || done" class="decide-bar">
+        <div v-if="done" class="decide-bar__done" role="status">
+          <StatusPill :tone="done === 'dispatched' ? 'success' : 'danger'">{{ done === 'dispatched' ? '已确认送出' : '已终止送审' }}</StatusPill>
+        </div>
+        <div v-else-if="outcome" class="decide-bar__done" role="status">
           <StatusPill tone="success">{{ outcome === 'passed' ? '已通过核验' : '已退回修改' }}</StatusPill>
-          <span>{{ outcome === 'passed' ? '论文进入“待送出”，确认送出需单独操作。' : '学生会看到退回原因。' }}</span>
+          <span>{{ outcome === 'passed' ? '论文进入“待送出”，可以在右侧确认送出，也可以稍后在“可送出”视图处理。' : '学生会看到退回原因。' }}</span>
         </div>
         <p v-else-if="conflict" class="decide-bar__state muted">{{ conflict.kind === 'updated' ? '论文已更新，请载入最新材料' : '这篇论文已不能在此处理' }}</p>
         <p v-else class="decide-bar__state muted">
           待核验<template v-if="report.findings.length">，已查看 {{ viewed.size }} / {{ report.findings.length }} 个发现项</template>
         </p>
         <div class="decide-bar__actions">
-          <template v-if="outcome">
+          <template v-if="outcome || done">
             <RouterLink class="btn" :to="backTo">返回清单</RouterLink>
             <button v-if="nextId" type="button" class="btn btn--primary" @click="goNext">下一篇</button>
           </template>
@@ -559,10 +621,76 @@ onBeforeUnmount(() => {
         </div>
       </footer>
     </div>
+
+    <ConfirmDialog :open="dispatchOpen" title="确认送出这篇论文？" :busy="dispatchBusy" @close="dispatchOpen = false">
+      <p>《{{ detail?.current_version?.title || '未命名论文' }}》将交给百杰运营派单。送出后学生不能再自行撤回；如需中止，只能永久终止。</p>
+      <p v-if="dispatchError" class="field-error" role="alert">没有送出：{{ dispatchError }}</p>
+      <template #actions>
+        <button type="button" class="btn" :disabled="dispatchBusy" @click="dispatchOpen = false">暂不送出</button>
+        <button type="button" class="btn btn--primary" data-action="confirm-dispatch" :disabled="dispatchBusy" @click="sendOut">{{ dispatchBusy ? '正在送出…' : '确认送出' }}</button>
+      </template>
+    </ConfirmDialog>
+
+    <ConfirmDialog :open="terminateOpen" title="永久终止这篇论文的送审？" :busy="terminateBusy" @close="terminateOpen = false">
+      <p>《{{ detail?.current_version?.title || '未命名论文' }}》的送审将结束，未完成的专家任务一并取消。终止后不能恢复。</p>
+      <label class="field">
+        <span>终止原因（必填，校内留存）</span>
+        <textarea v-model="terminateReason" class="textarea" rows="3" data-terminate-reason :disabled="terminateBusy" />
+      </label>
+      <p v-if="terminateError" class="field-error" role="alert">没有终止：{{ terminateError }}</p>
+      <template #actions>
+        <button type="button" class="btn" :disabled="terminateBusy" @click="terminateOpen = false">不终止</button>
+        <button type="button" class="btn btn--danger" data-action="terminate-thesis" :disabled="terminateBusy || !terminateReason.trim()" @click="terminate">{{ terminateBusy ? '正在终止…' : '永久终止' }}</button>
+      </template>
+    </ConfirmDialog>
   </FocusShell>
 </template>
 
 <style scoped>
+.sendout,
+.state-now {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--ws-border);
+  border-radius: var(--ws-radius);
+  background: var(--ws-page);
+}
+.sendout h2,
+.state-now h2 {
+  font-size: 14px;
+  font-weight: 600;
+}
+.sendout .btn {
+  justify-self: start;
+}
+.state-now__reason {
+  margin: 0;
+  padding-left: 10px;
+  border-left: 3px solid var(--ws-warning);
+  font-family: var(--ws-font-reading);
+  line-height: 1.7;
+}
+.more-ops {
+  border-top: 1px solid var(--ws-border);
+  padding-top: 10px;
+  font-size: 13px;
+}
+.more-ops summary {
+  color: var(--ws-muted);
+  cursor: pointer;
+}
+.more-ops[open] {
+  display: grid;
+  gap: 8px;
+}
+.more-ops .btn {
+  justify-self: start;
+}
+.banner--ok {
+  border-left-color: var(--ws-success);
+  background: var(--ws-success-soft);
+}
 .back {
   min-height: 32px;
   padding: 0 8px;
@@ -775,7 +903,6 @@ onBeforeUnmount(() => {
   background: var(--ws-danger-soft);
 }
 .basis h2,
-.transition h2,
 .choice legend {
   margin-bottom: 8px;
   font-size: 14px;
@@ -847,19 +974,6 @@ onBeforeUnmount(() => {
 .choice__opt small {
   color: var(--ws-muted);
   font-size: 12px;
-}
-.transition {
-  display: grid;
-  gap: 10px;
-  justify-items: start;
-  padding-top: 12px;
-  border-top: 1px solid var(--ws-border);
-}
-.transition .field {
-  width: 100%;
-}
-.textarea--short {
-  min-height: 64px;
 }
 .btn--danger-outline {
   border-color: var(--ws-danger);

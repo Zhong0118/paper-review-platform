@@ -1,8 +1,9 @@
 import { httpApi, type RequestOptions } from './request'
+import { optionArgs } from './optionArgs'
 import type { ReviewRule } from './review'
 
-export function getSchoolReviewRule() {
-  return httpApi.get<ReviewRule>('/school-review/review-rule')
+export function getSchoolReviewRule(options?: RequestOptions) {
+  return httpApi.get<ReviewRule>('/school-review/review-rule', ...optionArgs(options))
 }
 
 export interface ReviewBatch {
@@ -80,16 +81,16 @@ export interface CreateEligibilityInput {
   degree_type?: string | null
 }
 
-export function listBatches() {
-  return httpApi.get<ReviewBatch[]>('/school-admin/batches')
+export function listBatches(options?: RequestOptions) {
+  return httpApi.get<ReviewBatch[]>('/school-admin/batches', ...optionArgs(options))
 }
 
 export function createBatch(body: CreateBatchInput, options: RequestOptions) {
   return httpApi.post<ReviewBatch>('/school-admin/batches', body, options)
 }
 
-export function updateBatch(id: string, body: UpdateBatchInput) {
-  return httpApi.patch<ReviewBatch>(`/school-admin/batches/${id}`, body)
+export function updateBatch(id: string, body: UpdateBatchInput, options?: RequestOptions) {
+  return httpApi.patch<ReviewBatch>(`/school-admin/batches/${id}`, body, ...optionArgs(options))
 }
 
 export function openBatch(id: string, expectedVersion: number, options: RequestOptions) {
@@ -104,16 +105,17 @@ export function archiveBatch(id: string, expectedVersion: number, options: Reque
   return httpApi.post<ReviewBatch>(`/school-admin/batches/${id}:archive`, { expected_version: expectedVersion }, options)
 }
 
-export function listMembers(membershipType?: MembershipType) {
-  return httpApi.get<SchoolMember[]>('/school-admin/members', membershipType ? { params: { membership_type: membershipType } } : undefined)
+export function listMembers(membershipType?: MembershipType, options?: RequestOptions) {
+  const params = membershipType ? { params: { membership_type: membershipType } } : undefined
+  return options ? httpApi.get<SchoolMember[]>('/school-admin/members', { ...params, ...options }) : httpApi.get<SchoolMember[]>('/school-admin/members', params)
 }
 
 export function createMember(body: CreateMemberInput, options: RequestOptions) {
   return httpApi.post<SchoolMember>('/school-admin/members', body, options)
 }
 
-export function updateMember(id: string, body: UpdateMemberInput) {
-  return httpApi.patch<SchoolMember>(`/school-admin/members/${id}`, body)
+export function updateMember(id: string, body: UpdateMemberInput, options?: RequestOptions) {
+  return httpApi.patch<SchoolMember>(`/school-admin/members/${id}`, body, ...optionArgs(options))
 }
 
 export function disableMember(id: string, options: RequestOptions) {
@@ -128,8 +130,8 @@ export function resetMemberPassword(id: string, password: string, options: Reque
   return httpApi.post<SchoolMember>(`/school-admin/members/${id}:reset-password`, { password }, options)
 }
 
-export function listEligibilities(batchId: string) {
-  return httpApi.get<StudentEligibility[]>(`/school-admin/batches/${batchId}/eligibilities`)
+export function listEligibilities(batchId: string, options?: RequestOptions) {
+  return httpApi.get<StudentEligibility[]>(`/school-admin/batches/${batchId}/eligibilities`, ...optionArgs(options))
 }
 
 export function createEligibility(batchId: string, body: CreateEligibilityInput, options: RequestOptions) {
@@ -146,7 +148,7 @@ export function resumeEligibility(id: string, options: RequestOptions) {
 
 export interface CloseoutItem {id:string; thesis_id:string; title:string|null; status:string}
 export type BatchCloseout = Record<'unpublished'|'objections'|'corrections',CloseoutItem[]>
-export const getBatchCloseout = (id:string) => httpApi.get<BatchCloseout>(`/school-admin/batches/${id}/closeout`)
+export const getBatchCloseout = (id:string, options?:RequestOptions) => httpApi.get<BatchCloseout>(`/school-admin/batches/${id}/closeout`, ...optionArgs(options))
 
-export const saveDeadlines=(id:string,version:number,accept:number|null,review:number|null)=>
-  httpApi.put<ReviewBatch>(`/school-admin/batches/${id}/deadlines`,{expected_version:version,accept_days:accept,review_days:review})
+export const saveDeadlines=(id:string,version:number,accept:number|null,review:number|null,options?:RequestOptions)=>
+  httpApi.put<ReviewBatch>(`/school-admin/batches/${id}/deadlines`,{expected_version:version,accept_days:accept,review_days:review}, ...optionArgs(options))

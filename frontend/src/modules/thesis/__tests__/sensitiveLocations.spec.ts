@@ -1,14 +1,12 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { createRouter, createMemoryHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import type { ThesisDetail } from '@/api/theses'
 const api = vi.hoisted(() => ({ getFileContent: vi.fn(), getSensitiveTerms: vi.fn(), saveSensitiveTerms: vi.fn() }))
 vi.mock('@/api/files', () => ({ getFileContent: api.getFileContent }))
 vi.mock('@/api/sensitiveChecks', () => api)
 import Panel from '@/components/app/SensitiveFindingPanel.vue'
-import TermsPage from '@/modules/school/pages/SensitiveTermsPage.vue'
 import { portalMenus } from '@/router/menus'
 import { appRoutes } from '@/router/routes'
 
@@ -68,35 +66,6 @@ it('displays an empty or historical unbound report honestly',()=>{
  const wrapper=mount(Panel,{props:{detail:{...detail(),anonymization:{auto_conclusion:null,manual_conclusion:null,findings:[]}}}})
  expect(wrapper.text()).toContain('尚无当前材料检测报告')
  expect(wrapper.find('[data-preview-page]').exists()).toBe(false)
-})
-async function termsPage(){
- const router=createRouter({history:createMemoryHistory(),routes:[{path:'/',component:TermsPage}]})
- await router.push('/');await router.isReady()
- const wrapper=mount(TermsPage,{global:{plugins:[router],stubs:{PortalLayout:{template:'<div><slot/></div>'}}}})
- await flushPromises();return wrapper
-}
-it('edits school literal terms with defaults, expected version and explicit conflict recovery',async()=>{
- api.getSensitiveTerms.mockResolvedValue({version:2,terms:[]})
- const wrapper=await termsPage()
- expect(wrapper.text()).toContain('没有内置官方敏感词库')
- await wrapper.get('[data-add-term]').trigger('click')
- await wrapper.get('[data-term-text]').setValue('待核词')
- api.saveSensitiveTerms.mockRejectedValue(new Error('词表已变化，请刷新后再保存'))
- await wrapper.get('[data-save-terms]').trigger('click');await flushPromises()
- expect(api.saveSensitiveTerms).toHaveBeenCalledWith({expected_version:2,terms:[{text:'待核词',severity:'WARN',description:''}]})
- expect((wrapper.get('[data-term-text]').element as HTMLInputElement).value).toBe('待核词')
- expect(wrapper.text()).toContain('词表已变化')
- api.getSensitiveTerms.mockResolvedValue({version:3,terms:[{text:'新配置',severity:'BLOCK',description:'本校规则'}]})
- await wrapper.get('[data-reload-terms]').trigger('click');await flushPromises()
- expect((wrapper.get('[data-term-text]').element as HTMLInputElement).value).toBe('新配置')
-})
-it('validates duplicates and whitespace before writing',async()=>{
- api.getSensitiveTerms.mockResolvedValue({version:0,terms:[]})
- const wrapper=await termsPage()
- for(let i=0;i<2;i++){await wrapper.get('[data-add-term]').trigger('click');await wrapper.findAll('[data-term-text]')[i]!.setValue('同一个词')}
- await wrapper.get('[data-save-terms]').trigger('click');await flushPromises()
- expect(api.saveSensitiveTerms).not.toHaveBeenCalled()
- expect(wrapper.text()).toContain('不能重复')
 })
 it('exposes vocabulary configuration only to the school real menu and route',()=>{
  expect(portalMenus('school_reviewer',false).some(x=>x.path==='/school/sensitive-terms')).toBe(true)

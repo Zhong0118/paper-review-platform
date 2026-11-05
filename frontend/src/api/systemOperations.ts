@@ -1,3 +1,4 @@
+import { optionArgs } from './optionArgs'
 import { httpApi, type RequestOptions } from './request'
 
 export interface TenantSummary {
@@ -36,8 +37,8 @@ export interface CreateTenantInput {
   reviewer: CreateReviewerInput
 }
 
-export function listTenants() {
-  return httpApi.get<TenantSummary[]>('/system/tenants')
+export function listTenants(options?: RequestOptions) {
+  return httpApi.get<TenantSummary[]>('/system/tenants', ...optionArgs(options))
 }
 
 export function createTenant(body: CreateTenantInput, options: RequestOptions) {
@@ -52,8 +53,8 @@ export function resumeTenant(id: string, options: RequestOptions) {
   return httpApi.post<TenantSummary>(`/system/tenants/${id}:resume`, {}, options)
 }
 
-export function listReviewers(tenantId: string) {
-  return httpApi.get<SchoolReviewer[]>(`/system/tenants/${tenantId}/reviewers`)
+export function listReviewers(tenantId: string, options?: RequestOptions) {
+  return httpApi.get<SchoolReviewer[]>(`/system/tenants/${tenantId}/reviewers`, ...optionArgs(options))
 }
 
 export function createReviewer(tenantId: string, body: CreateReviewerInput, options: RequestOptions) {

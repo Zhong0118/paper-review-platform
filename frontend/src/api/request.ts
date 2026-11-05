@@ -63,6 +63,8 @@ export interface RequestOptions extends AxiosRequestConfig {
   /** 幂等键，命令接口必传 */
   idempotencyKey?: string
   onHeaders?: (headers: Record<string, unknown>) => void
+  /** 页面自己在原位说明错误时设为 true：不再弹全局提示（401 跳转登录不受影响） */
+  quiet?: boolean
 }
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api/v1'
@@ -95,12 +97,17 @@ http.interceptors.response.use(
     const requestId = error.response?.data?.request_id
     const status = error.response?.status
 
-    // 认证失效：清理会话并跳转登录
-    if (status === 401 || code === 'AUTH_REQUIRED') {
+    // 认证失效：清理会话并跳转登录。登录请求本身的 401 是“用户名或密码错误”，
+    // 交给登录页原位显示；整页跳回 /login 会把这条提示刷掉，看起来像点了没反应。
+    const loginAttempt = error.config?.url === '/auth/login'
+    if ((status === 401 || code === 'AUTH_REQUIRED') && !loginAttempt) {
       const auth = useAuthStore()
       auth.clearSession()
       window.location.href = '/login'
     }
+
+    // 调用方自己在页面上说明错误：不重复弹全局提示
+    if ((error.config as RequestOptions | undefined)?.quiet) return Promise.reject(error)
 
     // 403/404 统一提示，防资源枚举
     if (status === 403 || code === 'ACCESS_DENIED') {

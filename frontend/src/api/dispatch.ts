@@ -90,8 +90,8 @@ export function dispatchQueue(scope?: TimeScope, report?: TimeScopeReporter, sta
   return scope === undefined ? httpApi.get<DispatchQueueItem[]>('/platform-review/dispatch-queue') : httpApi.get<DispatchQueueItem[]>('/platform-review/dispatch-queue', { ...scopeOptions(scope, report), params: { time_scope: scope, status_filter: status } })
 }
 
-export function dispatchCandidates(thesisId: string) {
-  return httpApi.get<DispatchCandidate[]>(`/platform-review/dispatch-candidates?thesis_id=${thesisId}`)
+export function dispatchCandidates(thesisId: string, options?: RequestOptions) {
+  return httpApi.get<DispatchCandidate[]>(`/platform-review/dispatch-candidates?thesis_id=${thesisId}`, options)
 }
 
 export function assignExpert(thesisId: string, expertId: string, options?: RequestOptions, expectedExpertVersion?: number) {

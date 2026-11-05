@@ -78,6 +78,8 @@ describe('reportPills', () => {
 describe('apiFailure', () => {
   it('reads status and code from an axios-style error', () => {
     expect(apiFailure({ response: { status: 409, data: { code: 'VERSION_CONFLICT', message: '检测依据已变化' } } })).toEqual({ status: 409, code: 'VERSION_CONFLICT', message: '检测依据已变化' })
-    expect(apiFailure(new Error('Network Error'))).toEqual({ status: undefined, code: undefined, message: 'Network Error' })
+    // 不把 axios 的英文默认消息给用户看
+    expect(apiFailure(new Error('Network Error'))).toEqual({ status: undefined, code: undefined, message: '网络连接中断，请检查网络后重试' })
+    expect(apiFailure({ isAxiosError: true, message: 'Request failed with status code 503', response: { status: 503, data: {} } }).message).toBe('请求失败（服务返回 503）')
   })
 })
