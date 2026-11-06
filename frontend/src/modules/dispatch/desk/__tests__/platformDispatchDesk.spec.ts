@@ -43,7 +43,7 @@ async function mountAt(url: string) {
   return { wrapper, router }
 }
 type W = Awaited<ReturnType<typeof mountAt>>['wrapper']
-const tab = (w: W, label: string) => w.findAll('[role="tab"]').find((t) => t.text().startsWith(label))!
+const tab = (w: W, label: string) => w.findAll('[data-view]').find((t) => t.text().startsWith(label))!
 const listTitles = (w: W) => w.findAll('[data-thesis-row] .titem__title').map((t) => t.text())
 const candidateNames = (w: W) => w.findAll('.ctable tbody tr:not(.row--blocked):not(.divider) .who strong').map((t) => t.text())
 

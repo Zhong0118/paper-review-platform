@@ -14,7 +14,9 @@ import { selectSchoolResultQueue } from '@/api/adapters'
 import { getSchoolThesis, listSchoolTheses } from '@/api/schoolReview'
 import type { ThesisDetail } from '@/api/theses'
 import ScopeSelect from '@/components/app/data/ScopeSelect.vue'
+import ViewTabs, { type ViewOption } from '@/components/app/data/ViewTabs.vue'
 import AppShell from '@/components/app/shell/AppShell.vue'
+import { schoolOrg } from '@/components/app/shell/schoolOrg'
 import { useSignOut } from '@/components/app/shell/useSignOut'
 import StatePanel from '@/components/app/state/StatePanel.vue'
 import { Button } from '@/components/ui/button'
@@ -112,6 +114,7 @@ const all = computed(() => (extra.value ? [extra.value, ...rows.value] : rows.va
 const ready = computed(() => !loading.value && !error.value)
 const countOf = (key: ViewKey) => (key === 'all' ? rows.value.length : rows.value.filter((row) => viewOf(row, awaiting.value) === key).length)
 const countShown = (key: ViewKey) => ready.value && !(key === 'correction' && correctionsFailed.value)
+const viewTabs = computed<ViewOption[]>(() => views.map((v) => ({ value: v.key, label: v.label, count: countShown(v.key) ? countOf(v.key) : undefined })))
 const list = computed(() => all.value.filter((row) => view.value === 'all' || viewOf(row, awaiting.value) === view.value || row.id === thesisId.value))
 
 const selected = computed(() => all.value.find((row) => row.id === thesisId.value) ?? null)
@@ -155,7 +158,7 @@ const account = computed<WorkspaceAccount>(() => ({
   name: auth.user?.displayName || '身份未取得',
   username: auth.user?.username ?? '',
   role: '学校审核',
-  org: auth.user?.tenantCode ?? '',
+  org: schoolOrg(auth.user),
 }))
 </script>
 
@@ -166,14 +169,10 @@ const account = computed<WorkspaceAccount>(() => ({
         <ScopeSelect :model-value="timeScope.scope.value" @update:model-value="timeScope.setScope" />
       </template>
 
-      <MasterDetail :open="Boolean(thesisId)" :narrow="narrow" list-label="结果清单" detail-label="当前论文结果" back-label="结果清单" @back="setQuery({ thesis: undefined, correction: undefined })">
+      <MasterDetail :open="Boolean(thesisId)" :narrow="narrow" list-label="结果清单" detail-label="当前论文结果" list-width="340px" back-label="结果清单" @back="setQuery({ thesis: undefined, correction: undefined })">
         <template #list>
           <div class="wsd-lhead">
-            <div class="wsd-views" role="tablist" aria-label="视图">
-              <button v-for="v in views" :key="v.key" type="button" role="tab" class="wsd-views__tab" :aria-selected="view === v.key" @click="setView(v.key)">
-                {{ v.label }}<span v-if="countShown(v.key)" class="wsd-views__count num">{{ countOf(v.key) }}</span>
-              </button>
-            </div>
+            <ViewTabs :model-value="view" :views="viewTabs" label="视图" size="sm" @select="setView($event as ViewKey)" />
             <p v-if="ready" class="wsd-scope">计数为已加载的 {{ rows.length }} 篇（{{ timeScope.scope.value === 'past_year' ? '近一年，按论文创建日' : '全部年份' }}）。</p>
             <p v-if="ready && correctionsFailed" class="wsd-scope warn" role="status">
               更正记录没有加载出来，“更正待确认”暂不可用。<Button type="button" variant="ghost" size="sm" @click="load">重试</Button>

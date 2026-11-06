@@ -6,6 +6,7 @@
 import { computed, ref } from 'vue'
 
 import type { Correction } from '@/api/corrections'
+import { beijingDate } from '@/api/taskTiming'
 import type { ReviewRuleDimension } from '@/api/review'
 import ReviewCheckSummary from '@/components/app/ReviewCheckSummary.vue'
 import ConfirmDialog from '@/components/workspace/ConfirmDialog.vue'
@@ -20,7 +21,7 @@ const command = useSchoolCorrection()
 const rows = computed(() => compareRows(props.correction, props.dimensions))
 const requestReason = computed(() => noteOf(props.correction, 'EXPERT_REQUEST'))
 const platformReason = computed(() => noteOf(props.correction, 'PLATFORM_DECISION'))
-const requestedAt = computed(() => props.correction.created_at.slice(0, 10))
+const requestedAt = computed(() => beijingDate(props.correction.created_at))
 
 const open = ref<SchoolDecision | null>(null)
 const reason = ref('')

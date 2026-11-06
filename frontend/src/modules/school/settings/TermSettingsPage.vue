@@ -9,6 +9,7 @@ import { computed, onBeforeUnmount, ref } from 'vue'
 import { apiFailure } from '@/api/failure'
 import { getSensitiveTerms, saveSensitiveTerms } from '@/api/sensitiveChecks'
 import AppShell from '@/components/app/shell/AppShell.vue'
+import { schoolOrg } from '@/components/app/shell/schoolOrg'
 import { useSignOut } from '@/components/app/shell/useSignOut'
 import StatePanel from '@/components/app/state/StatePanel.vue'
 import { Button } from '@/components/ui/button'
@@ -129,7 +130,7 @@ const account = computed<WorkspaceAccount>(() => ({
   name: auth.user?.displayName || '身份未取得',
   username: auth.user?.username ?? '',
   role: '学校审核',
-  org: auth.user?.tenantCode ?? '',
+  org: schoolOrg(auth.user),
 }))
 </script>
 

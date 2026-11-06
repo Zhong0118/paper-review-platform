@@ -57,7 +57,7 @@ describe('correction approval desk', () => {
   it('lists pending requests with counts and opens the first one', async () => {
     const { wrapper, router } = await mountAt('/platform/corrections')
     expect(api.listCorrections).toHaveBeenCalledWith('platform', { quiet: true })
-    expect(wrapper.findAll('.wsd-views__count').map((c) => c.text())).toEqual(['2', '1', '3'])
+    expect(wrapper.findAll('[data-view] span').map((c) => c.text())).toEqual(['2', '1', '3'])
     expect(wrapper.findAll('.wsd-titem__title').map((t) => t.text())).toEqual(['任务 task-a-0', '任务 task-c-0'])
     expect(router.currentRoute.value.query.correction).toBe('a')
     expect(wrapper.get('[data-request]').text()).toContain('申请理由 a')

@@ -9,6 +9,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { getPublishedResult, listSupervisedPublishedTheses, type SupervisedPublishedThesis } from '@/api/results'
 import ScopeSelect from '@/components/app/data/ScopeSelect.vue'
 import AppShell from '@/components/app/shell/AppShell.vue'
+import { schoolOrg } from '@/components/app/shell/schoolOrg'
 import { useSignOut } from '@/components/app/shell/useSignOut'
 import StatePanel from '@/components/app/state/StatePanel.vue'
 import { Button } from '@/components/ui/button'
@@ -90,7 +91,7 @@ function choose(id: string) {
 
 const signOut = useSignOut()
 const nav = computed(() => [{ items: portalMenus('supervisor').map<NavItem>((item) => ({ label: item.label, to: item.path, active: item.path === '/supervisor/results' })) }])
-const account = computed<WorkspaceAccount>(() => ({ name: auth.user?.displayName || '身份未取得', username: auth.user?.username ?? '', role: '导师', org: auth.user?.tenantCode ?? '' }))
+const account = computed<WorkspaceAccount>(() => ({ name: auth.user?.displayName || '身份未取得', username: auth.user?.username ?? '', role: '导师', org: schoolOrg(auth.user) }))
 </script>
 
 <template>
@@ -111,12 +112,12 @@ const account = computed<WorkspaceAccount>(() => ({ name: auth.user?.displayName
         </select>
       </label>
 
-      <StatePanel v-if="listLoading || state.kind === 'loading'" kind="loading" title="正在载入学生评审结果" />
+      <StatePanel v-if="listLoading || state.kind === 'loading'" kind="loading" title="正在载入学生评阅结果" />
       <StatePanel v-else-if="listError" kind="error" title="学生名单没有加载出来">
         {{ listError }}
         <template #actions><Button variant="outline" data-action="retry-feedback" @click="loadList">重试</Button></template>
       </StatePanel>
-      <StatePanel v-else-if="state.kind === 'idle'" kind="empty" title="还没有已发布的学生评审结果">
+      <StatePanel v-else-if="state.kind === 'idle'" kind="empty" title="还没有已发布的学生评阅结果">
         你指导的学生的结果经学校发布后，会在这里显示。
       </StatePanel>
       <StatePanel v-else-if="state.kind === 'missing'" kind="empty" title="这篇论文的结果不可查看" data-feedback-missing>

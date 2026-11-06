@@ -77,8 +77,8 @@ describe('tenant desk: list', () => {
     const { wrapper, router } = await mountAt('/system/tenants')
     expect(api.listTenants).toHaveBeenCalledWith({ quiet: true })
     expect(wrapper.findAll('tbody tr').map((row) => row.findAll('td').map((cell) => cell.text()))).toEqual([
-      ['试点大学', 'pilot', '研究生院', '1', '正常', '2026-09-23'],
-      ['北方农业大学', 'north-agri', '研究生院', '2', '已暂停', '2026-09-23'],
+      ['试点大学', 'pilot', '研究生院', '1', '正常', '2026/9/23'],
+      ['北方农业大学', 'north-agri', '研究生院', '2', '已暂停', '2026/9/23'],
     ])
     expect(wrapper.text()).toContain('不读论文正文')
     await set(wrapper, 'tenant-search', 'AGRI')

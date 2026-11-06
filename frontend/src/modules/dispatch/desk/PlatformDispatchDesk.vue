@@ -15,6 +15,7 @@ import { failureText } from '@/api/failure'
 import { deadlineLabel } from '@/api/taskTiming'
 import ScopeSelect from '@/components/app/data/ScopeSelect.vue'
 import { Button } from '@/components/ui/button'
+import ViewTabs, { type ViewOption } from '@/components/app/data/ViewTabs.vue'
 import AppShell from '@/components/app/shell/AppShell.vue'
 import { useSignOut } from '@/components/app/shell/useSignOut'
 import StatePanel from '@/components/app/state/StatePanel.vue'
@@ -87,6 +88,7 @@ function inView(row: DispatchQueueItem, key: View) {
 const text = (value: unknown) => (typeof value === 'string' ? value : '')
 const view = computed<View>(() => views.find((item) => item.key === route.query.view)?.key ?? 'pending')
 const countOf = (key: View) => queue.value.filter((row) => inView(row, key)).length
+const viewTabs = computed<ViewOption[]>(() => views.map((v) => ({ value: v.key, label: v.label, count: !loading.value && !listError.value ? countOf(v.key) : undefined })))
 const list = computed(() => queue.value.filter((row) => inView(row, view.value)))
 const selectedId = computed(() => text(route.query.thesis))
 const item = computed(() => queue.value.find((row) => row.thesis_id === selectedId.value) ?? null)
@@ -267,10 +269,8 @@ const account = computed<WorkspaceAccount>(() => ({ name: auth.user?.displayName
 
       <div class="desk" :class="{ 'desk--narrow': narrow }">
         <section v-show="!narrow || !item" class="desk__list" aria-label="论文清单">
-          <div class="views" role="tablist" aria-label="工作视图">
-            <button v-for="entry in views" :key="entry.key" type="button" role="tab" class="views__tab" :aria-selected="view === entry.key" @click="setQuery({ view: entry.key === 'pending' ? undefined : entry.key, thesis: undefined })">
-              {{ entry.label }} <span v-if="!loading && !listError" class="num">{{ countOf(entry.key) }}</span>
-            </button>
+          <div class="views">
+            <ViewTabs :model-value="view" :views="viewTabs" label="工作视图" size="sm" @select="setQuery({ view: $event === 'pending' ? undefined : $event, thesis: undefined })" />
           </div>
           <p v-if="flash" class="flash" role="status" data-dispatch-flash>{{ flash }}</p>
           <StatePanel v-if="loading" kind="loading" title="正在载入派单清单" compact />
@@ -385,7 +385,9 @@ const account = computed<WorkspaceAccount>(() => ({ name: auth.user?.displayName
             <Button type="button" data-action="commit-dispatch" :disabled="!chosenExpert || pending" @click="commit">{{ pending ? '正在提交…' : commandLabel }}</Button>
           </footer>
         </section>
-        <StatePanel v-else-if="!narrow && !loading && list.length" kind="empty" title="选择左侧一篇论文开始派单" />
+        <section v-else-if="!narrow" class="desk__detail desk__detail--empty" aria-label="当前论文">
+          <StatePanel v-if="!loading && list.length" kind="empty" title="从左侧选择一篇论文" compact>选中后在这里比较候选专家并派单。</StatePanel>
+        </section>
       </div>
     </AppShell>
 
@@ -431,26 +433,9 @@ const account = computed<WorkspaceAccount>(() => ({ name: auth.user?.displayName
   position: sticky;
   z-index: 2;
   top: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 2px;
   padding: 10px 12px;
   border-bottom: 1px solid var(--ws-border);
   background: var(--ws-surface);
-}
-.views__tab {
-  min-height: 32px;
-  padding: 0 10px;
-  border: 0;
-  border-radius: var(--ws-radius);
-  background: transparent;
-  color: var(--ws-muted);
-  cursor: pointer;
-}
-.views__tab[aria-selected='true'] {
-  background: var(--ws-sunken);
-  color: var(--ws-text);
-  font-weight: 500;
 }
 .tlist {
   margin: 0;
@@ -496,6 +481,9 @@ const account = computed<WorkspaceAccount>(() => ({ name: auth.user?.displayName
   min-height: 0;
   overflow-y: auto;
   background: var(--ws-page);
+}
+.desk__detail--empty {
+  justify-content: center;
 }
 .back {
   align-self: flex-start;

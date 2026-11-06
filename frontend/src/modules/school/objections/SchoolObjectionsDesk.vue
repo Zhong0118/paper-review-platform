@@ -11,8 +11,11 @@ import { useRoute, useRouter } from 'vue-router'
 import { apiFailure } from '@/api/failure'
 import { listSchoolObjections, type ObjectionRow } from '@/api/objections'
 import { listSchoolTheses } from '@/api/schoolReview'
+import { beijingDate } from '@/api/taskTiming'
 import type { ThesisDetail } from '@/api/theses'
+import ViewTabs, { type ViewOption } from '@/components/app/data/ViewTabs.vue'
 import AppShell from '@/components/app/shell/AppShell.vue'
+import { schoolOrg } from '@/components/app/shell/schoolOrg'
 import { useSignOut } from '@/components/app/shell/useSignOut'
 import StatePanel from '@/components/app/state/StatePanel.vue'
 import { Button } from '@/components/ui/button'
@@ -71,6 +74,7 @@ function setQuery(patch: Record<string, string | undefined>) {
 
 const ready = computed(() => !loading.value && !error.value)
 const countOf = (key: ObjectionStatus) => rows.value.filter((row) => row.status === key).length
+const viewTabs = computed<ViewOption[]>(() => objectionViews.map((v) => ({ value: v.key, label: v.label, count: ready.value ? countOf(v.key) : undefined })))
 const list = computed(() => rows.value.filter((row) => row.status === view.value || row.id === objectionId.value))
 
 watch([ready, list, narrow], () => {
@@ -96,7 +100,7 @@ const account = computed<WorkspaceAccount>(() => ({
   name: auth.user?.displayName || '身份未取得',
   username: auth.user?.username ?? '',
   role: '学校审核',
-  org: auth.user?.tenantCode ?? '',
+  org: schoolOrg(auth.user),
 }))
 </script>
 
@@ -108,11 +112,7 @@ const account = computed<WorkspaceAccount>(() => ({
       <MasterDetail :open="Boolean(objectionId)" :narrow="narrow" list-label="异议清单" detail-label="当前异议" back-label="异议清单" @back="setQuery({ objection: undefined })">
         <template #list>
           <div class="wsd-lhead">
-            <div class="wsd-views" role="tablist" aria-label="视图">
-              <button v-for="v in objectionViews" :key="v.key" type="button" role="tab" class="wsd-views__tab" :aria-selected="view === v.key" @click="setQuery({ view: v.key, objection: undefined })">
-                {{ v.label }}<span v-if="ready" class="wsd-views__count num">{{ countOf(v.key) }}</span>
-              </button>
-            </div>
+            <ViewTabs :model-value="view" :views="viewTabs" label="视图" size="sm" @select="setQuery({ view: $event, objection: undefined })" />
             <p v-if="ready" class="wsd-scope">共 {{ rows.length }} 条，不分时间范围。</p>
           </div>
           <StatePanel v-if="loading && !rows.length" kind="loading" title="正在读取异议…" compact />
@@ -126,7 +126,7 @@ const account = computed<WorkspaceAccount>(() => ({
             <li v-for="row in list" :key="row.id">
               <button type="button" class="wsd-titem" :class="{ 'wsd-titem--on': row.id === objectionId }" :aria-current="row.id === objectionId || undefined" @click="setQuery({ objection: row.id })">
                 <span class="wsd-titem__title" :class="{ muted: !thesisOf(row) }">{{ titleOf(row) }}</span>
-                <span class="wsd-titem__meta">{{ row.student_name || '未取得姓名' }}　{{ thesisOf(row)?.student?.student_no ?? '' }}　{{ row.created_at.slice(0, 10) }} 登记</span>
+                <span class="wsd-titem__meta">{{ row.student_name || '未取得姓名' }}　{{ thesisOf(row)?.student?.student_no ?? '' }}　{{ beijingDate(row.created_at) }} 登记</span>
                 <span class="wsd-titem__line clamp">{{ row.reason }}</span>
               </button>
             </li>

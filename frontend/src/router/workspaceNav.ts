@@ -16,6 +16,10 @@ const SHORT_LABELS: Record<string, string> = {
   '/school/sensitive-terms': '检测词表',
   '/platform/dispatch': '派单台',
   '/platform/corrections': '更正审批',
+  // F1 · A5：侧栏名称与页面标题一致
+  '/student/dashboard': '我的送审',
+  '/student/results': '评阅结果',
+  '/supervisor/results': '学生评阅结果',
 }
 
 /** counts：只给传入的路径显示计数；值为 undefined 表示暂不显示（加载中或失败）。 */

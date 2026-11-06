@@ -162,7 +162,7 @@ const account = computed<WorkspaceAccount>(() => ({ name: auth.user?.displayName
 </script>
 
 <template>
-  <AppShell :nav="nav" :account="account" title="评审任务" layout="data" @sign-out="signOut">
+  <AppShell :nav="nav" :account="account" title="我的任务" layout="data" @sign-out="signOut">
     <template #context>只显示本人任务；接受前只能看到匿名概要</template>
     <template #actions>
       <ScopeSelect :model-value="timeScope.scope.value" @update:model-value="timeScope.setScope" />

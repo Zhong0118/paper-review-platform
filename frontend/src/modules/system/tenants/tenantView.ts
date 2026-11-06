@@ -3,6 +3,7 @@
  * 校验规则与后端一致（见 U4 计划 §15）；密码只在表单里，不进任何签名或文案。
  */
 import type { InstitutionOption } from '@/api/catalogs'
+import { beijingDate } from '@/api/taskTiming'
 import type { CreateReviewerInput, CreateTenantInput, TenantSummary } from '@/api/systemOperations'
 
 export type TenantStatus = TenantSummary['status']
@@ -17,7 +18,7 @@ export function matchTenant(tenant: TenantSummary, keyword: string, status: Tena
   return !q || tenant.name.toLowerCase().includes(q) || tenant.code.toLowerCase().includes(q)
 }
 
-export const dateText = (iso: string) => iso.slice(0, 10)
+export const dateText = (iso: string) => beijingDate(iso)
 
 const CODE = /^[a-z0-9-]{2,32}$/
 const USERNAME = /^[a-z0-9._-]{3,64}$/

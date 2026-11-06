@@ -261,7 +261,7 @@ const [DefinePreview, PreviewBody] = createReusableTemplate()
           </div>
 
           <div v-else class="overflow-hidden rounded-lg border bg-background">
-            <Table class="md:min-w-[760px]">
+            <Table class="md:min-w-[720px]">
               <TableHeader class="max-md:sr-only">
                 <TableRow class="hover:bg-transparent">
                   <TableHead class="w-[46%]">论文 / 学生</TableHead>

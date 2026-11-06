@@ -5,6 +5,7 @@
  * demo 模式仍走旧页 PreparationListPage（见 router/routes.ts）。
  * R2：两者都在 AppShell 里（清单 queue 模板、核验台 focus 模板），导航由这里按权限生成。
  */
+import { schoolOrg } from '@/components/app/shell/schoolOrg'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 
@@ -54,7 +55,7 @@ const account = computed<WorkspaceAccount>(() => ({
   name: auth.user?.displayName || '身份未取得',
   username: auth.user?.username ?? '',
   role: '学校审核',
-  org: auth.user?.tenantCode ?? '',
+  org: schoolOrg(auth.user),
 }))
 </script>
 

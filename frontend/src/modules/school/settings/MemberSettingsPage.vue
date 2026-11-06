@@ -10,6 +10,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { apiFailure } from '@/api/failure'
 import { listBatches, listEligibilities, listMembers, type ReviewBatch, type SchoolMember, type StudentEligibility } from '@/api/schoolOperations'
 import AppShell from '@/components/app/shell/AppShell.vue'
+import { schoolOrg } from '@/components/app/shell/schoolOrg'
 import { useSignOut } from '@/components/app/shell/useSignOut'
 import ViewTabs from '@/components/app/data/ViewTabs.vue'
 import StatePanel from '@/components/app/state/StatePanel.vue'
@@ -119,7 +120,7 @@ const account = computed<WorkspaceAccount>(() => ({
   name: auth.user?.displayName || '身份未取得',
   username: auth.user?.username ?? '',
   role: '学校审核',
-  org: auth.user?.tenantCode ?? '',
+  org: schoolOrg(auth.user),
 }))
 </script>
 

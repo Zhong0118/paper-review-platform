@@ -10,6 +10,7 @@ import { useRoute, useRouter } from 'vue-router'
 
 import { listCorrections, type Correction } from '@/api/corrections'
 import { apiFailure } from '@/api/failure'
+import ViewTabs, { type ViewOption } from '@/components/app/data/ViewTabs.vue'
 import AppShell from '@/components/app/shell/AppShell.vue'
 import { useSignOut } from '@/components/app/shell/useSignOut'
 import StatePanel from '@/components/app/state/StatePanel.vue'
@@ -72,6 +73,7 @@ function setQuery(patch: Record<string, string | undefined>) {
 
 const ready = computed(() => !loading.value && !error.value)
 const countOf = (key: ViewKey) => rows.value.filter((row) => inView(row, key)).length
+const viewTabs = computed<ViewOption[]>(() => views.map((v) => ({ value: v.key, label: v.label, count: ready.value ? countOf(v.key) : undefined })))
 const list = computed(() => rows.value.filter((row) => inView(row, view.value)))
 const selected = computed(() => rows.value.find((row) => row.id === correctionId.value) ?? null)
 const step = computed(() => (selected.value ? progress(selected.value.status) : null))
@@ -147,11 +149,7 @@ const account = computed<WorkspaceAccount>(() => ({ name: auth.user?.displayName
       <MasterDetail :open="Boolean(correctionId)" :narrow="narrow" list-label="更正申请清单" detail-label="当前申请" back-label="申请清单" @back="setQuery({ correction: undefined })">
         <template #list>
           <div class="wsd-lhead">
-            <div class="wsd-views" role="tablist" aria-label="视图">
-              <button v-for="v in views" :key="v.key" type="button" role="tab" class="wsd-views__tab" :aria-selected="view === v.key" @click="setQuery({ view: v.key === 'pending' ? undefined : v.key, correction: undefined })">
-                {{ v.label }}<span v-if="ready" class="wsd-views__count num">{{ countOf(v.key) }}</span>
-              </button>
-            </div>
+            <ViewTabs :model-value="view" :views="viewTabs" label="视图" size="sm" @select="setQuery({ view: $event === 'pending' ? undefined : $event, correction: undefined })" />
           </div>
           <StatePanel v-if="loading && !rows.length" kind="loading" title="正在读取更正申请…" compact />
           <StatePanel v-else-if="error" kind="error" title="更正申请没有加载出来" compact>

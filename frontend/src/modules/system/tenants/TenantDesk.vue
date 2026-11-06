@@ -5,7 +5,7 @@
  * 系统管理员只管理学校与学校管理员账号，不读论文正文；官方目录在 /system/catalog（E10）。
  * demo 模式与旧页 TenantPermissionsPage 不变（见 router/routes.ts）。
  */
-import { ChevronLeft } from '@lucide/vue'
+import { ChevronLeft, Search } from '@lucide/vue'
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -119,10 +119,11 @@ const account = computed<WorkspaceAccount>(() => ({ name: auth.user?.displayName
 
       <div v-else class="grid gap-4">
         <div class="flex flex-wrap items-center gap-2" role="search">
-          <label class="relative">
+          <label class="relative w-full sm:w-[280px]">
             <span class="sr-only">搜索学校</span>
+            <Search class="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
             <input
-              class="h-(--control-h) w-60 rounded-md border border-input bg-background px-3 text-sm shadow-xs outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50"
+              class="h-9 w-full rounded-md border border-input bg-background pr-3 pl-8 text-base outline-none placeholder:text-faint focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/20 disabled:opacity-50 [&::-webkit-search-cancel-button]:hidden"
               type="search"
               placeholder="学校名称或代码"
               data-field="tenant-search"
@@ -134,7 +135,7 @@ const account = computed<WorkspaceAccount>(() => ({ name: auth.user?.displayName
           <label>
             <span class="sr-only">状态</span>
             <select
-              class="h-(--control-h) w-36 rounded-md border border-input bg-background px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50"
+              class="h-9 w-36 rounded-md border border-input bg-background px-3 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/20 disabled:opacity-50"
               data-field="tenant-status"
               :value="status"
               :disabled="!rows.length"

@@ -13,6 +13,7 @@ import {
   type BatchCloseout, type CloseoutItem, type ReviewBatch,
 } from '@/api/schoolOperations'
 import { pinPrograms, type CatalogVersion } from '@/api/schoolPrograms'
+import { beijingTime } from '@/api/taskTiming'
 import ConfirmDialog from '@/components/workspace/ConfirmDialog.vue'
 import StateBlock from '@/components/workspace/StateBlock.vue'
 import StatusPill, { type PillTone } from '@/components/workspace/StatusPill.vue'
@@ -232,7 +233,7 @@ function linkText(group: keyof BatchCloseout, row: CloseoutItem) {
   return stageText[row.status] ?? row.status
 }
 const maxTotal = computed(() => props.rule?.dimensions.reduce((sum, item) => sum + item.max_score, 0) ?? 0)
-const time = (value: string | null) => (value ? new Date(value).toLocaleString('zh-CN', { hour12: false }) : '未设置')
+const time = (value: string | null) => (value ? beijingTime(value) : '未设置')
 </script>
 
 <template>

@@ -171,6 +171,6 @@ it('treats an unreadable snapshot as an interface error for supervisors too, and
   wrapper.unmount()
   api.listSupervisedPublishedTheses.mockResolvedValueOnce([])
   const second = await mountAt(SupervisorPage, '/supervisor/results')
-  expect(second.wrapper.text()).toContain('还没有已发布的学生评审结果')
+  expect(second.wrapper.text()).toContain('还没有已发布的学生评阅结果')
   expect(api.getPublishedResult).toHaveBeenCalledTimes(1)
 })

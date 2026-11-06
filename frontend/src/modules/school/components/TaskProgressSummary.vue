@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Dashboard, StatusFilter } from '@/api/dashboard'
+import { beijingTime } from '@/api/taskTiming'
 defineProps<{ waiting?: number; reviewing?: number; completed?: number; overdue?: number; data?: Dashboard | null; loading?: boolean; error?: string; live?: boolean }>()
 defineEmits<{ filter: [status: StatusFilter]; retry: [] }>()
 const cards = [
@@ -8,7 +9,7 @@ const cards = [
   { key: 'in_review_tasks', label: '评阅中任务', status: 'IN_REVIEW' },
   { key: 'submitted_tasks', label: '已提交任务', status: 'SUBMITTED' },
 ] as const
-const updated = (value: string) => new Date(value).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false })
+const updated = (value: string) => beijingTime(value)
 </script>
 
 <template>

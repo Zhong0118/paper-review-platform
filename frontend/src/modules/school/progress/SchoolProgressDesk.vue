@@ -11,10 +11,11 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import type { StatusFilter } from '@/api/dashboard'
 import { schoolProgressList, type SchoolProgressList, type SchoolProgressRow } from '@/api/dispatch'
-import { deadlineLabel } from '@/api/taskTiming'
+import { beijingTime, deadlineLabel } from '@/api/taskTiming'
 import ScopeSelect from '@/components/app/data/ScopeSelect.vue'
 import ViewTabs, { type ViewOption } from '@/components/app/data/ViewTabs.vue'
 import AppShell from '@/components/app/shell/AppShell.vue'
+import { schoolOrg } from '@/components/app/shell/schoolOrg'
 import { useSignOut } from '@/components/app/shell/useSignOut'
 import StatePanel from '@/components/app/state/StatePanel.vue'
 import type { WorkspaceAccount } from '@/components/workspace/types'
@@ -47,7 +48,7 @@ const views = computed<ViewOption[]>(() => [
   }),
 ])
 const paperUnit = computed(() => (['ALL', 'WAITING'].includes(dashboard.status.value) ? '篇论文' : '个任务'))
-const beijing = (value: string) => new Date(value).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false })
+const beijing = (value: string) => beijingTime(value)
 const fromDate = computed(() => {
   const from = timeScope.meta.value?.from
   return from ? new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Shanghai' }).format(new Date(from)) : ''
@@ -101,7 +102,7 @@ const account = computed<WorkspaceAccount>(() => ({
   name: auth.user?.displayName || '身份未取得',
   username: auth.user?.username ?? '',
   role: '学校审核',
-  org: auth.user?.tenantCode ?? '',
+  org: schoolOrg(auth.user),
 }))
 </script>
 

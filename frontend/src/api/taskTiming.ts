@@ -11,6 +11,10 @@ export function beijingTime(iso?: string | null) {
     ? new Date(iso).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false })
     : ''
 }
+/** 只显示日期（北京时区），与 beijingTime 同一写法；不要用 iso.slice(0, 10)，那是 UTC 日期（F1 · A7）。 */
+export function beijingDate(iso?: string | null) {
+  return iso ? new Date(iso).toLocaleDateString('zh-CN', { timeZone: 'Asia/Shanghai' }) : ''
+}
 export function deadlineLabel(status: string, clock?: TaskDeadline) {
   if (status !== 'INVITED' && status !== 'IN_REVIEW') return ''
   const invited = status === 'INVITED',

@@ -7,6 +7,7 @@ import { computed, onBeforeUnmount, ref } from 'vue'
 
 import { apiFailure } from '@/api/failure'
 import { resolveObjection, startObjection, type ObjectionRow } from '@/api/objections'
+import { beijingDate } from '@/api/taskTiming'
 import ConfirmDialog from '@/components/workspace/ConfirmDialog.vue'
 import StatusPill, { type PillTone } from '@/components/workspace/StatusPill.vue'
 
@@ -123,7 +124,7 @@ async function resolve() {
       <h2 class="wsd-obj__title">{{ title }}</h2>
       <dl class="wsd-obj__meta">
         <div><dt>学生</dt><dd>{{ row.student_name || '未取得姓名' }}<template v-if="studentNo">（{{ studentNo }}）</template></dd></div>
-        <div><dt>登记</dt><dd class="num">{{ row.created_at.slice(0, 10) }}</dd></div>
+        <div><dt>登记</dt><dd class="num">{{ beijingDate(row.created_at) }}</dd></div>
       </dl>
     </header>
 

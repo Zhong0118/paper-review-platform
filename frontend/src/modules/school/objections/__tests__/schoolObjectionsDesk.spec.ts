@@ -34,7 +34,7 @@ async function mountAt(url: string) {
   await flushPromises()
   return { wrapper, router }
 }
-const tab = (w: VueWrapper, label: string) => w.findAll('[role="tab"]').find((t) => t.text().startsWith(label))!
+const tab = (w: VueWrapper, label: string) => w.findAll('[data-view]').find((t) => t.text().startsWith(label))!
 const titles = (w: VueWrapper) => w.findAll('.wsd-titem__title').map((t) => t.text())
 const click = async (w: VueWrapper, selector: string) => {
   await w.get(selector).trigger('click')
@@ -46,9 +46,9 @@ describe('school objections desk', () => {
     const { wrapper, router } = await mountAt('/school/objections')
     expect(api.listSchoolObjections).toHaveBeenCalledWith({ quiet: true })
     expect(api.listSchoolTheses).toHaveBeenCalledWith(undefined, undefined, { quiet: true })
-    expect(tab(wrapper, '待处理').text()).toBe('待处理2')
-    expect(tab(wrapper, '处理中').text()).toBe('处理中1')
-    expect(tab(wrapper, '已办结').text()).toBe('已办结1')
+    expect(tab(wrapper, '待处理').text()).toBe('待处理 2')
+    expect(tab(wrapper, '处理中').text()).toBe('处理中 1')
+    expect(tab(wrapper, '已办结').text()).toBe('已办结 1')
     expect(titles(wrapper)).toEqual(['论文t-o1', '论文已不在当前范围'])
     expect(router.currentRoute.value.query.objection).toBe('o1')
     expect(wrapper.text()).toContain('理由o1')
@@ -75,7 +75,7 @@ describe('school objections desk', () => {
 
   it('opens a linked objection in its own view and refuses an unknown one', async () => {
     const first = await mountAt('/school/objections?objection=o3')
-    expect(tab(first.wrapper, '已办结').attributes('aria-selected')).toBe('true')
+    expect(tab(first.wrapper, '已办结').attributes('aria-pressed')).toBe('true')
     expect(first.wrapper.text()).toContain('评阅结论不变')
     expect(first.wrapper.text()).toContain('线上答复')
     first.wrapper.unmount()

@@ -222,36 +222,6 @@
   border-bottom: 1px solid var(--ws-border);
   background: var(--ws-surface);
 }
-.ws .wsd-views {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 2px;
-}
-.ws .wsd-views__tab {
-  display: inline-flex;
-  flex: none;
-  gap: 6px;
-  align-items: center;
-  min-height: 32px;
-  padding: 0 8px;
-  border: 0;
-  border-radius: var(--ws-radius);
-  background: transparent;
-  color: var(--ws-muted);
-  cursor: pointer;
-}
-.ws .wsd-views__tab:hover {
-  background: var(--ws-sunken);
-}
-.ws .wsd-views__tab[aria-selected='true'] {
-  background: var(--ws-sunken);
-  color: var(--ws-text);
-  font-weight: 500;
-}
-.ws .wsd-views__count {
-  font-size: 12px;
-  opacity: 0.85;
-}
 .ws .wsd-scope {
   color: var(--ws-muted);
   font-size: 12px;

@@ -12,10 +12,10 @@ withDefaults(
 </script>
 
 <template>
-  <div class="brand" :class="{ 'brand--compact': compact }" aria-label="百杰论文盲审平台">
+  <div class="brand" :class="{ 'brand--compact': compact }" aria-label="百杰校审">
     <span class="brand__seal" aria-hidden="true">审</span>
     <span class="brand__copy">
-      <strong>百杰盲审</strong>
+      <strong>百杰校审</strong>
       <small v-if="!compact">{{ subtitle }}</small>
     </span>
   </div>

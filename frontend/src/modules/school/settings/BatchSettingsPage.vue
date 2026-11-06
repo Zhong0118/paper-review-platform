@@ -11,7 +11,9 @@ import { apiFailure } from '@/api/failure'
 import type { ReviewRule } from '@/api/review'
 import { getSchoolReviewRule, listBatches, type ReviewBatch } from '@/api/schoolOperations'
 import { listProgramVersions, type CatalogVersion } from '@/api/schoolPrograms'
+import { beijingDate } from '@/api/taskTiming'
 import AppShell from '@/components/app/shell/AppShell.vue'
+import { schoolOrg } from '@/components/app/shell/schoolOrg'
 import { useSignOut } from '@/components/app/shell/useSignOut'
 import StatePanel from '@/components/app/state/StatePanel.vue'
 import { Button } from '@/components/ui/button'
@@ -105,7 +107,7 @@ async function created(batch: ReviewBatch) {
   if (alive) setQuery({ new: undefined, batch: batch.id })
 }
 const tone = (status: ReviewBatch['status']) => (status === 'OPEN' ? 'success' : status === 'SUBMISSION_CLOSED' ? 'action' : 'neutral')
-const day = (value: string | null) => (value ? new Date(value).toLocaleDateString('zh-CN') : '未设置')
+const day = (value: string | null) => (value ? beijingDate(value) : '未设置')
 
 const signOut = useSignOut()
 const nav = computed(() => workspaceNav('school_reviewer', '/school/batch-rules'))
@@ -113,7 +115,7 @@ const account = computed<WorkspaceAccount>(() => ({
   name: auth.user?.displayName || '身份未取得',
   username: auth.user?.username ?? '',
   role: '学校审核',
-  org: auth.user?.tenantCode ?? '',
+  org: schoolOrg(auth.user),
 }))
 </script>
 

@@ -180,7 +180,7 @@ const steps = computed(() => [
       <!-- 已不可编辑 -->
       <StatePanel v-else-if="view === 'locked'" kind="forbidden" :title="realDetail?.current_version?.title || '这篇论文'">
         这篇论文当前不能编辑。返回“我的送审”查看进度和可以做的操作。
-        <template #actions><Button as-child><RouterLink to="/student/dashboard">查看我的论文</RouterLink></Button></template>
+        <template #actions><Button as-child><RouterLink to="/student/dashboard">返回我的送审</RouterLink></Button></template>
       </StatePanel>
 
       <!-- 编辑态 -->

@@ -53,7 +53,7 @@ async function mountAt(url: string) {
   await flushPromises()
   return { wrapper, router }
 }
-const tab = (w: VueWrapper, label: string) => w.findAll('[role="tab"]').find((t) => t.text().startsWith(label))!
+const tab = (w: VueWrapper, label: string) => w.findAll('[data-view]').find((t) => t.text().startsWith(label))!
 const titles = (w: VueWrapper) => w.findAll('.wsd-titem__title').map((t) => t.text())
 const button = (w: VueWrapper, text: string) => w.findAll('button').find((b) => b.text().startsWith(text))!
 
@@ -61,10 +61,10 @@ describe('school results desk', () => {
   it('builds the views from theses and awaiting corrections and counts only the loaded set', async () => {
     const { wrapper, router } = await mountAt('/school/results')
     expect(api.listCorrections).toHaveBeenCalledWith('school', { quiet: true })
-    expect(tab(wrapper, '待发布').text()).toBe('待发布1')
-    expect(tab(wrapper, '更正待确认').text()).toBe('更正待确认1')
-    expect(tab(wrapper, '已发布').text()).toBe('已发布1')
-    expect(tab(wrapper, '全部').text()).toBe('全部3')
+    expect(tab(wrapper, '待发布').text()).toBe('待发布 1')
+    expect(tab(wrapper, '更正待确认').text()).toBe('更正待确认 1')
+    expect(tab(wrapper, '已发布').text()).toBe('已发布 1')
+    expect(tab(wrapper, '全部').text()).toBe('全部 3')
     expect(wrapper.text()).toContain('计数为已加载的 3 篇')
     expect(titles(wrapper)).toEqual(['论文a'])
     expect(router.currentRoute.value.query.thesis).toBe('a')

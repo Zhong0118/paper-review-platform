@@ -5,7 +5,7 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 
-import { loginWithPassword, logoutSession, type LoginUser } from '@/api/auth'
+import { fetchMe, loginWithPassword, logoutSession, type LoginUser } from '@/api/auth'
 import { defaultRouteByRole } from '@/router/menus'
 import type { RoleCode } from '@/types/roles'
 
@@ -17,6 +17,7 @@ export interface AuthUser {
   username?: string | null
   tenantId?: string | null
   tenantCode?: string | null
+  tenantName?: string | null
 }
 
 const ACCESS_KEY = 'pr.access_token'
@@ -100,6 +101,21 @@ export const useAuthStore = defineStore('auth', () => {
       },
       result.refresh_token,
     )
+    await loadTenantName()
+  }
+
+  /** 外壳显示学校名称用（F1 · A1）：登录响应只有学校代码，名称从 /me 补读；失败不影响登录，外壳退回显示代码。 */
+  async function loadTenantName(): Promise<void> {
+    if (!user.value?.tenantId) return
+    try {
+      const me = await fetchMe({ quiet: true })
+      if (me?.tenant_name && user.value) {
+        user.value = { ...user.value, tenantName: me.tenant_name }
+        persist()
+      }
+    } catch {
+      /* 保留学校代码 */
+    }
   }
 
   async function logout(): Promise<void> {

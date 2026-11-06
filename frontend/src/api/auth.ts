@@ -7,6 +7,8 @@ export interface LoginUser {
   role: string
   tenant_id: string | null
   tenant_code: string | null
+  /** 只有 /me 返回；登录响应不带（认证库角色无权读学校名称列）。 */
+  tenant_name?: string | null
 }
 
 export interface LoginResult {
@@ -26,8 +28,8 @@ export function logoutSession(refreshToken: string) {
   return httpApi.post('/auth/logout', { refresh_token: refreshToken })
 }
 
-export function fetchMe() {
-  return httpApi.get<LoginUser>('/me')
+export function fetchMe(options?: RequestOptions) {
+  return httpApi.get<LoginUser>('/me', options)
 }
 
 export interface Eligibility {
