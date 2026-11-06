@@ -1,4 +1,4 @@
-/** 窄屏判断：与 OperationsShell 不同的断点由调用方给出。卸载时解除监听。 */
+/** 窄屏判断：断点由调用方给出。卸载时解除监听。 */
 import { onBeforeUnmount, ref } from 'vue'
 
 export function useNarrow(query = '(max-width: 899px)') {

@@ -12,9 +12,11 @@ import { apiFailure } from '@/api/failure'
 import { listSchoolObjections, type ObjectionRow } from '@/api/objections'
 import { listSchoolTheses } from '@/api/schoolReview'
 import type { ThesisDetail } from '@/api/theses'
+import AppShell from '@/components/app/shell/AppShell.vue'
+import { useSignOut } from '@/components/app/shell/useSignOut'
+import StatePanel from '@/components/app/state/StatePanel.vue'
+import { Button } from '@/components/ui/button'
 import MasterDetail from '@/components/workspace/MasterDetail.vue'
-import OperationsShell from '@/components/workspace/OperationsShell.vue'
-import StateBlock from '@/components/workspace/StateBlock.vue'
 import type { WorkspaceAccount } from '@/components/workspace/types'
 import { useNarrow } from '@/components/workspace/useNarrow'
 import { workspaceNav } from '@/router/workspaceNav'
@@ -88,6 +90,7 @@ function moved(status: ObjectionStatus) {
 }
 
 const openCount = computed(() => (ready.value ? countOf('SUBMITTED') + countOf('PROCESSING') : undefined))
+const signOut = useSignOut()
 const nav = computed(() => workspaceNav('school_reviewer', '/school/objections', { '/school/objections': openCount.value }))
 const account = computed<WorkspaceAccount>(() => ({
   name: auth.user?.displayName || '身份未取得',
@@ -99,9 +102,8 @@ const account = computed<WorkspaceAccount>(() => ({
 
 <template>
   <div class="ws">
-    <OperationsShell :nav="nav" :account="account" :org="account.org">
-      <template #title><h1 class="wsd-title">异议处理</h1></template>
-      <template #context><span class="wsd-ctx">学生对已发布结果登记的异议</span></template>
+    <AppShell :nav="nav" :account="account" :workspace="account.org" layout="bare" title="异议处理" @sign-out="signOut">
+      <template #context><span>学生对已发布结果登记的异议</span></template>
 
       <MasterDetail :open="Boolean(objectionId)" :narrow="narrow" list-label="异议清单" detail-label="当前异议" back-label="异议清单" @back="setQuery({ objection: undefined })">
         <template #list>
@@ -113,13 +115,13 @@ const account = computed<WorkspaceAccount>(() => ({
             </div>
             <p v-if="ready" class="wsd-scope">共 {{ rows.length }} 条，不分时间范围。</p>
           </div>
-          <StateBlock v-if="loading && !rows.length" kind="loading" title="正在读取异议…" compact />
-          <StateBlock v-else-if="error" kind="error" title="异议清单没有加载出来" compact>
+          <StatePanel v-if="loading && !rows.length" kind="loading" title="正在读取异议…" compact />
+          <StatePanel v-else-if="error" kind="error" title="异议清单没有加载出来" compact>
             {{ error }}
-            <template #actions><button type="button" class="btn btn--primary" @click="load">重试</button></template>
-          </StateBlock>
-          <StateBlock v-else-if="!rows.length" kind="empty" title="还没有学生登记异议" compact>学生在反馈页登记异议后，会出现在“待处理”。</StateBlock>
-          <StateBlock v-else-if="!list.length" kind="empty" :title="view === 'SUBMITTED' ? '待处理的异议都已开始处理' : '这个视图里没有异议'" compact />
+            <template #actions><Button type="button" variant="outline" @click="load">重试</Button></template>
+          </StatePanel>
+          <StatePanel v-else-if="!rows.length" kind="empty" title="还没有学生登记异议" compact>学生在反馈页登记异议后，会出现在“待处理”。</StatePanel>
+          <StatePanel v-else-if="!list.length" kind="empty" :title="view === 'SUBMITTED' ? '待处理的异议都已开始处理' : '这个视图里没有异议'" compact />
           <ul v-else class="wsd-tlist">
             <li v-for="row in list" :key="row.id">
               <button type="button" class="wsd-titem" :class="{ 'wsd-titem--on': row.id === objectionId }" :aria-current="row.id === objectionId || undefined" @click="setQuery({ objection: row.id })">
@@ -132,16 +134,16 @@ const account = computed<WorkspaceAccount>(() => ({
         </template>
 
         <template #empty>
-          <StateBlock v-if="ready && rows.length" kind="empty" title="从左侧选择一条异议" compact />
+          <StatePanel v-if="ready && rows.length" kind="empty" title="从左侧选择一条异议" compact />
         </template>
 
-        <StateBlock v-if="loading && !selected" kind="loading" title="正在读取异议…" />
-        <StateBlock v-else-if="error" kind="error" title="异议清单没有加载出来，暂时不能打开异议">
-          <template #actions><button type="button" class="btn btn--primary" @click="load">重试</button></template>
-        </StateBlock>
-        <StateBlock v-else-if="!selected" kind="forbidden" title="这条异议不在本校的异议记录中">
-          <template #actions><button type="button" class="btn" @click="setQuery({ objection: undefined })">返回异议清单</button></template>
-        </StateBlock>
+        <StatePanel v-if="loading && !selected" kind="loading" title="正在读取异议…" />
+        <StatePanel v-else-if="error" kind="error" title="异议清单没有加载出来，暂时不能打开异议">
+          <template #actions><Button type="button" variant="outline" @click="load">重试</Button></template>
+        </StatePanel>
+        <StatePanel v-else-if="!selected" kind="forbidden" title="这条异议不在本校的异议记录中">
+          <template #actions><Button type="button" variant="outline" @click="setQuery({ objection: undefined })">返回异议清单</Button></template>
+        </StatePanel>
         <ObjectionObject
           v-else
           :key="selected.id"
@@ -153,7 +155,7 @@ const account = computed<WorkspaceAccount>(() => ({
           @moved="moved"
         />
       </MasterDetail>
-    </OperationsShell>
+    </AppShell>
   </div>
 </template>
 

@@ -11,9 +11,11 @@ import { apiFailure } from '@/api/failure'
 import type { ReviewRule } from '@/api/review'
 import { getSchoolReviewRule, listBatches, type ReviewBatch } from '@/api/schoolOperations'
 import { listProgramVersions, type CatalogVersion } from '@/api/schoolPrograms'
+import AppShell from '@/components/app/shell/AppShell.vue'
+import { useSignOut } from '@/components/app/shell/useSignOut'
+import StatePanel from '@/components/app/state/StatePanel.vue'
+import { Button } from '@/components/ui/button'
 import MasterDetail from '@/components/workspace/MasterDetail.vue'
-import OperationsShell from '@/components/workspace/OperationsShell.vue'
-import StateBlock from '@/components/workspace/StateBlock.vue'
 import StatusPill from '@/components/workspace/StatusPill.vue'
 import type { WorkspaceAccount } from '@/components/workspace/types'
 import { useNarrow } from '@/components/workspace/useNarrow'
@@ -105,6 +107,7 @@ async function created(batch: ReviewBatch) {
 const tone = (status: ReviewBatch['status']) => (status === 'OPEN' ? 'success' : status === 'SUBMISSION_CLOSED' ? 'action' : 'neutral')
 const day = (value: string | null) => (value ? new Date(value).toLocaleDateString('zh-CN') : '未设置')
 
+const signOut = useSignOut()
 const nav = computed(() => workspaceNav('school_reviewer', '/school/batch-rules'))
 const account = computed<WorkspaceAccount>(() => ({
   name: auth.user?.displayName || '身份未取得',
@@ -116,23 +119,22 @@ const account = computed<WorkspaceAccount>(() => ({
 
 <template>
   <div class="ws">
-    <OperationsShell :nav="nav" :account="account" :org="account.org">
-      <template #title><h1 class="wsd-title">批次与规则</h1></template>
-      <template #context>
-        <button v-if="ready" type="button" class="btn btn--sm" data-action="new-batch" @click="setQuery({ new: '1', batch: undefined })">新建批次</button>
+    <AppShell :nav="nav" :account="account" :workspace="account.org" layout="bare" title="批次与规则" @sign-out="signOut">
+      <template #actions>
+        <Button v-if="ready" type="button" variant="outline" size="sm" data-action="new-batch" @click="setQuery({ new: '1', batch: undefined })">新建批次</Button>
       </template>
 
       <MasterDetail :open="Boolean(batchId) || creating" :narrow="narrow" list-label="批次清单" detail-label="当前批次" back-label="批次清单" list-width="300px" @back="setQuery({ batch: undefined, new: undefined })">
         <template #list>
-          <StateBlock v-if="loading && !rows.length" kind="loading" title="正在读取批次…" compact />
-          <StateBlock v-else-if="error" kind="error" title="批次没有加载出来" compact>
+          <StatePanel v-if="loading && !rows.length" kind="loading" title="正在读取批次…" compact />
+          <StatePanel v-else-if="error" kind="error" title="批次没有加载出来" compact>
             {{ error }}
-            <template #actions><button type="button" class="btn btn--primary" @click="load">重试</button></template>
-          </StateBlock>
-          <StateBlock v-else-if="!rows.length" kind="empty" title="还没有送审批次" compact>
+            <template #actions><Button type="button" variant="outline" @click="load">重试</Button></template>
+          </StatePanel>
+          <StatePanel v-else-if="!rows.length" kind="empty" title="还没有送审批次" compact>
             先建立一个批次，学生才能提交论文。
-            <template #actions><button type="button" class="btn btn--primary" @click="setQuery({ new: '1' })">新建批次</button></template>
-          </StateBlock>
+            <template #actions><Button type="button" @click="setQuery({ new: '1' })">新建批次</Button></template>
+          </StatePanel>
           <ul v-else class="wsd-tlist">
             <li v-for="row in rows" :key="row.id">
               <button type="button" class="wsd-titem" :class="{ 'wsd-titem--on': row.id === batchId }" :aria-current="row.id === batchId || undefined" @click="setQuery({ batch: row.id, new: undefined })">
@@ -145,17 +147,17 @@ const account = computed<WorkspaceAccount>(() => ({
         </template>
 
         <template #empty>
-          <StateBlock v-if="ready && rows.length" kind="empty" title="从左侧选择一个批次" compact />
+          <StatePanel v-if="ready && rows.length" kind="empty" title="从左侧选择一个批次" compact />
         </template>
 
         <BatchCreate v-if="creating" @created="created" @cancel="setQuery({ new: undefined })" />
-        <StateBlock v-else-if="loading && !selected" kind="loading" title="正在读取批次…" />
-        <StateBlock v-else-if="error" kind="error" title="批次没有加载出来，暂时不能打开">
-          <template #actions><button type="button" class="btn btn--primary" @click="load">重试</button></template>
-        </StateBlock>
-        <StateBlock v-else-if="!selected" kind="forbidden" title="这个批次不在本校的批次中">
-          <template #actions><button type="button" class="btn" @click="setQuery({ batch: undefined })">返回批次清单</button></template>
-        </StateBlock>
+        <StatePanel v-else-if="loading && !selected" kind="loading" title="正在读取批次…" />
+        <StatePanel v-else-if="error" kind="error" title="批次没有加载出来，暂时不能打开">
+          <template #actions><Button type="button" variant="outline" @click="load">重试</Button></template>
+        </StatePanel>
+        <StatePanel v-else-if="!selected" kind="forbidden" title="这个批次不在本校的批次中">
+          <template #actions><Button type="button" variant="outline" @click="setQuery({ batch: undefined })">返回批次清单</Button></template>
+        </StatePanel>
         <BatchObject
           v-else
           :key="selected.id"
@@ -169,6 +171,6 @@ const account = computed<WorkspaceAccount>(() => ({
           @retry-versions="loadVersions"
         />
       </MasterDetail>
-    </OperationsShell>
+    </AppShell>
   </div>
 </template>

@@ -22,7 +22,7 @@ import axios, {
   type AxiosRequestConfig,
   type InternalAxiosRequestConfig,
 } from 'axios'
-import { ElMessage } from 'element-plus'
+import { notify } from '@/components/app/notify/notify'
 import { useAuthStore } from '@/stores/auth'
 
 /** 后端统一响应包装 */
@@ -111,26 +111,26 @@ http.interceptors.response.use(
 
     // 403/404 统一提示，防资源枚举
     if (status === 403 || code === 'ACCESS_DENIED') {
-      ElMessage.error('您没有执行该操作的权限')
+      notify.error('您没有执行该操作的权限')
       return Promise.reject(error)
     }
     if (status === 404 || code === 'RESOURCE_NOT_FOUND') {
-      ElMessage.error('资源不存在或不可见')
+      notify.error('资源不存在或不可见')
       return Promise.reject(error)
     }
     // 409 并发/状态冲突，提示刷新
     if (status === 409 || code === 'VERSION_CONFLICT' || code === 'STATE_TRANSITION_DENIED') {
-      ElMessage.error('数据已变更，请刷新后重试')
+      notify.error('数据已变更，请刷新后重试')
       return Promise.reject(error)
     }
     if (code === 'RATE_LIMITED') {
-      ElMessage.error('操作过于频繁，请稍后重试')
+      notify.error('操作过于频繁，请稍后重试')
       return Promise.reject(error)
     }
 
     // 其余：展示后端消息（若存在）
     const message = error.response?.data?.message ?? error.message ?? '请求失败'
-    ElMessage.error(message)
+    notify.error(message)
     void requestId
     return Promise.reject(error)
   },

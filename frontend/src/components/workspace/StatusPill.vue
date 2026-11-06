@@ -1,63 +1,15 @@
 <script setup lang="ts">
-/** 状态标签：颜色之外始终有文字与形状，不只靠颜色区分。 */
+/**
+ * 状态标签（R3-0 起与 StatusBadge 同一外观，U4 计划 §19.1）：文字本身说明状态，不只靠颜色。
+ * 旧 tone 名保留：action 对应品牌色（当前待处理）。
+ */
+import { Badge } from '@/components/ui/badge'
+
 export type PillTone = 'neutral' | 'action' | 'warning' | 'danger' | 'success'
-defineProps<{ tone?: PillTone }>()
+const props = defineProps<{ tone?: PillTone }>()
+const VARIANT = { neutral: 'neutral', action: 'brand', warning: 'warning', danger: 'danger', success: 'success' } as const
 </script>
 
 <template>
-  <span class="pill" :class="`pill--${tone ?? 'neutral'}`"><i aria-hidden="true" /><slot /></span>
+  <Badge :variant="VARIANT[props.tone ?? 'neutral']" class="pill" :class="`pill--${props.tone ?? 'neutral'}`" :data-tone="props.tone ?? 'neutral'"><slot /></Badge>
 </template>
-
-<style scoped>
-.pill {
-  display: inline-flex;
-  gap: 6px;
-  align-items: center;
-  min-height: 22px;
-  padding: 0 8px;
-  border-radius: 4px;
-  background: var(--ws-info-soft);
-  color: var(--ws-text);
-  font-size: 12px;
-  font-weight: 500;
-  white-space: nowrap;
-}
-.pill i {
-  width: 7px;
-  height: 7px;
-  flex: none;
-  border-radius: 50%;
-  background: var(--ws-faint);
-}
-.pill--action {
-  background: var(--ws-action-soft);
-  color: var(--ws-action);
-}
-.pill--action i {
-  background: var(--ws-action);
-}
-.pill--warning {
-  background: var(--ws-warning-soft);
-  color: var(--ws-warning);
-}
-.pill--warning i {
-  border-radius: 1px;
-  background: var(--ws-warning);
-  transform: rotate(45deg);
-}
-.pill--danger {
-  background: var(--ws-danger-soft);
-  color: var(--ws-danger);
-}
-.pill--danger i {
-  border-radius: 1px;
-  background: var(--ws-danger);
-}
-.pill--success {
-  background: var(--ws-success-soft);
-  color: var(--ws-success);
-}
-.pill--success i {
-  background: var(--ws-success);
-}
-</style>

@@ -10,10 +10,12 @@ import { useRoute, useRouter } from 'vue-router'
 
 import { listCorrections, type Correction } from '@/api/corrections'
 import { apiFailure } from '@/api/failure'
+import AppShell from '@/components/app/shell/AppShell.vue'
+import { useSignOut } from '@/components/app/shell/useSignOut'
+import StatePanel from '@/components/app/state/StatePanel.vue'
+import { Button } from '@/components/ui/button'
 import ConfirmDialog from '@/components/workspace/ConfirmDialog.vue'
 import MasterDetail from '@/components/workspace/MasterDetail.vue'
-import OperationsShell from '@/components/workspace/OperationsShell.vue'
-import StateBlock from '@/components/workspace/StateBlock.vue'
 import StatusPill from '@/components/workspace/StatusPill.vue'
 import type { WorkspaceAccount } from '@/components/workspace/types'
 import { useNarrow } from '@/components/workspace/useNarrow'
@@ -132,15 +134,15 @@ async function decide() {
   } else notice.value = { tone: 'danger', title: '没有保存', body: `${outcome.message}。已读回最新记录，请核对后重新操作；你写的原因还在。` }
 }
 
+const signOut = useSignOut()
 const nav = computed(() => workspaceNav('platform_reviewer', '/platform/corrections', { '/platform/corrections': ready.value ? countOf('pending') : undefined }))
 const account = computed<WorkspaceAccount>(() => ({ name: auth.user?.displayName || '身份未取得', username: auth.user?.username ?? '', role: '百杰审核', org: '百杰运营' }))
 </script>
 
 <template>
   <div class="ws">
-    <OperationsShell :nav="nav" :account="account" :org="account.org">
-      <template #title><h1 class="wsd-title">更正审批</h1></template>
-      <template #context><span class="wsd-ctx">专家对已发布评阅的更正申请</span></template>
+    <AppShell :nav="nav" :account="account" :workspace="account.org" layout="bare" title="更正审批" @sign-out="signOut">
+      <template #context><span>专家对已发布评阅的更正申请</span></template>
 
       <MasterDetail :open="Boolean(correctionId)" :narrow="narrow" list-label="更正申请清单" detail-label="当前申请" back-label="申请清单" @back="setQuery({ correction: undefined })">
         <template #list>
@@ -151,13 +153,13 @@ const account = computed<WorkspaceAccount>(() => ({ name: auth.user?.displayName
               </button>
             </div>
           </div>
-          <StateBlock v-if="loading && !rows.length" kind="loading" title="正在读取更正申请…" compact />
-          <StateBlock v-else-if="error" kind="error" title="更正申请没有加载出来" compact>
+          <StatePanel v-if="loading && !rows.length" kind="loading" title="正在读取更正申请…" compact />
+          <StatePanel v-else-if="error" kind="error" title="更正申请没有加载出来" compact>
             {{ error }}
-            <template #actions><button type="button" class="btn btn--primary" @click="load">重试</button></template>
-          </StateBlock>
-          <StateBlock v-else-if="!rows.length" kind="empty" title="还没有更正申请" compact>专家在已发布的任务里申请更正后，会出现在这里。</StateBlock>
-          <StateBlock v-else-if="!list.length" kind="empty" :title="view === 'pending' ? '待审批的申请都已处理' : '这个视图里没有申请'" compact />
+            <template #actions><Button type="button" variant="outline" @click="load">重试</Button></template>
+          </StatePanel>
+          <StatePanel v-else-if="!rows.length" kind="empty" title="还没有更正申请" compact>专家在已发布的任务里申请更正后，会出现在这里。</StatePanel>
+          <StatePanel v-else-if="!list.length" kind="empty" :title="view === 'pending' ? '待审批的申请都已处理' : '这个视图里没有申请'" compact />
           <ul v-else class="wsd-tlist">
             <li v-for="row in list" :key="row.id">
               <button type="button" class="wsd-titem" :class="{ 'wsd-titem--on': row.id === correctionId }" :aria-current="row.id === correctionId || undefined" @click="setQuery({ correction: row.id })">
@@ -170,17 +172,17 @@ const account = computed<WorkspaceAccount>(() => ({ name: auth.user?.displayName
         </template>
 
         <template #empty>
-          <StateBlock v-if="ready && rows.length" kind="empty" title="从左侧选择一条申请" compact />
+          <StatePanel v-if="ready && rows.length" kind="empty" title="从左侧选择一条申请" compact />
         </template>
 
-        <StateBlock v-if="loading && !selected" kind="loading" title="正在读取更正申请…" />
-        <StateBlock v-else-if="error && !selected" kind="error" title="更正申请没有加载出来，暂时不能打开">
-          <template #actions><button type="button" class="btn btn--primary" @click="load">重试</button></template>
-        </StateBlock>
-        <StateBlock v-else-if="!selected" kind="forbidden" title="这条更正申请已不可见">
+        <StatePanel v-if="loading && !selected" kind="loading" title="正在读取更正申请…" />
+        <StatePanel v-else-if="error && !selected" kind="error" title="更正申请没有加载出来，暂时不能打开">
+          <template #actions><Button type="button" variant="outline" @click="load">重试</Button></template>
+        </StatePanel>
+        <StatePanel v-else-if="!selected" kind="forbidden" title="这条更正申请已不可见">
           链接可能已过期。申请清单已是最新。
-          <template #actions><button type="button" class="btn" @click="setQuery({ correction: undefined })">回到申请清单</button></template>
-        </StateBlock>
+          <template #actions><Button type="button" variant="outline" @click="setQuery({ correction: undefined })">回到申请清单</Button></template>
+        </StatePanel>
         <template v-else>
           <div class="wsd-obj">
             <header class="wsd-obj__head">
@@ -218,8 +220,8 @@ const account = computed<WorkspaceAccount>(() => ({ name: auth.user?.displayName
           </div>
           <footer v-if="selected.status === 'REQUESTED'" class="wsd-commit">
             <p class="wsd-commit__text">批准后专家起草更正稿；驳回则原评阅结果不变。</p>
-            <button type="button" class="btn" data-action="reject-correction" :disabled="command.pending.value" @click="ask('REJECT')">驳回…</button>
-            <button type="button" class="btn btn--primary" data-action="approve-correction" :disabled="command.pending.value" @click="ask('APPROVE')">批准…</button>
+            <Button type="button" variant="outline" data-action="reject-correction" :disabled="command.pending.value" @click="ask('REJECT')">驳回…</Button>
+            <Button type="button" data-action="approve-correction" :disabled="command.pending.value" @click="ask('APPROVE')">批准…</Button>
           </footer>
         </template>
       </MasterDetail>
@@ -234,11 +236,11 @@ const account = computed<WorkspaceAccount>(() => ({ name: auth.user?.displayName
         </label>
         <p v-if="decisionError" class="field-error" role="alert">{{ decisionError }}</p>
         <template #actions>
-          <button type="button" class="btn" :disabled="command.pending.value" @click="closeDialog">取消</button>
-          <button type="button" class="btn" :class="decision === 'APPROVE' ? 'btn--primary' : 'btn--danger'" data-action="confirm-decision" :disabled="command.pending.value" @click="decide">{{ decision === 'APPROVE' ? '批准' : '驳回' }}</button>
+          <Button type="button" variant="outline" :disabled="command.pending.value" @click="closeDialog">取消</Button>
+          <Button type="button" variant="outline" :class="decision === 'APPROVE' ? 'btn--primary' : 'btn--danger'" data-action="confirm-decision" :disabled="command.pending.value" @click="decide">{{ decision === 'APPROVE' ? '批准' : '驳回' }}</Button>
         </template>
       </ConfirmDialog>
-    </OperationsShell>
+    </AppShell>
   </div>
 </template>
 

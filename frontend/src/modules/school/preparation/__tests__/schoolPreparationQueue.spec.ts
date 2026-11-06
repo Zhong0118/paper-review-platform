@@ -1,7 +1,7 @@
 import { enableAutoUnmount, flushPromises } from '@vue/test-utils'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
-import { mountAt, thesis } from './fixtures'
+import { inBody, mountAt, thesis } from './fixtures'
 
 const api = vi.hoisted(() => ({ listSchoolTheses: vi.fn(), getSchoolThesis: vi.fn(), confirmAnonymization: vi.fn(), terminateThesis: vi.fn(), checkSensitiveThesis: vi.fn(), getFileContent: vi.fn(), confirmDispatch: vi.fn() }))
 vi.mock('@/api/schoolReview', () => api)
@@ -16,13 +16,14 @@ beforeEach(() => {
   api.listSchoolTheses.mockResolvedValue(loaded)
   api.getSchoolThesis.mockImplementation(async (id: string) => loaded.find((row) => row.id === id))
 })
-const tab = (w: Awaited<ReturnType<typeof mountAt>>['wrapper'], label: string) => w.findAll('[role="tab"]').find((t) => t.text().startsWith(label))!
+// R2：视图是 aria-pressed 按钮组（ViewTabs）
+const tab = (w: Awaited<ReturnType<typeof mountAt>>['wrapper'], label: string) => w.findAll('[data-view-tabs] button').find((t) => t.text().startsWith(label))!
 const titles = (w: Awaited<ReturnType<typeof mountAt>>['wrapper']) => w.findAll('tbody .row-title').map((t) => t.text())
 
 it('opens on the verify view and counts only the loaded set, saying so', async () => {
   const { wrapper } = await mountAt('/school/preparation')
   expect(api.listSchoolTheses).toHaveBeenCalledWith('all', expect.any(Function))
-  expect(tab(wrapper, '待核验').attributes('aria-selected')).toBe('true')
+  expect(tab(wrapper, '待核验').attributes('aria-pressed')).toBe('true')
   expect(tab(wrapper, '待核验').text()).toContain('2')
   expect(tab(wrapper, '全部').text()).toContain('4')
   expect(wrapper.text()).toContain('已加载的 4 篇')
@@ -67,7 +68,7 @@ it('opens the verify desk with the queue state and restores filters and the sele
   await flushPromises()
   expect(router.currentRoute.value.query).toMatchObject({ view: 'all', q: '论文', thesis: 'b' })
   expect(wrapper.find('[aria-label="核验判断"]').exists()).toBe(true)
-  await wrapper.findAll('a, button').find((b) => b.text().includes('返回清单'))!.trigger('click')
+  await wrapper.get('[data-back]').trigger('click')
   await flushPromises()
   expect(router.currentRoute.value.query.thesis).toBeUndefined()
   expect(router.currentRoute.value.query).toMatchObject({ view: 'all', q: '论文', sel: 'b' })
@@ -101,7 +102,7 @@ it('confirms dispatch from the ready-to-send view in its own dialog and reloads 
   await wrapper.get('[data-action="row-dispatch"]').trigger('click')
   expect(api.confirmDispatch).not.toHaveBeenCalled()
   api.listSchoolTheses.mockResolvedValue(loaded.filter((row) => row.id !== 'c'))
-  await wrapper.get('[data-action="confirm-row-dispatch"]').trigger('click')
+  await inBody('[data-action="confirm-row-dispatch"]').trigger('click')
   await flushPromises()
   expect(api.confirmDispatch).toHaveBeenCalledWith('c', 3, { idempotencyKey: expect.any(String), quiet: true })
   expect(wrapper.get('.notice').text()).toContain('已确认送出《论文c》')

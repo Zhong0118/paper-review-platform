@@ -12,6 +12,8 @@ export interface NavItem {
   to?: string
   count?: number
   active?: boolean
+  /** 选图标用的真实路径；链接被改写时（原型）保留原路径，默认取 to */
+  iconKey?: string
 }
 
 export interface NavGroup {

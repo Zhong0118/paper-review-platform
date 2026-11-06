@@ -102,14 +102,14 @@ function activateAccount() {
 .activation-panel__note {
   margin-bottom: 1rem;
   padding: 0.875rem;
-  border-left: 3px solid #5b6b7a;
-  background: #edf1f4;
+  border-left: 3px solid var(--border-strong);
+  background: var(--muted);
 }
 
 .activation-panel__note strong,
 .activation-form label span,
 .invitation-card label span {
-  color: #33414d;
+  color: var(--foreground);
   font-size: 0.8125rem;
   font-weight: 650;
 }
@@ -122,37 +122,37 @@ function activateAccount() {
 }
 
 .activation-panel__note span {
-  color: #687682;
+  color: var(--muted-foreground);
 }
 
 .activation-form input,
 .invitation-card input {
   width: 100%;
-  height: 2.75rem;
+  height: 2.5rem;
   padding: 0 0.75rem;
-  border: 1px solid #cbd4dc;
-  border-radius: 0.375rem;
-  background: #fbfcfe;
+  border: 1px solid var(--input);
+  border-radius: var(--radius);
+  background: var(--background);
 }
 
 .activation-form__primary,
 .activation-form__secondary {
-  min-height: 2.75rem;
-  border-radius: 0.375rem;
+  min-height: 2.5rem;
+  border-radius: var(--radius);
   font-weight: 650;
   cursor: pointer;
 }
 
 .activation-form__primary {
-  border: 1px solid #1b4f8a;
-  background: #1b4f8a;
+  border: 1px solid var(--primary);
+  background: var(--primary);
   color: white;
 }
 
 .activation-form__secondary {
-  border: 1px solid #b8c4ce;
+  border: 1px solid var(--border-strong);
   background: white;
-  color: #33414d;
+  color: var(--foreground);
 }
 
 .activation-form__primary:disabled,
@@ -164,8 +164,8 @@ function activateAccount() {
 .invitation-card {
   margin-top: 1rem;
   padding: 1rem;
-  border: 1px solid #cbd9e5;
-  background: #f7fafc;
+  border: 1px solid var(--border);
+  background: var(--muted);
 }
 
 .invitation-card div {
@@ -174,28 +174,34 @@ function activateAccount() {
   justify-content: space-between;
   gap: 1rem;
   padding-bottom: 0.5rem;
-  border-bottom: 1px solid #e1e7ec;
+  border-bottom: 1px solid var(--border);
 }
 
 .invitation-card div span {
-  color: #74818c;
+  color: var(--muted-foreground);
   font-size: 0.75rem;
 }
 
 .invitation-card div strong {
-  color: #263746;
+  color: var(--foreground);
   font-size: 0.8125rem;
 }
 
 .activation-panel__error {
   margin: 0.875rem 0 0;
-  color: #a62929;
+  color: var(--destructive);
 }
 
 .activation-panel__notice {
   margin: 0.875rem 0 0;
   padding: 0.625rem 0.75rem;
-  background: #fff6e8;
-  color: #8d440c;
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+input:focus-visible {
+  border-color: var(--ring);
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 50%, transparent);
 }
 </style>

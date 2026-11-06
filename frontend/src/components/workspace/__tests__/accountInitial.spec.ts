@@ -11,3 +11,9 @@ it('takes the last character of the name without academic titles', () => {
   expect(accountInitial('身份未取得')).toBe('我')
   expect(accountInitial(null)).toBe('我')
 })
+
+it('ignores a trailing note in brackets', () => {
+  expect(accountInitial('学校审核员（样板）')).toBe('员')
+  expect(accountInitial('李清 (外聘)')).toBe('清')
+  expect(accountInitial('（样板）')).toBe('我')
+})

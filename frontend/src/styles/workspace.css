@@ -4,43 +4,43 @@
  * 主色学术蓝 #1B4F8A（用户 2026-11-04 定），日后调色只改本文件。
  */
 .ws {
-  --ws-page: #f7f8fa;
-  --ws-surface: #ffffff;
-  --ws-sunken: #f1f3f6;
-  --ws-border: #e3e7ec;
-  --ws-border-strong: #cdd3db;
-  --ws-text: #17202a;
-  --ws-muted: #5d6675;
-  --ws-faint: #6b7480;
+  /* R3-0：全部改为读 tokens.css（U4 计划 §19.1）；旧变量名保留给未迁完的组件 */
+  --ws-page: var(--page);
+  --ws-surface: var(--background);
+  --ws-sunken: var(--muted);
+  --ws-border: var(--border);
+  --ws-border-strong: var(--border-strong);
+  --ws-text: var(--foreground);
+  --ws-muted: var(--muted-foreground);
+  --ws-faint: var(--faint);
 
-  --ws-action: #1b4f8a;
-  --ws-action-hover: #163f6e;
-  --ws-action-soft: #e8f0f9;
-  --ws-focus: #2f6db3;
-  --ws-on-action: #ffffff;
-  --ws-scrim: rgb(23 32 42 / 0.3);
+  --ws-action: var(--primary);
+  --ws-action-hover: var(--primary-hover);
+  --ws-action-soft: var(--primary-soft);
+  --ws-focus: var(--ring);
+  --ws-on-action: var(--primary-foreground);
+  --ws-scrim: rgb(22 25 29 / 0.3);
 
-  --ws-danger: #b42318;
-  --ws-danger-hover: #931c13;
-  --ws-danger-soft: #fdecea;
-  --ws-warning: #9a5b00;
-  --ws-warning-soft: #fff4e0;
-  --ws-success: #1e7a46;
-  --ws-success-soft: #e7f4ec;
-  --ws-info-soft: #eef1f5;
+  --ws-danger: var(--destructive);
+  --ws-danger-hover: var(--destructive-hover);
+  --ws-danger-soft: var(--destructive-soft);
+  --ws-warning: var(--warning);
+  --ws-warning-soft: var(--warning-soft);
+  --ws-success: var(--success);
+  --ws-success-soft: var(--success-soft);
+  --ws-info-soft: var(--info-soft);
 
-  --ws-radius: 6px;
+  --ws-radius: var(--radius);
   --ws-radius-panel: 8px;
-  --ws-shadow-float: 0 8px 28px rgb(23 32 42 / 0.14), 0 1px 3px rgb(23 32 42 / 0.08);
+  --ws-shadow-float: var(--app-shadow-float);
 
-  --ws-sidebar: 220px;
-  --ws-bar: 52px;
-  --ws-row: 44px;
-  --ws-control: 34px;
-  --ws-motion: 150ms;
+  --ws-sidebar: var(--sidebar-w);
+  --ws-bar: var(--bar-h);
+  --ws-row: var(--row-h);
+  --ws-control: var(--control-h);
+  --ws-motion: var(--motion);
 
-  --ws-font: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei',
-    'Noto Sans CJK SC', 'Segoe UI', sans-serif;
+  --ws-font: var(--app-font);
   --ws-font-reading: 'Songti SC', 'STSong', 'Noto Serif CJK SC', 'SimSun', serif;
 
   min-height: 100vh;
@@ -53,34 +53,38 @@
   -webkit-font-smoothing: antialiased;
 }
 
-.ws *,
-.ws *::before,
-.ws *::after {
-  box-sizing: border-box;
+/* 元素级重置放在 base 层：页面里的 shadcn 组件（工具类在 utilities 层）可以覆盖它们 */
+@layer base {
+  .ws *,
+  .ws *::before,
+  .ws *::after {
+    box-sizing: border-box;
+  }
+
+  .ws h1,
+  .ws h2,
+  .ws h3,
+  .ws h4,
+  .ws p {
+    margin: 0;
+  }
+
+  .ws button,
+  .ws input,
+  .ws select,
+  .ws textarea {
+    font: inherit;
+    color: inherit;
+  }
+
+  .ws :focus-visible {
+    outline: 2px solid var(--ws-focus);
+    outline-offset: 2px;
+  }
+
+  /* 按钮：主操作唯一强调色；危险动作只在确认处用红色实底 */
 }
 
-.ws h1,
-.ws h2,
-.ws h3,
-.ws h4,
-.ws p {
-  margin: 0;
-}
-
-.ws button,
-.ws input,
-.ws select,
-.ws textarea {
-  font: inherit;
-  color: inherit;
-}
-
-.ws :focus-visible {
-  outline: 2px solid var(--ws-focus);
-  outline-offset: 2px;
-}
-
-/* 按钮：主操作唯一强调色；危险动作只在确认处用红色实底 */
 .ws .btn {
   display: inline-flex;
   align-items: center;
@@ -121,19 +125,19 @@
   background: var(--ws-danger-hover);
 }
 .ws .btn--outline {
-  border-color: var(--ws-action);
-  color: var(--ws-action);
+  border-color: var(--ws-border-strong);
+  color: var(--ws-text);
   font-weight: 500;
 }
 .ws .btn--outline:hover:not(:disabled) {
-  background: var(--ws-action-soft);
+  background: var(--ws-sunken);
 }
 .ws .btn--quiet {
   border-color: transparent;
   background: transparent;
 }
 .ws .btn--sm {
-  min-height: 28px;
+  min-height: var(--control-h-sm);
   padding: 0 10px;
   font-size: 13px;
 }
@@ -192,10 +196,10 @@
 
 /*
  * 清单与对象区的共用样式（来自已验收的 U3 原型，wsd- 前缀）。
- * 不用原型里的短类名：U2 页面已有同名私有类，全局化会串样式。原型继续用 kit/desk.css。
+ * 不用短类名：U2 页面已有同名私有类，全局化会串样式。
  */
 .ws .wsd-title {
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 600;
   white-space: nowrap;
 }
@@ -240,9 +244,9 @@
   background: var(--ws-sunken);
 }
 .ws .wsd-views__tab[aria-selected='true'] {
-  background: var(--ws-action-soft);
-  color: var(--ws-action);
-  font-weight: 600;
+  background: var(--ws-sunken);
+  color: var(--ws-text);
+  font-weight: 500;
 }
 .ws .wsd-views__count {
   font-size: 12px;
@@ -274,7 +278,7 @@
 .ws .wsd-titem--on,
 .ws .wsd-titem--on:hover {
   border-left-color: var(--ws-action);
-  background: var(--ws-action-soft);
+  background: var(--ws-sunken);
 }
 .ws .wsd-titem__top {
   display: flex;
@@ -319,7 +323,7 @@
   justify-content: space-between;
 }
 .ws .wsd-obj__title {
-  font-size: 19px;
+  font-size: 18px;
   font-weight: 600;
   line-height: 1.45;
 }
@@ -348,7 +352,7 @@
   background: var(--ws-surface);
 }
 .ws .wsd-sec--attention {
-  border-color: #e7c27a;
+  border-color: color-mix(in srgb, var(--warning) 35%, var(--border));
   box-shadow: inset 3px 0 0 var(--ws-warning);
 }
 .ws .wsd-sec__head {
@@ -450,7 +454,8 @@
   font-size: 13px;
 }
 .ws .wsd-dtable th {
-  height: 34px;
+  height: 40px;
+  font-size: 12px;
   padding: 0 10px;
   border-bottom: 1px solid var(--ws-border);
   color: var(--ws-muted);

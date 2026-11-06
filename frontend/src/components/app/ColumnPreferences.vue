@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Rank } from '@element-plus/icons-vue'
+import { GripVertical } from '@lucide/vue'
 import { nextTick, ref, useId } from 'vue'
 import type { useColumnPreferences } from '@/composables/useColumnPreferences'
 
@@ -39,7 +39,7 @@ async function close() {
           <li v-for="(column, index) in preferences.orderedColumns.value" :key="column.id" :data-column-option="column.id" tabindex="0"
             @dragover.prevent @drop.prevent="drop(index)"
             @keydown.up.prevent="move(column.id, index - 1)" @keydown.down.prevent="move(column.id, index + 1)">
-            <span :draggable="column.id !== 'actions'" :data-column-drag="column.id" class="drag-handle" aria-hidden="true" @dragstart="startDrag($event, column.id)" @dragend="dragged = null"><Rank /></span>
+            <span :draggable="column.id !== 'actions'" :data-column-drag="column.id" class="drag-handle" aria-hidden="true" @dragstart="startDrag($event, column.id)" @dragend="dragged = null"><GripVertical /></span>
             <label><input type="checkbox" :data-column-toggle="column.id" :checked="preferences.visibleColumns.value.some(c => c.id === column.id)" :disabled="column.required || column.id === 'actions'" @change="preferences.setVisible(column.id, ($event.target as HTMLInputElement).checked)">{{ column.label }}</label>
             <button type="button" :disabled="index === 0 || column.id === 'actions'" :aria-label="`上移${column.label}`" @click="move(column.id, index - 1)">上移</button>
             <button type="button" :disabled="column.id === 'actions' || index >= preferences.orderedColumns.value.length - 2" :aria-label="`下移${column.label}`" @click="move(column.id, index + 1)">下移</button>

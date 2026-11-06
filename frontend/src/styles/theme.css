@@ -62,15 +62,18 @@
   --shadow-md: 0 4px 12px rgb(0 0 0 / 0.12);
 }
 
-:root {
-  color: #212121;
-  background: #f2f5f8;
-  font-family: 'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC', sans-serif;
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-}
+/* R1：改为读 tokens.css，并放进 base 层，让组件上的工具类（如 outline-none + ring）能覆盖 */
+@layer base {
+  :root {
+    color: var(--foreground);
+    background: var(--page);
+    font-family: var(--app-font);
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+  }
 
-:focus-visible {
-  outline: 3px solid rgb(27 79 138 / 0.28);
-  outline-offset: 2px;
+  :focus-visible {
+    outline: 3px solid rgb(27 79 138 / 0.28);
+    outline-offset: 2px;
+  }
 }

@@ -1,11 +1,13 @@
 /**
  * @file 全局样式入口
  * @description
- *    引入 Tailwind v4 与 Element Plus 样式。设计令牌定义见 theme.css。
+ *    引入 Tailwind v4、动画工具与设计令牌（tokens.css 为准，theme.css 为旧名别名）。
  */
 @import 'tailwindcss';
+@import 'tw-animate-css';
 @import './theme.css';
-@import './element.css';
+/* R1：统一语义令牌，放在 theme.css 之后，同名变量以它为准（旧名成为别名） */
+@import './tokens.css';
 
 html,
 body,

@@ -3,6 +3,9 @@ import { reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import { failureText } from '@/api/failure'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import AuthLayout from '@/layouts/AuthLayout.vue'
 import InvitationActivationPanel from '@/modules/auth/components/InvitationActivationPanel.vue'
 import LoginChannelTabs, { type LoginChannel } from '@/modules/auth/components/LoginChannelTabs.vue'
@@ -61,213 +64,63 @@ async function submitFormalLogin() {
 
 <template>
   <AuthLayout>
-    <section class="login-card" aria-labelledby="login-title">
-      <p class="login-card__eyebrow">ACCOUNT ACCESS</p>
-      <h2 id="login-title">登录评审平台</h2>
-      <p class="login-card__intro">按身份来源选择登录方式；平台不开放公开注册。</p>
+    <section class="grid w-full max-w-[26rem] gap-6" aria-labelledby="login-title">
+      <header class="grid gap-2">
+        <h2 id="login-title" class="text-2xl font-semibold">登录评审平台</h2>
+        <p class="text-sm text-muted-foreground">按身份来源选择登录方式；平台不开放公开注册。</p>
+      </header>
 
-      <LoginChannelTabs v-model="activeChannel" />
+      <div>
+        <LoginChannelTabs v-model="activeChannel" />
 
-      <form
-        v-if="activeChannel === 'platform'"
-        id="login-panel-platform"
-        class="login-form"
-        role="tabpanel"
-        aria-labelledby="login-tab-platform"
-        @submit.prevent="submitFormalLogin"
-      >
-        <label>
-          <span>账号</span>
-          <input v-model="form.account" autocomplete="username" placeholder="请输入账号" />
-        </label>
-        <label>
-          <span>密码</span>
-          <input
-            v-model="form.password"
-            type="password"
-            autocomplete="current-password"
-            placeholder="请输入密码"
-          />
-        </label>
-        <button class="login-form__submit" type="submit" :disabled="submitting">
-          {{ submitting ? '登录中…' : '登录' }}
-        </button>
-        <!-- 提示位常驻并预留高度：出现错误时卡片不变高，不会因垂直居中而整体跳动 -->
-        <p class="login-form__notice" :class="{ 'login-form__notice--shown': notice }" role="status" aria-live="polite">{{ notice }}</p>
-      </form>
+        <form
+          v-if="activeChannel === 'platform'"
+          id="login-panel-platform"
+          class="grid gap-4"
+          role="tabpanel"
+          aria-labelledby="login-tab-platform"
+          @submit.prevent="submitFormalLogin"
+        >
+          <div class="grid gap-1.5">
+            <Label for="login-account">账号</Label>
+            <Input id="login-account" v-model="form.account" class="h-10" autocomplete="username" placeholder="请输入账号" />
+          </div>
+          <div class="grid gap-1.5">
+            <Label for="login-password">密码</Label>
+            <Input id="login-password" v-model="form.password" class="h-10" type="password" autocomplete="current-password" placeholder="请输入密码" />
+          </div>
+          <Button class="h-10" type="submit" :disabled="submitting">{{ submitting ? '登录中…' : '登录' }}</Button>
+          <!-- 提示位常驻并预留高度：出现错误时卡片不变高，不会因垂直居中而整体跳动 -->
+          <p
+            :class="['login-form__notice min-h-10 rounded-md px-3 py-2.5 text-sm text-warning', notice && 'bg-warning-soft']"
+            role="status"
+            aria-live="polite"
+          >{{ notice }}</p>
+        </form>
 
-      <SchoolIdentityPanel v-else-if="activeChannel === 'school'" />
-      <InvitationActivationPanel v-else />
+        <SchoolIdentityPanel v-else-if="activeChannel === 'school'" />
+        <InvitationActivationPanel v-else />
+      </div>
 
-      <section v-if="props.demoMode" class="demo-entry" aria-label="演示角色入口">
-        <div class="demo-entry__heading">
-          <span>甲方演示模式</span>
-          <small>无需账号，选择角色进入固定演示场景</small>
+      <section v-if="props.demoMode" class="grid gap-3 border-t pt-5" aria-label="演示角色入口">
+        <div class="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
+          <span class="text-sm font-semibold">甲方演示模式</span>
+          <small class="text-sm text-muted-foreground">无需账号，选择角色进入固定演示场景</small>
         </div>
-        <div class="demo-entry__grid">
+        <div class="grid grid-cols-2 gap-2 max-[480px]:grid-cols-1">
           <button
             v-for="item in demoRoles"
             :key="item.role"
             type="button"
+            class="grid gap-0.5 rounded-md border bg-background px-3 py-2.5 text-left transition-colors hover:border-border-strong hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
             :data-demo-role="item.role"
             @click="startDemo(item.role)"
           >
-            <strong>{{ item.label }}</strong>
-            <small>{{ item.note }}</small>
+            <strong class="text-sm font-medium">{{ item.label }}</strong>
+            <small class="text-sm text-muted-foreground">{{ item.note }}</small>
           </button>
         </div>
       </section>
     </section>
   </AuthLayout>
 </template>
-
-<style scoped>
-.login-card {
-  width: min(100%, 38rem);
-  padding: clamp(1.5rem, 3vw, 2.5rem);
-  border: 1px solid #dce3e9;
-  background: white;
-  box-shadow: 0 1.5rem 4rem rgb(31 55 76 / 0.1);
-}
-
-.login-card__eyebrow {
-  margin: 0 0 0.5rem;
-  color: #5b6b7a;
-  font-family: var(--font-data);
-  font-size: 0.6875rem;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-}
-
-.login-card h2 {
-  margin: 0;
-  color: #1f2d3a;
-  font-family: var(--font-display);
-  font-size: 1.75rem;
-}
-
-.login-card__intro {
-  margin: 0.625rem 0 1.5rem;
-  color: #687682;
-  font-size: 0.8125rem;
-  line-height: 1.65;
-}
-
-.login-form {
-  display: grid;
-  gap: 0.875rem;
-}
-
-.login-form label,
-.login-form label span {
-  display: grid;
-  gap: 0.375rem;
-}
-
-.login-form label span {
-  color: #33414d;
-  font-size: 0.8125rem;
-  font-weight: 650;
-}
-
-.login-form input {
-  width: 100%;
-  height: 2.75rem;
-  padding: 0 0.75rem;
-  border: 1px solid #cbd4dc;
-  border-radius: 0.375rem;
-  background: #fbfcfe;
-  color: #212121;
-}
-
-.login-form button {
-  min-height: 2.75rem;
-  border-radius: 0.375rem;
-  font-weight: 650;
-  cursor: pointer;
-}
-
-.login-form__submit {
-  border: 1px solid #1b4f8a;
-  background: #1b4f8a;
-  color: white;
-}
-
-.login-form__notice {
-  min-height: 2.5rem;
-  margin: 0;
-  padding: 0.625rem 0.75rem;
-  border-radius: 0.375rem;
-  color: #8d440c;
-  font-size: 0.75rem;
-  line-height: 1.25rem;
-}
-
-.login-form__notice--shown {
-  background: #fff6e8;
-}
-
-.demo-entry {
-  margin-top: 1.5rem;
-  padding-top: 1.25rem;
-  border-top: 1px solid #dfe5ea;
-}
-
-.demo-entry__heading {
-  display: flex;
-  gap: 0.5rem;
-  align-items: baseline;
-  justify-content: space-between;
-  margin-bottom: 0.75rem;
-}
-
-.demo-entry__heading span {
-  color: #123d6b;
-  font-size: 0.8125rem;
-  font-weight: 750;
-}
-
-.demo-entry__heading small {
-  color: #78848e;
-  font-size: 0.6875rem;
-}
-
-.demo-entry__grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.5rem;
-}
-
-.demo-entry__grid button {
-  display: grid;
-  gap: 0.125rem;
-  padding: 0.625rem 0.75rem;
-  border: 1px solid #d1dbe3;
-  border-radius: 0.375rem;
-  background: #f7f9fb;
-  color: #33414d;
-  text-align: left;
-  cursor: pointer;
-}
-
-.demo-entry__grid button:hover {
-  border-color: #6d95bf;
-  background: #edf3f9;
-}
-
-.demo-entry__grid small {
-  color: #74818c;
-  font-size: 0.6875rem;
-}
-
-@media (max-width: 480px) {
-  .demo-entry__heading {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .demo-entry__grid {
-    grid-template-columns: 1fr;
-  }
-}
-</style>

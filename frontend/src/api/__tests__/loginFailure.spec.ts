@@ -6,7 +6,7 @@ import { createMemoryHistory, createRouter } from 'vue-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const message = vi.hoisted(() => ({ error: vi.fn() }))
-vi.mock('element-plus', () => ({ ElMessage: message }))
+vi.mock('@/components/app/notify/notify', () => ({ notify: message }))
 
 import http from '../request'
 import LoginPage from '@/modules/auth/pages/LoginPage.vue'

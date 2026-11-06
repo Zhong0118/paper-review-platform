@@ -77,18 +77,7 @@ async function mountPage(path = '/expert/review?task_id=b') {
 }
 
 describe('real expert workspace', () => {
-  it('renders a real invitation without invented fee or deadline and lets the expert reject it', async () => {
-    api.listExpertTasks.mockResolvedValue([{ id: 'invite-1', status: 'INVITED' }])
-    api.getInvitation.mockResolvedValue({ id: 'invite-1', status: 'INVITED', anonymous_id: 'A-001',
-      anonymous_title: '匿名论文', discipline_code: '0812', discipline_name: '计算机科学与技术' })
-    const { wrapper } = await mountPage('/expert/invitation')
-    expect(wrapper.text()).toContain('匿名论文')
-    expect(wrapper.text()).not.toContain('正在加载邀请信息')
-    expect(wrapper.text()).not.toContain('评阅费')
-    expect(wrapper.text()).not.toContain('¥')
-    await wrapper.get('[data-action="open-reject-dialog"]').trigger('click')
-    expect(wrapper.text()).toContain('拒绝任务')
-  })
+  // 任务列表与邀请的真实模式用例已随 R3-3 移到 tasks/__tests__ 与 invitation/__tests__（U4 计划 §19.6）
   it('loads the explicit task and its PDF, with no demo content', async () => {
     const { wrapper } = await mountPage()
     expect(api.getReviewDraft).toHaveBeenCalledWith('b')
@@ -155,43 +144,6 @@ describe('real expert workspace', () => {
     await flushPromises()
     expect(revokeUrl).toHaveBeenCalledWith('blob:paper-b')
     expect(wrapper.find('iframe').exists()).toBe(false)
-  })
-
-  it('puts the selected task id on task-list links', async () => {
-    const { wrapper } = await mountPage('/expert/tasks')
-    expect(wrapper.get('[data-action="continue-review"]').attributes('href')).toBe('/expert/review?task_id=b')
-  })
-
-  it('shows the selected task group in the header even when the group is empty', async () => {
-    const { wrapper } = await mountPage('/expert/tasks')
-    const stage = wrapper.get('.blind-rail__stage')
-    expect(stage.text()).toBe('评阅中')
-
-    await wrapper.get('[data-tab="SUBMITTED"]').trigger('click')
-    expect(stage.text()).toBe('已完成')
-    expect(wrapper.get('[data-expert-task]').text()).toContain('旧论文 A')
-
-    await wrapper.get('[data-tab="CORRECTION_PENDING"]').trigger('click')
-    expect(stage.text()).toBe('需要更正')
-    expect(wrapper.get('[data-expert-task-table]').text()).toContain('当前分组暂无任务')
-  })
-
-  it('does not show an invented zero fee for real invitations', async () => {
-    api.listExpertTasks.mockResolvedValue([{ ...rows[1], status: 'INVITED', allowed_actions: ['ACCEPT_TASK'] }])
-    const { wrapper } = await mountPage('/expert/tasks')
-    expect(wrapper.text()).not.toContain('费用')
-    expect(wrapper.text()).not.toContain('¥ 0.00')
-    await wrapper.get('[data-action="accept-task"]').trigger('click')
-    expect(wrapper.text()).not.toContain('¥ 0.00')
-  })
-  it('accepts and opens the exact invited task', async () => {
-    api.listExpertTasks.mockResolvedValue([{ ...rows[1], status: 'INVITED', allowed_actions: ['ACCEPT_TASK'] }])
-    const { wrapper, router } = await mountPage('/expert/tasks')
-    await wrapper.get('[data-action="accept-task"]').trigger('click')
-    await wrapper.get('[data-action="confirm-accept-task"]').trigger('click')
-    await flushPromises()
-    expect(api.acceptTask).toHaveBeenCalledWith('b')
-    expect(router.currentRoute.value.query.task_id).toBe('b')
   })
 
   it('submits only the selected task and reloads its formal result', async () => {

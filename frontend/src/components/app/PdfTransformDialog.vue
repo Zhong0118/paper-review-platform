@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { ArrowUp, ArrowDown, Close as X, Plus } from '@element-plus/icons-vue'
+import { ArrowDown, ArrowUp, Plus, X } from '@lucide/vue'
 import { useAuthStore } from '@/stores/auth'
 import { getFileContent } from '@/api/files'
 import { generatePdfTransform, applyPdfTransform, cancelPdfTransform, uploadTransformSource,

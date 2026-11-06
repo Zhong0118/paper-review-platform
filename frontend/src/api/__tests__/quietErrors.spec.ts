@@ -3,7 +3,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, expect, it, vi } from 'vitest'
 
 const message = vi.hoisted(() => ({ error: vi.fn() }))
-vi.mock('element-plus', () => ({ ElMessage: message }))
+vi.mock('@/components/app/notify/notify', () => ({ notify: message }))
 
 import http from '../request'
 import { failureText } from '../failure'

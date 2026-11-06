@@ -31,7 +31,10 @@ export const appRoutes: RouteRecordRaw[] = [
   {
     path: '/school/progress',
     name: '评审进度',
-    component: () => import('@/modules/school/pages/ReviewProgressPage.vue'),
+    // R3-1：真实模式用新进度页；demo 模式保留旧页（U4 计划 §19.2）
+    component: () => import.meta.env.VITE_DEMO_MODE === 'true'
+      ? import('@/modules/school/pages/ReviewProgressPage.vue')
+      : import('@/modules/school/progress/SchoolProgressDesk.vue'),
     meta: { roleCodes: ['school_reviewer'], layout: 'admin', pageId: 'PAGE-005' },
   },
   {
@@ -55,13 +58,18 @@ export const appRoutes: RouteRecordRaw[] = [
   {
     path: '/expert/tasks',
     name: '专家任务',
-    component: () => import('@/modules/review/pages/ExpertTasksPage.vue'),
+    // R3-3：真实模式用新任务页；demo 模式保留旧页（U4 计划 §19.6）
+    component: () => import.meta.env.VITE_DEMO_MODE === 'true'
+      ? import('@/modules/review/pages/ExpertTasksPage.vue')
+      : import('@/modules/review/tasks/ExpertTaskDesk.vue'),
     meta: { roleCodes: ['expert'], layout: 'portal', pageId: 'PAGE-008' },
   },
   {
     path: '/expert/invitation',
     name: '评审邀请',
-    component: () => import('@/modules/review/pages/InvitationPage.vue'),
+    component: () => import.meta.env.VITE_DEMO_MODE === 'true'
+      ? import('@/modules/review/pages/InvitationPage.vue')
+      : import('@/modules/review/invitation/InvitationDesk.vue'),
     meta: { roleCodes: ['expert'], layout: 'portal', pageId: 'PAGE-009' },
   },
   {

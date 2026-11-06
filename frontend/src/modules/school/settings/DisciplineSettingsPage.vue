@@ -6,7 +6,9 @@
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
-import OperationsShell from '@/components/workspace/OperationsShell.vue'
+import AppShell from '@/components/app/shell/AppShell.vue'
+import { useSignOut } from '@/components/app/shell/useSignOut'
+import ViewTabs from '@/components/app/data/ViewTabs.vue'
 import type { WorkspaceAccount } from '@/components/workspace/types'
 import { workspaceNav } from '@/router/workspaceNav'
 import { useAuthStore } from '@/stores/auth'
@@ -19,8 +21,13 @@ const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 const tab = computed(() => (route.query.tab === 'programs' ? 'programs' : 'open'))
-const setTab = (next: 'open' | 'programs') => void router.replace({ query: { ...route.query, tab: next === 'open' ? undefined : next } })
+const setTab = (next: string) => void router.replace({ query: { ...route.query, tab: next === 'programs' ? next : undefined } })
+const TABS = [
+  { value: 'open', label: '开放学科', attrs: { 'data-tab': 'open' } },
+  { value: 'programs', label: '校内专业对照', attrs: { 'data-tab': 'programs' } },
+]
 
+const signOut = useSignOut()
 const nav = computed(() => workspaceNav('school_reviewer', '/school/disciplines'))
 const account = computed<WorkspaceAccount>(() => ({
   name: auth.user?.displayName || '身份未取得',
@@ -32,18 +39,16 @@ const account = computed<WorkspaceAccount>(() => ({
 
 <template>
   <div class="ws">
-    <OperationsShell :nav="nav" :account="account" :org="account.org">
-      <template #title><h1 class="wsd-title">学科与专业</h1></template>
-      <template #context><span class="wsd-ctx">决定学生新建论文时能选的学科与专业</span></template>
+    <AppShell :nav="nav" :account="account" :workspace="account.org" layout="bare" title="学科与专业" @sign-out="signOut">
+      <template #context>决定学生新建论文时能选的学科与专业</template>
       <div class="page">
-        <div class="wsd-views tabs" role="tablist" aria-label="分区">
-          <button type="button" role="tab" class="wsd-views__tab" :aria-selected="tab === 'open'" data-tab="open" @click="setTab('open')">开放学科</button>
-          <button type="button" role="tab" class="wsd-views__tab" :aria-selected="tab === 'programs'" data-tab="programs" @click="setTab('programs')">校内专业对照</button>
+        <div class="border-b bg-background px-(--page-x) py-2">
+          <ViewTabs :model-value="tab" :views="TABS" label="分区" class="mx-auto max-w-[960px]" @update:model-value="setTab" />
         </div>
         <OpenDisciplines v-if="tab === 'open'" />
         <ProgramImport v-else />
       </div>
-    </OperationsShell>
+    </AppShell>
   </div>
 </template>
 
@@ -51,11 +56,10 @@ const account = computed<WorkspaceAccount>(() => ({
 .page {
   display: flex;
   flex-direction: column;
-  min-height: calc(100vh - var(--ws-bar));
+  min-height: calc(100svh - var(--bar-h));
 }
-.tabs {
-  padding: 10px 24px;
-  border-bottom: 1px solid var(--ws-border);
-  background: var(--ws-surface);
+/* form 模板：内容居中 960，提交条仍贴底满宽 */
+.page :deep(.wsd-obj) {
+  margin-inline: auto;
 }
 </style>

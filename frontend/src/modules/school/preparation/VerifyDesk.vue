@@ -1,6 +1,7 @@
 <script setup lang="ts">
 /**
- * P05 学校核验台（专注外壳）。发现目录｜匿名稿/原稿｜判断区，底部判断栏。
+ * P05 学校核验台（R2：AppShell focus 模板，U4 计划 §18）。发现｜匿名稿/原稿｜判断，判断栏底部固定提交条。
+ * ≥1280 三栏可拖动；1024–1279 发现收进左侧抽屉；<1024 发现 / 材料 / 判断标签页。
  * - 检测维度分开读（checkReport.ts）；可做的动作只看 allowed_actions。
  * - 409 先重读详情，再分“已被处理”“已更新”“已不可用”，已写说明一律保留。
  * - 同一次提交尝试重试时沿用同一个幂等键。
@@ -8,6 +9,8 @@
  * - U2-4：确认送出与“通过核验”分开，单独确认；永久终止放在“更多操作”，填原因后独立确认。
  *   两者都只按 allowed_actions 出现，重试沿用同一幂等键，409 与核验一样先重读再分类。
  */
+import { AlertTriangle, ChevronDown, ChevronLeft, ListChecks, RefreshCw } from '@lucide/vue'
+import { createReusableTemplate, useMediaQuery } from '@vueuse/core'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -16,18 +19,37 @@ import { getFileContent } from '@/api/files'
 import { confirmAnonymization, getSchoolThesis, terminateThesis } from '@/api/schoolReview'
 import { checkSensitiveThesis, type SensitiveFinding } from '@/api/sensitiveChecks'
 import type { ThesisDetail } from '@/api/theses'
-import ConfirmDialog from '@/components/workspace/ConfirmDialog.vue'
-import FocusShell from '@/components/workspace/FocusShell.vue'
-import StateBlock from '@/components/workspace/StateBlock.vue'
-import StatusPill from '@/components/workspace/StatusPill.vue'
-import type { WorkspaceAccount } from '@/components/workspace/types'
+import StatusBadge from '@/components/app/data/StatusBadge.vue'
+import AppShell from '@/components/app/shell/AppShell.vue'
+import { useSignOut } from '@/components/app/shell/useSignOut'
+import StatePanel from '@/components/app/state/StatePanel.vue'
+import type { NavGroup, WorkspaceAccount } from '@/components/workspace/types'
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { Button } from '@/components/ui/button'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { Label } from '@/components/ui/label'
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable'
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Textarea } from '@/components/ui/textarea'
 
-import { anonymousFile, apiFailure, autoText, autoTone, isNotFound, originalFile, readReport, stageLabel } from './checkReport'
+import { anonymousFile, apiFailure, autoText, autoTone, isNotFound, originalFile, readReport, stageLabel, type Tone } from './checkReport'
+import FindingsList from './verify/FindingsList.vue'
+import { findingSource } from './verify/findingSource'
 
-const props = defineProps<{ thesisId: string; rows: ThesisDetail[]; rowsReady: boolean; account: WorkspaceAccount }>()
+const props = defineProps<{ thesisId: string; rows: ThesisDetail[]; rowsReady: boolean; account: WorkspaceAccount; nav: NavGroup[] }>()
 const emit = defineEmits<{ changed: [] }>()
 const route = useRoute()
 const router = useRouter()
+const signOut = useSignOut()
 
 const detail = ref<ThesisDetail | null>(null)
 const loadState = ref<'loading' | 'ready' | 'unavailable' | 'error'>('loading')
@@ -157,7 +179,7 @@ function loadLatest() {
   touched.value = false
 }
 function quote(finding: SensitiveFinding) {
-  const where = finding.page_number ? `第 ${finding.page_number} 页` : sourceLabel(finding)
+  const where = finding.page_number ? `第 ${finding.page_number} 页` : findingSource(finding)
   const line = `${where}出现“${finding.matched_text}”`
   decision.value = 'return'
   returnReason.value = returnReason.value ? `${returnReason.value}；${line}` : line
@@ -302,7 +324,6 @@ function revokeAll() {
 }
 const viewed = ref<Set<string>>(new Set())
 const openFinding = ref<string | null>(null)
-const findingKey = (finding: SensitiveFinding, index: number) => `${finding.severity}-${index}-${finding.matched_text}`
 function locate(finding: SensitiveFinding, key: string) {
   viewed.value = new Set([...viewed.value, key])
   openFinding.value = openFinding.value === key ? null : key
@@ -311,731 +332,376 @@ function locate(finding: SensitiveFinding, key: string) {
     compare.value = false
     focusPage.value = finding.page_number
     mobileTab.value = 'doc'
+    findingsSheet.value = false
   }
-  if (mid.value) showFindingsCol.value = false
 }
-const SOURCES: Record<string, string> = { filename: '文件名', metadata: '文件元数据', thesis_metadata: '登记信息', title: '标题文字核对' }
-const sourceLabel = (finding: SensitiveFinding) => SOURCES[finding.source ?? finding.location] ?? '其他来源'
-const groups = computed(() =>
-  (
-    [
-      { key: 'BLOCK', label: '阻断', tone: 'danger' },
-      { key: 'WARN', label: '警告', tone: 'warning' },
-    ] as const
-  )
-    .map((group) => ({ ...group, items: (report.value?.findings ?? []).map((finding, index) => ({ finding, key: findingKey(finding, index) })).filter((item) => item.finding.severity === group.key) }))
-    .filter((group) => group.items.length),
-)
 
-// ── 响应式分栏 ──
+// ── 响应式分栏（jsdom 没有 matchMedia：两个查询都为假，走宽屏三栏） ──
 const mobileTab = ref<'findings' | 'doc' | 'decide'>('doc')
-const narrow = ref(false)
-const mid = ref(false)
-const showFindingsCol = ref(true)
-let media: MediaQueryList | null = null
-let midMedia: MediaQueryList | null = null
-const sync = () => {
-  narrow.value = media?.matches ?? false
-  const wasMid = mid.value
-  mid.value = !narrow.value && (midMedia?.matches ?? false)
-  if (mid.value !== wasMid) showFindingsCol.value = !mid.value
-}
-onMounted(() => {
-  void fetchDetail()
-  if (typeof window.matchMedia !== 'function') return
-  media = window.matchMedia('(max-width: 859px)')
-  midMedia = window.matchMedia('(max-width: 1279px)')
-  sync()
-  media.addEventListener('change', sync)
-  midMedia.addEventListener('change', sync)
-})
-onBeforeUnmount(() => {
-  media?.removeEventListener('change', sync)
-  midMedia?.removeEventListener('change', sync)
-  revokeAll()
-})
+const narrow = useMediaQuery('(max-width: 1023px)')
+const mid = useMediaQuery('(min-width: 1024px) and (max-width: 1279px)')
+const findingsSheet = ref(false)
+const badgeTone = (tone: Tone) => (tone === 'action' ? 'brand' : tone)
+const moreOpen = ref(false)
+const findingCount = computed(() => (report.value && !report.value.stale ? report.value.findings.length : 0))
+const [DefineFindings, ReuseFindings] = createReusableTemplate()
+const [DefineDoc, ReuseDoc] = createReusableTemplate<{ withFindings?: boolean }>()
+const [DefineDecision, ReuseDecision] = createReusableTemplate()
+
+onMounted(() => void fetchDetail())
+onBeforeUnmount(revokeAll)
 </script>
 
 <template>
-  <FocusShell :account="account">
+  <AppShell :nav="nav" :account="account" :workspace="account.org" layout="focus" :title="detail?.current_version?.title || (loadState === 'loading' ? '' : '核验台')" @sign-out="signOut">
     <template #back>
-      <RouterLink class="btn btn--quiet back" :to="backTo">‹ 返回清单</RouterLink>
+      <Button variant="ghost" size="sm" as-child class="-ml-1 shrink-0 text-muted-foreground">
+        <RouterLink :to="backTo" data-back><ChevronLeft />送审准备</RouterLink>
+      </Button>
     </template>
-    <template #identity>
-      <template v-if="detail">
-        <h1 class="vt-title" :title="detail.current_version?.title">{{ detail.current_version?.title || '未命名论文' }}</h1>
-        <span class="vt-meta muted">{{ detail.student?.name }}　{{ detail.current_version?.school_program?.name || detail.current_version?.discipline_name }}</span>
-      </template>
+    <template #context>
+      <template v-if="detail">{{ detail.student?.name }}　{{ detail.current_version?.school_program?.name || detail.current_version?.discipline_name }}</template>
     </template>
-    <template #status>
-      <span v-if="position > 0" class="vt-pos muted num">待核验 {{ position }} / {{ order.length }}</span>
-      <StatusPill v-else-if="detail" tone="neutral">{{ stageLabel(detail.stage) }}</StatusPill>
+    <template #actions>
+      <span v-if="position > 0" class="tabular text-sm text-muted-foreground">待核验 {{ position }} / {{ order.length }}</span>
+      <StatusBadge v-else-if="detail" tone="neutral">{{ stageLabel(detail.stage) }}</StatusBadge>
     </template>
 
-    <StateBlock v-if="loadState === 'loading'" kind="loading" title="正在读取论文与检测报告…" />
-    <StateBlock v-else-if="loadState === 'unavailable'" kind="forbidden" title="这篇论文已不可用">
-      它可能已被删除、不属于本校，或链接有误。
-      <template #actions><RouterLink class="btn btn--primary" :to="backTo">返回清单</RouterLink></template>
-    </StateBlock>
-    <StateBlock v-else-if="loadState === 'error'" kind="error" title="论文没有加载出来">
-      {{ loadError }}
-      <template #actions><button type="button" class="btn btn--primary" @click="fetchDetail()">重试</button></template>
-    </StateBlock>
+    <!-- 发现列表：三种断点共用 -->
+    <DefineFindings>
+      <FindingsList
+        v-if="report"
+        :findings="report.stale ? [] : report.findings"
+        :stale="report.stale"
+        :has-report="report.auto !== null"
+        :open-key="openFinding"
+        :viewed="viewed"
+        :can-quote="canReturn && !locked && !outcome"
+        @locate="locate"
+        @quote="quote"
+      />
+    </DefineFindings>
 
-    <div v-else-if="detail && report" class="verify">
-      <nav v-if="narrow" class="mtabs" aria-label="核验视图">
-        <button type="button" :aria-pressed="mobileTab === 'findings'" @click="mobileTab = 'findings'">发现 {{ report.findings.length }}</button>
-        <button type="button" :aria-pressed="mobileTab === 'doc'" @click="mobileTab = 'doc'">材料</button>
-        <button type="button" :aria-pressed="mobileTab === 'decide'" @click="mobileTab = 'decide'">判断</button>
-      </nav>
-
-      <div class="verify__grid" :class="{ 'verify__grid--nofind': !showFindingsCol || compare || mid, 'verify__grid--narrow': narrow, 'verify__grid--mid': mid }">
-        <aside v-show="narrow ? mobileTab === 'findings' : showFindingsCol && !compare" class="col col--find" :class="{ 'col--overlay': mid }" aria-label="检测发现">
-          <div class="find__head">
-            <h2>检测发现 <span class="num muted">{{ report.findings.length }}</span></h2>
-            <button v-if="!narrow" type="button" class="btn btn--sm btn--quiet" @click="showFindingsCol = false">收起</button>
+    <!-- 材料：受控 PDF，Blob 只在本页 -->
+    <DefineDoc v-slot="{ withFindings }">
+      <section class="flex h-full min-h-0 flex-col" aria-label="论文材料">
+        <div class="flex min-h-11 shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b px-4 py-1.5">
+          <Button v-if="withFindings" variant="outline" size="sm" data-action="open-findings" @click="findingsSheet = true">
+            <ListChecks />检测发现<span class="tabular">{{ findingCount }}</span>
+          </Button>
+          <div class="flex rounded-md border p-0.5" role="group" aria-label="材料">
+            <button type="button" :aria-pressed="material === 'anonymous' && !compare" class="seg" @click="material = 'anonymous'; compare = false">匿名稿</button>
+            <button type="button" :aria-pressed="material === 'original' && !compare" class="seg" :disabled="!original" @click="material = 'original'; compare = false">原稿</button>
+            <button v-if="!narrow" type="button" :aria-pressed="compare" class="seg" :disabled="!original" @click="compare = !compare">并排对照</button>
           </div>
-          <p v-if="report.stale" class="find__empty">报告已过期，单项发现不再对应当前匿名稿，这里不展示。</p>
-          <p v-else-if="report.auto === null" class="find__empty">当前匿名稿还没有检测报告。</p>
-          <p v-else-if="!report.findings.length" class="find__empty">
-            检测器没有发现身份线索。这不代表匿名化一定完整，请在材料中人工通读封面、致谢、附录和页眉页脚。
+          <p class="min-w-0 text-xs text-muted-foreground" data-visibility>
+            <template v-if="compare">左：原稿（仅本校可见）｜右：匿名稿（这份材料将交给评阅专家）</template>
+            <template v-else-if="material === 'anonymous'">你正在看匿名稿，这份材料将交给评阅专家<template v-if="focusPage > 1">；已定位到 PDF 物理第 {{ focusPage }} 页</template></template>
+            <template v-else>你正在看原稿，仅本校可见，不会交给专家</template>
           </p>
-          <section v-for="group in groups" :key="group.key" class="find__group">
-            <h3><StatusPill :tone="group.tone">{{ group.label }} {{ group.items.length }}</StatusPill></h3>
-            <ul>
-              <li v-for="item in group.items" :key="item.key">
-                <button type="button" class="finding" :class="{ 'finding--open': openFinding === item.key }" :aria-expanded="openFinding === item.key" @click="locate(item.finding, item.key)">
-                  <span class="finding__top">
-                    <span class="num">{{ item.finding.page_number ? `第 ${item.finding.page_number} 页` : sourceLabel(item.finding) }}</span>
-                    <span class="muted">{{ item.finding.kind === 'SCHOOL_TERM' ? '学校词表' : '身份信息' }}</span>
-                    <span v-if="viewed.has(item.key)" class="finding__seen">已查看</span>
-                  </span>
-                  <span class="finding__match">“{{ item.finding.matched_text }}”</span>
-                </button>
-                <div v-if="openFinding === item.key" class="finding__detail">
-                  <p v-if="item.finding.context" class="context">{{ item.finding.context }}</p>
-                  <p v-if="item.finding.description" class="muted">{{ item.finding.description }}</p>
-                  <button v-if="canReturn && !locked" type="button" class="btn btn--sm" @click="quote(item.finding)">写入退回原因</button>
-                </div>
-              </li>
-            </ul>
-          </section>
-        </aside>
-
-        <section v-show="!narrow || mobileTab === 'doc'" class="col col--doc" aria-label="论文材料">
-          <div class="doc-switch">
-            <button v-if="!showFindingsCol && !compare && !narrow" type="button" class="btn btn--sm" @click="showFindingsCol = true">发现 {{ report.findings.length }}</button>
-            <div class="seg" role="group" aria-label="材料">
-              <button type="button" :aria-pressed="material === 'anonymous' && !compare" @click="material = 'anonymous'; compare = false">匿名稿</button>
-              <button type="button" :aria-pressed="material === 'original' && !compare" :disabled="!original" @click="material = 'original'; compare = false">原稿</button>
-              <button v-if="!narrow" type="button" :aria-pressed="compare" :disabled="!original" @click="compare = !compare">并排对照</button>
-            </div>
-            <p class="visibility">
-              <template v-if="compare">左：原稿（仅本校可见）｜右：匿名稿（这份材料将交给评阅专家）</template>
-              <template v-else-if="material === 'anonymous'">你正在看匿名稿，这份材料将交给评阅专家<template v-if="focusPage > 1">；已定位到 PDF 物理第 {{ focusPage }} 页</template></template>
-              <template v-else>你正在看原稿，仅本校可见，不会交给专家</template>
-            </p>
-          </div>
-          <div class="doc-area" :class="{ 'doc-area--compare': compare }">
-            <template v-for="file in compare ? [original, anonymous] : [material === 'anonymous' ? anonymous : original]" :key="file?.file_id ?? 'none'">
-              <StateBlock v-if="!file" kind="empty" title="没有这份材料" compact>学生尚未上传。</StateBlock>
-              <StateBlock v-else-if="fileError[file.file_id]" kind="error" title="PDF 没有加载出来" compact>
-                {{ fileError[file.file_id] }}
-                <template #actions><button type="button" class="btn btn--sm" @click="ensureFile(file.file_id)">重试</button></template>
-              </StateBlock>
-              <StateBlock v-else-if="!urls[file.file_id]" kind="loading" title="正在读取 PDF…" compact />
-              <iframe
-                v-else
-                :key="`${file.file_id}-${file.purpose === 'anonymous' ? focusPage : 1}`"
-                class="doc-frame"
-                :src="`${urls[file.file_id]}#page=${file.purpose === 'anonymous' ? focusPage : 1}`"
-                :title="file.purpose === 'anonymous' ? '匿名稿 PDF' : '原稿 PDF'"
-              />
-            </template>
-          </div>
-        </section>
-
-        <aside v-show="!narrow || mobileTab === 'decide'" class="col col--decide" aria-label="核验判断">
-          <div class="decide">
-            <div v-if="done" class="banner banner--ok" role="status" data-desk-done>
-              <strong>{{ done === 'dispatched' ? '已确认送出，论文交给百杰运营派单。' : '已永久终止送审，未完成的专家任务已取消。' }}</strong>
-            </div>
-            <div v-else-if="conflict?.kind === 'taken'" class="banner" role="status">
-              <strong>这篇论文已被处理，当前为“{{ stageLabel(conflict.latest?.stage ?? '') }}”。</strong>
-              <span>你的操作没有生效。下方输入保留在本页，可以复制后离开。</span>
-            </div>
-            <div v-else-if="conflict?.kind === 'gone'" class="banner banner--danger" role="alert">
-              <strong>这篇论文已不可用。</strong>
-              <span>你的操作没有生效。下方输入保留在本页，可以复制后离开。</span>
-            </div>
-            <div v-else-if="conflict?.kind === 'updated'" class="banner banner--danger" role="alert">
-              <strong>提交没有生效：论文在你打开后已更新。</strong>
-              <span>你的说明仍在下方。请载入最新材料，重新核对后再提交。</span>
-              <button type="button" class="btn btn--sm" @click="loadLatest">载入最新材料（保留说明）</button>
-            </div>
-            <div v-if="submitError" class="banner banner--danger" role="alert">
-              <strong>提交没有生效。</strong>
-              <span>{{ submitError }}</span>
-            </div>
-
-            <section class="basis" aria-label="当前报告依据">
-              <h2>当前报告依据</h2>
-              <dl>
-                <dt>{{ report.stale ? '上次自动结论' : '自动结论' }}</dt>
-                <dd>
-                  <StatusPill v-if="report.auto" :tone="autoTone(report)">{{ autoText(report.auto) }}</StatusPill>
-                  <span v-else class="muted">尚未检测</span>
-                </dd>
-                <dt>报告时效</dt>
-                <dd>
-                  <StatusPill v-if="report.stale" tone="warning">已过期</StatusPill>
-                  <span v-else-if="report.auto">对应当前匿名稿</span>
-                  <span v-else class="muted">无报告</span>
-                </dd>
-                <dt>单项发现</dt>
-                <dd>
-                  <template v-if="report.stale">以过期报告为准，不展示</template>
-                  <template v-else-if="report.auto">阻断 {{ report.blockCount }}，警告 {{ report.warnCount }}</template>
-                  <template v-else>—</template>
-                </dd>
-                <dt>人工结论</dt>
-                <dd>{{ report.manual === 'PASS' ? '已通过核验' : report.manual === 'FAIL' ? '已退回' : '尚未作出' }}</dd>
-                <template v-if="report.pageCount">
-                  <dt>检测对象</dt><dd>匿名稿，共 {{ report.pageCount }} 页</dd>
-                </template>
-                <template v-if="report.termsVersion !== null">
-                  <dt>依据</dt><dd>本校检测词表第 {{ report.termsVersion }} 版</dd>
-                </template>
-              </dl>
-              <div v-if="report.stale" class="basis__stale">
-                <p>这份报告不再对应当前匿名稿（材料或登记信息在检测后有变化），不能作为通过依据。</p>
-              </div>
-              <p v-if="report.uncertainPages.length" class="basis__note">
-                第 {{ report.uncertainPages.join('、') }} 页无法可靠提取文字（可能是扫描图片），请人工查看。
-              </p>
-              <p v-if="report.titleStatus === 'TITLE_NOT_FOUND'" class="basis__note">前两页没有找到登记标题的文字，请人工核对；这不代表论文内容不一致。</p>
-              <div v-if="!outcome && detail.stage === 'PREPARING' && anonymous" class="basis__recheck">
-                <button type="button" class="btn btn--sm" :disabled="rechecking || locked" @click="recheck">{{ rechecking ? '正在检测…' : '重新检测匿名稿' }}</button>
-                <span v-if="recheckError" class="field-error" role="alert">{{ recheckError }}</span>
-              </div>
-            </section>
-
-            <section v-if="!deciding && !outcome && !done" class="state-now" aria-label="当前状态">
-              <h2>当前状态</h2>
-              <p><StatusPill :tone="detail.stage === 'TERMINATED' ? 'danger' : detail.stage === 'DRAFT' ? 'warning' : 'action'">{{ detail.stage === 'DRAFT' && detail.return_reason ? '已退回修改' : stageLabel(detail.stage) }}</StatusPill></p>
-              <template v-if="detail.stage === 'DRAFT'">
-                <blockquote v-if="detail.return_reason" class="state-now__reason">{{ detail.return_reason }}</blockquote>
-                <p class="muted">学生修改并重新提交后，论文会回到“待核验”。</p>
-              </template>
-            </section>
-
-            <template v-if="deciding || outcome">
-              <fieldset class="choice" :disabled="locked || Boolean(outcome)">
-                <legend>你的判断</legend>
-                <label class="choice__opt" :class="{ 'choice__opt--off': !canPass }">
-                  <input v-model="decision" type="radio" name="decision" value="pass" :disabled="!canPass" />
-                  <span>
-                    <strong>通过核验</strong>
-                    <small v-if="!canPass">{{ passOffText }}</small>
-                    <small v-else>匿名稿可以交给专家；之后仍需单独确认送出</small>
-                  </span>
-                </label>
-                <label class="choice__opt" :class="{ 'choice__opt--off': !canReturn }">
-                  <input v-model="decision" type="radio" name="decision" value="return" :disabled="!canReturn" />
-                  <span>
-                    <strong>退回修改</strong>
-                    <small>学生收到原因后修改，论文回到草稿</small>
-                  </span>
-                </label>
-              </fieldset>
-
-              <label v-if="decision === 'pass'" class="field">
-                <span>通过说明（校内留存）<template v-if="!report.passNeedsReason">，选填</template></span>
-                <textarea
-                  v-model="note"
-                  class="textarea"
-                  :disabled="locked || Boolean(outcome)"
-                  :aria-invalid="touched && Boolean(validation)"
-                  aria-describedby="decision-err"
-                  placeholder="例如：第 3 页的校区名称是公开地名，不指向个人。"
-                />
-                <small v-if="report.passNeedsReason">存在学校词表提示，通过时必须写明核对结论。</small>
-              </label>
-              <label v-else class="field">
-                <span>退回原因（学生会看到）</span>
-                <textarea
-                  v-model="returnReason"
-                  class="textarea"
-                  :disabled="locked || Boolean(outcome)"
-                  :aria-invalid="touched && Boolean(validation)"
-                  aria-describedby="decision-err"
-                  placeholder="写明需要学生修改的位置与内容"
-                />
-                <small>可在检测发现中点“写入退回原因”引用页码。</small>
-              </label>
-              <span v-if="touched && validation && !outcome" id="decision-err" class="field-error">{{ validation }}</span>
-            </template>
-
-            <section v-if="canDispatchNow" class="sendout" aria-label="确认送出">
-              <h2>确认送出</h2>
-              <p class="muted">{{ outcome === 'passed' ? '核验已通过。' : '这篇论文已通过核验。' }}送出后交给百杰运营派单，学生不能再自行撤回。</p>
-              <button type="button" class="btn btn--primary" data-action="open-dispatch" @click="openDispatch">确认送出…</button>
-            </section>
-
-            <details v-if="canTerminate" class="more-ops">
-              <summary>更多操作</summary>
-              <p class="muted">永久终止会结束这篇论文的送审，未完成的专家任务一并取消，历史记录保留，不能恢复。需要学生修改时，请用“退回修改”。</p>
-              <button type="button" class="btn btn--danger-outline" data-action="open-terminate" @click="openTerminate">永久终止送审…</button>
-            </details>
-          </div>
-        </aside>
-      </div>
-
-      <footer v-if="deciding || outcome || done" class="decide-bar">
-        <div v-if="done" class="decide-bar__done" role="status">
-          <StatusPill :tone="done === 'dispatched' ? 'success' : 'danger'">{{ done === 'dispatched' ? '已确认送出' : '已终止送审' }}</StatusPill>
         </div>
-        <div v-else-if="outcome" class="decide-bar__done" role="status">
-          <StatusPill tone="success">{{ outcome === 'passed' ? '已通过核验' : '已退回修改' }}</StatusPill>
-          <span>{{ outcome === 'passed' ? '论文进入“待送出”，可以在右侧确认送出，也可以稍后在“可送出”视图处理。' : '学生会看到退回原因。' }}</span>
-        </div>
-        <p v-else-if="conflict" class="decide-bar__state muted">{{ conflict.kind === 'updated' ? '论文已更新，请载入最新材料' : '这篇论文已不能在此处理' }}</p>
-        <p v-else class="decide-bar__state muted">
-          待核验<template v-if="report.findings.length">，已查看 {{ viewed.size }} / {{ report.findings.length }} 个发现项</template>
-        </p>
-        <div class="decide-bar__actions">
-          <template v-if="outcome || done">
-            <RouterLink class="btn" :to="backTo">返回清单</RouterLink>
-            <button v-if="nextId" type="button" class="btn btn--primary" @click="goNext">下一篇</button>
+        <div class="grid min-h-0 flex-1 bg-muted/70" :class="compare ? 'grid-cols-2 divide-x' : 'grid-cols-1'">
+          <template v-for="file in compare ? [original, anonymous] : [material === 'anonymous' ? anonymous : original]" :key="file?.file_id ?? 'none'">
+            <StatePanel v-if="!file" kind="empty" title="没有这份材料" compact>学生尚未上传。</StatePanel>
+            <StatePanel v-else-if="fileError[file.file_id]" kind="error" title="PDF 没有加载出来" compact>
+              {{ fileError[file.file_id] }}
+              <template #actions><Button variant="outline" size="sm" @click="ensureFile(file.file_id)">重试</Button></template>
+            </StatePanel>
+            <StatePanel v-else-if="!urls[file.file_id]" kind="loading" title="正在读取 PDF…" compact />
+            <iframe
+              v-else
+              :key="`${file.file_id}-${file.purpose === 'anonymous' ? focusPage : 1}`"
+              class="size-full border-0 bg-background"
+              :src="`${urls[file.file_id]}#page=${file.purpose === 'anonymous' ? focusPage : 1}`"
+              :title="file.purpose === 'anonymous' ? '匿名稿 PDF' : '原稿 PDF'"
+            />
           </template>
-          <button
-            v-else
-            type="button"
-            class="btn btn--primary"
-            data-action="submit-decision"
-            :disabled="submitting || locked || Boolean(conflict) || (decision === 'pass' && !canPass)"
-            @click="submit"
-          >
-            {{ submitting ? '正在提交…' : decision === 'pass' ? '通过核验' : '退回修改' }}
-          </button>
         </div>
-      </footer>
+      </section>
+    </DefineDoc>
+
+    <!-- 判断：横幅 → 报告依据 → 当前状态 / 你的判断 → 确认送出 → 更多操作；底部固定提交条 -->
+    <DefineDecision>
+      <section v-if="report && detail" class="flex h-full min-h-0 flex-col bg-background" aria-label="核验判断">
+        <header class="flex h-11 shrink-0 items-center border-b px-4"><h2 class="text-sm font-semibold">你的判断</h2></header>
+        <div class="grid min-h-0 flex-1 content-start gap-5 overflow-y-auto p-4">
+          <div v-if="done" class="banner grid gap-1 rounded-md bg-success-soft px-3 py-2.5 text-sm" role="status" data-desk-done>
+            <strong class="font-medium text-success">{{ done === 'dispatched' ? '已确认送出，论文交给百杰运营派单。' : '已永久终止送审，未完成的专家任务已取消。' }}</strong>
+          </div>
+          <div v-else-if="conflict?.kind === 'taken'" class="banner grid gap-1 rounded-md border bg-info-soft px-3 py-2.5 text-sm" role="status">
+            <strong class="font-medium">这篇论文已被处理，当前为“{{ stageLabel(conflict.latest?.stage ?? '') }}”。</strong>
+            <span>你的操作没有生效。下方输入保留在本页，可以复制后离开。</span>
+          </div>
+          <div v-else-if="conflict?.kind === 'gone'" class="banner grid gap-1 rounded-md border border-destructive/30 bg-destructive-soft px-3 py-2.5 text-sm" role="alert">
+            <strong class="font-medium text-destructive">这篇论文已不可用。</strong>
+            <span>你的操作没有生效。下方输入保留在本页，可以复制后离开。</span>
+          </div>
+          <div v-else-if="conflict?.kind === 'updated'" class="banner grid gap-2 rounded-md border border-destructive/30 bg-destructive-soft px-3 py-2.5 text-sm" role="alert">
+            <strong class="font-medium text-destructive">提交没有生效：论文在你打开后已更新。</strong>
+            <span>你的说明仍在下方。请载入最新材料，重新核对后再提交。</span>
+            <Button variant="outline" size="sm" class="justify-self-start bg-background" @click="loadLatest"><RefreshCw />载入最新材料（保留说明）</Button>
+          </div>
+          <div v-if="submitError" class="banner grid gap-1 rounded-md border border-destructive/30 bg-destructive-soft px-3 py-2.5 text-sm" role="alert">
+            <strong class="font-medium text-destructive">提交没有生效。</strong>
+            <span>{{ submitError }}</span>
+          </div>
+
+          <section class="grid gap-2" aria-label="当前报告依据">
+            <h3 class="text-xs font-medium text-muted-foreground">当前报告依据</h3>
+            <dl class="grid grid-cols-[88px_1fr] gap-x-3 gap-y-1.5 text-sm">
+              <dt class="text-muted-foreground">{{ report.stale ? '上次自动结论' : '自动结论' }}</dt>
+              <dd>
+                <StatusBadge v-if="report.auto" :tone="badgeTone(autoTone(report))">{{ autoText(report.auto) }}</StatusBadge>
+                <span v-else class="text-muted-foreground">尚未检测</span>
+              </dd>
+              <dt class="text-muted-foreground">报告时效</dt>
+              <dd>
+                <StatusBadge v-if="report.stale" tone="warning">已过期</StatusBadge>
+                <span v-else-if="report.auto">对应当前匿名稿</span>
+                <span v-else class="text-muted-foreground">无报告</span>
+              </dd>
+              <dt class="text-muted-foreground">单项发现</dt>
+              <dd class="tabular">
+                <template v-if="report.stale">以过期报告为准，不展示</template>
+                <template v-else-if="report.auto">阻断 {{ report.blockCount }}，警告 {{ report.warnCount }}</template>
+                <template v-else>—</template>
+              </dd>
+              <dt class="text-muted-foreground">人工结论</dt>
+              <dd>{{ report.manual === 'PASS' ? '已通过核验' : report.manual === 'FAIL' ? '已退回' : '尚未作出' }}</dd>
+              <template v-if="report.pageCount"><dt class="text-muted-foreground">检测对象</dt><dd class="tabular">匿名稿，共 {{ report.pageCount }} 页</dd></template>
+              <template v-if="report.termsVersion !== null"><dt class="text-muted-foreground">依据</dt><dd>本校检测词表第 {{ report.termsVersion }} 版</dd></template>
+            </dl>
+            <p v-if="report.stale" class="flex gap-2 rounded-md bg-warning-soft px-3 py-2 text-sm text-warning">
+              <AlertTriangle class="mt-0.5 size-4 shrink-0" aria-hidden="true" />这份报告不再对应当前匿名稿（材料或登记信息在检测后有变化），不能作为通过依据。
+            </p>
+            <p v-if="report.uncertainPages.length" class="rounded-md bg-muted px-3 py-2 text-sm">第 {{ report.uncertainPages.join('、') }} 页无法可靠提取文字（可能是扫描图片），请人工查看。</p>
+            <p v-if="report.titleStatus === 'TITLE_NOT_FOUND'" class="rounded-md bg-muted px-3 py-2 text-sm">前两页没有找到登记标题的文字，请人工核对；这不代表论文内容不一致。</p>
+            <div v-if="!outcome && detail.stage === 'PREPARING' && anonymous" class="flex flex-wrap items-center gap-2">
+              <Button variant="outline" size="sm" :disabled="rechecking || locked" @click="recheck"><RefreshCw />{{ rechecking ? '正在检测…' : '重新检测匿名稿' }}</Button>
+              <span v-if="recheckError" class="text-sm text-destructive" role="alert">{{ recheckError }}</span>
+            </div>
+          </section>
+
+          <section v-if="!deciding && !outcome && !done" class="grid gap-2" aria-label="当前状态">
+            <h3 class="text-xs font-medium text-muted-foreground">当前状态</h3>
+            <p>
+              <StatusBadge :tone="detail.stage === 'TERMINATED' ? 'danger' : detail.stage === 'DRAFT' ? 'warning' : 'brand'">
+                {{ detail.stage === 'DRAFT' && detail.return_reason ? '已退回修改' : stageLabel(detail.stage) }}
+              </StatusBadge>
+            </p>
+            <template v-if="detail.stage === 'DRAFT'">
+              <blockquote v-if="detail.return_reason" class="border-l-2 border-border-strong pl-3 text-sm whitespace-pre-line">{{ detail.return_reason }}</blockquote>
+              <p class="text-sm text-muted-foreground">学生修改并重新提交后，论文会回到“待核验”。</p>
+            </template>
+          </section>
+
+          <template v-if="deciding || outcome">
+            <fieldset class="grid gap-2" :disabled="locked || Boolean(outcome)">
+              <legend class="mb-2 text-xs font-medium text-muted-foreground">结论</legend>
+              <label :class="['flex gap-3 rounded-md border px-3 py-2.5 has-checked:border-primary has-checked:bg-primary-soft', canPass ? 'cursor-pointer' : 'cursor-not-allowed opacity-60']">
+                <input v-model="decision" type="radio" name="decision" value="pass" :disabled="!canPass" class="mt-1 accent-(--primary)" />
+                <span class="grid gap-0.5">
+                  <span class="font-medium">通过核验</span>
+                  <span class="text-sm text-muted-foreground">{{ canPass ? '匿名稿可以交给专家；之后仍需单独确认送出' : passOffText }}</span>
+                </span>
+              </label>
+              <label :class="['flex gap-3 rounded-md border px-3 py-2.5 has-checked:border-primary has-checked:bg-primary-soft', canReturn ? 'cursor-pointer' : 'cursor-not-allowed opacity-60']">
+                <input v-model="decision" type="radio" name="decision" value="return" :disabled="!canReturn" class="mt-1 accent-(--primary)" />
+                <span class="grid gap-0.5">
+                  <span class="font-medium">退回修改</span>
+                  <span class="text-sm text-muted-foreground">学生收到原因后修改，论文回到草稿</span>
+                </span>
+              </label>
+            </fieldset>
+
+            <div v-if="decision === 'pass'" class="grid gap-1.5">
+              <Label for="decision-note">通过说明（校内留存）<span v-if="!report.passNeedsReason" class="font-normal text-muted-foreground">，选填</span></Label>
+              <Textarea
+                id="decision-note"
+                v-model="note"
+                rows="4"
+                :disabled="locked || Boolean(outcome)"
+                :aria-invalid="touched && Boolean(validation)"
+                aria-describedby="decision-err"
+                placeholder="例如：第 3 页的校区名称是公开地名，不指向个人。"
+              />
+              <p v-if="report.passNeedsReason" class="text-xs text-muted-foreground">存在学校词表提示，通过时必须写明核对结论。</p>
+            </div>
+            <div v-else class="grid gap-1.5">
+              <Label for="decision-reason">退回原因（学生会看到）</Label>
+              <Textarea
+                id="decision-reason"
+                v-model="returnReason"
+                rows="5"
+                :disabled="locked || Boolean(outcome)"
+                :aria-invalid="touched && Boolean(validation)"
+                aria-describedby="decision-err"
+                placeholder="写明需要学生修改的位置与内容"
+              />
+              <p class="text-xs text-muted-foreground">可在检测发现中点“写入退回原因”引用页码。</p>
+            </div>
+            <p v-if="touched && validation && !outcome" id="decision-err" class="text-sm text-destructive">{{ validation }}</p>
+          </template>
+
+          <section v-if="canDispatchNow" class="grid gap-2 rounded-md border bg-muted/50 p-3" aria-label="确认送出">
+            <h3 class="text-sm font-semibold">确认送出</h3>
+            <p class="text-sm text-muted-foreground">{{ outcome === 'passed' ? '核验已通过。' : '这篇论文已通过核验。' }}送出后交给百杰运营派单，学生不能再自行撤回。</p>
+            <Button class="justify-self-start" data-action="open-dispatch" @click="openDispatch">确认送出…</Button>
+          </section>
+
+          <Collapsible v-if="canTerminate" v-model:open="moreOpen" class="border-t pt-3" data-more-ops>
+            <CollapsibleTrigger as-child>
+              <Button variant="ghost" size="sm" class="-ml-2 text-muted-foreground"><ChevronDown :class="['transition-transform', moreOpen && 'rotate-180']" />更多操作</Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent class="grid gap-2 pt-2">
+              <p class="text-sm text-muted-foreground">永久终止会结束这篇论文的送审，未完成的专家任务一并取消，历史记录保留，不能恢复。需要学生修改时，请用“退回修改”。</p>
+              <Button variant="outline" size="sm" class="justify-self-start border-destructive/40 text-destructive hover:bg-destructive-soft hover:text-destructive" data-action="open-terminate" @click="openTerminate">永久终止送审…</Button>
+            </CollapsibleContent>
+          </Collapsible>
+        </div>
+
+        <footer v-if="deciding || outcome || done" class="grid shrink-0 gap-2 border-t bg-background px-4 py-3">
+          <div v-if="done" role="status">
+            <StatusBadge :tone="done === 'dispatched' ? 'success' : 'danger'">{{ done === 'dispatched' ? '已确认送出' : '已终止送审' }}</StatusBadge>
+          </div>
+          <div v-else-if="outcome" class="grid gap-1 text-sm" role="status">
+            <StatusBadge tone="success" class="justify-self-start">{{ outcome === 'passed' ? '已通过核验' : '已退回修改' }}</StatusBadge>
+            <span class="text-muted-foreground">{{ outcome === 'passed' ? '论文进入“待送出”，可以在上方确认送出，也可以稍后在“可送出”视图处理。' : '学生会看到退回原因。' }}</span>
+          </div>
+          <p v-else-if="conflict" class="text-sm text-muted-foreground">{{ conflict.kind === 'updated' ? '论文已更新，请载入最新材料' : '这篇论文已不能在此处理' }}</p>
+          <p v-else class="tabular text-sm text-muted-foreground">
+            待核验<template v-if="findingCount">，已查看 {{ viewed.size }} / {{ findingCount }} 个发现项</template>
+          </p>
+          <div class="flex gap-2">
+            <template v-if="outcome || done">
+              <Button variant="outline" class="flex-1" as-child><RouterLink :to="backTo">返回清单</RouterLink></Button>
+              <Button v-if="nextId" class="flex-1" @click="goNext">下一篇</Button>
+            </template>
+            <Button
+              v-else
+              class="w-full"
+              data-action="submit-decision"
+              :disabled="submitting || locked || Boolean(conflict) || (decision === 'pass' && !canPass)"
+              @click="submit"
+            >
+              {{ submitting ? '正在提交…' : decision === 'pass' ? '通过核验' : '退回修改' }}
+            </Button>
+          </div>
+        </footer>
+      </section>
+    </DefineDecision>
+
+    <div v-if="loadState !== 'ready' || !detail || !report" class="grid h-full place-items-center overflow-y-auto bg-background p-6">
+      <StatePanel v-if="loadState === 'loading'" kind="loading" title="正在读取论文与检测报告…" />
+      <StatePanel v-else-if="loadState === 'unavailable'" kind="forbidden" title="这篇论文已不可用">
+        它可能已被删除、不属于本校，或链接有误。
+        <template #actions><Button as-child><RouterLink :to="backTo">返回清单</RouterLink></Button></template>
+      </StatePanel>
+      <StatePanel v-else-if="loadState === 'error'" kind="error" title="论文没有加载出来">
+        {{ loadError }}
+        <template #actions><Button @click="fetchDetail()">重试</Button></template>
+      </StatePanel>
     </div>
 
-    <ConfirmDialog :open="dispatchOpen" title="确认送出这篇论文？" :busy="dispatchBusy" @close="dispatchOpen = false">
-      <p>《{{ detail?.current_version?.title || '未命名论文' }}》将交给百杰运营派单。送出后学生不能再自行撤回；如需中止，只能永久终止。</p>
-      <p v-if="dispatchError" class="field-error" role="alert">没有送出：{{ dispatchError }}</p>
-      <template #actions>
-        <button type="button" class="btn" :disabled="dispatchBusy" @click="dispatchOpen = false">暂不送出</button>
-        <button type="button" class="btn btn--primary" data-action="confirm-dispatch" :disabled="dispatchBusy" @click="sendOut">{{ dispatchBusy ? '正在送出…' : '确认送出' }}</button>
+    <!-- ≥1280：三栏（并排对照时收起发现栏，给两份 PDF 留宽度） -->
+    <ResizablePanelGroup v-else-if="!narrow && !mid" direction="horizontal" class="bg-background">
+      <template v-if="!compare">
+        <ResizablePanel id="find" :order="1" :default-size="288" :min-size="240" :max-size="420" size-unit="px" class="min-w-0">
+          <section class="flex h-full flex-col" aria-label="检测发现">
+            <header class="flex h-11 shrink-0 items-center gap-2 border-b px-4">
+              <h2 class="text-sm font-semibold">检测发现</h2>
+              <span class="tabular text-xs text-muted-foreground">已查看 {{ viewed.size }} / {{ findingCount }}</span>
+            </header>
+            <div class="min-h-0 flex-1 overflow-y-auto p-3"><ReuseFindings /></div>
+          </section>
+        </ResizablePanel>
+        <ResizableHandle />
       </template>
-    </ConfirmDialog>
+      <ResizablePanel id="doc" :order="2" :min-size="480" size-unit="px" class="min-w-0"><ReuseDoc /></ResizablePanel>
+      <ResizableHandle />
+      <ResizablePanel id="decide" :order="3" :default-size="368" :min-size="320" :max-size="480" size-unit="px" class="min-w-0"><ReuseDecision /></ResizablePanel>
+    </ResizablePanelGroup>
 
-    <ConfirmDialog :open="terminateOpen" title="永久终止这篇论文的送审？" :busy="terminateBusy" @close="terminateOpen = false">
-      <p>《{{ detail?.current_version?.title || '未命名论文' }}》的送审将结束，未完成的专家任务一并取消。终止后不能恢复。</p>
-      <label class="field">
-        <span>终止原因（必填，校内留存）</span>
-        <textarea v-model="terminateReason" class="textarea" rows="3" data-terminate-reason :disabled="terminateBusy" />
-      </label>
-      <p v-if="terminateError" class="field-error" role="alert">没有终止：{{ terminateError }}</p>
-      <template #actions>
-        <button type="button" class="btn" :disabled="terminateBusy" @click="terminateOpen = false">不终止</button>
-        <button type="button" class="btn btn--danger" data-action="terminate-thesis" :disabled="terminateBusy || !terminateReason.trim()" @click="terminate">{{ terminateBusy ? '正在终止…' : '永久终止' }}</button>
-      </template>
-    </ConfirmDialog>
-  </FocusShell>
+    <!-- 1024–1279：发现收进抽屉 -->
+    <div v-else-if="mid" class="grid h-full grid-cols-[minmax(0,1fr)_340px] grid-rows-[minmax(0,1fr)] bg-background">
+      <div class="min-w-0 border-r"><ReuseDoc :with-findings="true" /></div>
+      <ReuseDecision />
+    </div>
+
+    <!-- <1024：标签页 -->
+    <Tabs v-else v-model="mobileTab" class="flex h-full flex-col gap-0 bg-background">
+      <TabsList class="m-2 flex w-auto shrink-0" aria-label="核验视图">
+        <TabsTrigger value="findings">发现 {{ findingCount }}</TabsTrigger>
+        <TabsTrigger value="doc">材料</TabsTrigger>
+        <TabsTrigger value="decide">判断</TabsTrigger>
+      </TabsList>
+      <TabsContent value="findings" class="min-h-0 overflow-y-auto border-t p-3" aria-label="检测发现"><ReuseFindings /></TabsContent>
+      <TabsContent value="doc" class="min-h-0 border-t"><ReuseDoc /></TabsContent>
+      <TabsContent value="decide" class="min-h-0 border-t"><ReuseDecision /></TabsContent>
+    </Tabs>
+
+    <Sheet v-model:open="findingsSheet">
+      <SheetContent side="left" class="w-[340px] gap-0 p-0 sm:max-w-[340px]">
+        <SheetHeader class="border-b px-4 py-3">
+          <SheetTitle class="text-sm">检测发现</SheetTitle>
+          <SheetDescription class="text-xs">点一项，匿名稿跳到对应页。已查看 {{ viewed.size }} / {{ findingCount }}</SheetDescription>
+        </SheetHeader>
+        <div class="min-h-0 flex-1 overflow-y-auto p-3"><ReuseFindings /></div>
+      </SheetContent>
+    </Sheet>
+
+    <AlertDialog :open="dispatchOpen" @update:open="(open) => !open && !dispatchBusy && (dispatchOpen = false)">
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>确认送出这篇论文？</AlertDialogTitle>
+          <AlertDialogDescription>《{{ detail?.current_version?.title || '未命名论文' }}》将交给百杰运营派单。送出后学生不能再自行撤回；如需中止，只能永久终止。</AlertDialogDescription>
+        </AlertDialogHeader>
+        <p v-if="dispatchError" class="text-sm text-destructive" role="alert">没有送出：{{ dispatchError }}</p>
+        <AlertDialogFooter>
+          <AlertDialogCancel :disabled="dispatchBusy">暂不送出</AlertDialogCancel>
+          <Button data-action="confirm-dispatch" :disabled="dispatchBusy" @click="sendOut">{{ dispatchBusy ? '正在送出…' : '确认送出' }}</Button>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+
+    <AlertDialog :open="terminateOpen" @update:open="(open) => !open && !terminateBusy && (terminateOpen = false)">
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>永久终止这篇论文的送审？</AlertDialogTitle>
+          <AlertDialogDescription>《{{ detail?.current_version?.title || '未命名论文' }}》的送审将结束，未完成的专家任务一并取消。终止后不能恢复。</AlertDialogDescription>
+        </AlertDialogHeader>
+        <div class="grid gap-1.5">
+          <Label for="terminate-reason">终止原因（必填，校内留存）</Label>
+          <Textarea id="terminate-reason" v-model="terminateReason" rows="3" data-terminate-reason :disabled="terminateBusy" />
+        </div>
+        <p v-if="terminateError" class="text-sm text-destructive" role="alert">没有终止：{{ terminateError }}</p>
+        <AlertDialogFooter>
+          <AlertDialogCancel :disabled="terminateBusy">不终止</AlertDialogCancel>
+          <Button variant="destructive" data-action="terminate-thesis" :disabled="terminateBusy || !terminateReason.trim()" @click="terminate">{{ terminateBusy ? '正在终止…' : '永久终止' }}</Button>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  </AppShell>
 </template>
 
 <style scoped>
-.sendout,
-.state-now {
-  display: grid;
-  gap: 8px;
-  padding: 12px 14px;
-  border: 1px solid var(--ws-border);
-  border-radius: var(--ws-radius);
-  background: var(--ws-page);
-}
-.sendout h2,
-.state-now h2 {
-  font-size: 14px;
-  font-weight: 600;
-}
-.sendout .btn {
-  justify-self: start;
-}
-.state-now__reason {
-  margin: 0;
-  padding-left: 10px;
-  border-left: 3px solid var(--ws-warning);
-  font-family: var(--ws-font-reading);
-  line-height: 1.7;
-}
-.more-ops {
-  border-top: 1px solid var(--ws-border);
-  padding-top: 10px;
-  font-size: 13px;
-}
-.more-ops summary {
-  color: var(--ws-muted);
-  cursor: pointer;
-}
-.more-ops[open] {
-  display: grid;
-  gap: 8px;
-}
-.more-ops .btn {
-  justify-self: start;
-}
-.banner--ok {
-  border-left-color: var(--ws-success);
-  background: var(--ws-success-soft);
-}
-.back {
-  min-height: 32px;
-  padding: 0 8px;
-  color: var(--ws-action);
-  text-decoration: none;
-}
-.vt-title {
-  min-width: 0;
-  overflow: hidden;
-  font-size: 15px;
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.vt-meta {
-  flex: none;
-  font-size: 13px;
-}
-.vt-pos {
-  font-size: 13px;
-  white-space: nowrap;
-}
-.verify {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-}
-.verify__grid {
-  display: grid;
-  flex: 1;
-  grid-template-columns: 264px minmax(0, 1fr) 360px;
-  min-height: 0;
-}
-.verify__grid--nofind {
-  grid-template-columns: minmax(0, 1fr) 360px;
-}
-.verify__grid--narrow {
-  grid-template-columns: minmax(0, 1fr);
-}
-.verify__grid--mid {
-  position: relative;
-  grid-template-columns: minmax(0, 1fr) 340px;
-}
-.col {
-  min-height: 0;
-  overflow-y: auto;
-  background: var(--ws-surface);
-}
-.col--find {
-  border-right: 1px solid var(--ws-border);
-}
-.col--overlay {
-  position: absolute;
-  z-index: 20;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  width: 300px;
-  box-shadow: var(--ws-shadow-float);
-}
-.col--doc {
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  overflow: hidden;
-}
-.col--decide {
-  border-left: 1px solid var(--ws-border);
-}
-.find__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 12px 4px 16px;
-}
-.find__head h2 {
-  font-size: 14px;
-  font-weight: 600;
-}
-.find__empty {
-  margin: 8px 16px;
-  color: var(--ws-muted);
-  font-size: 13px;
-}
-.find__group {
-  padding: 8px 8px 4px;
-}
-.find__group h3 {
-  margin: 4px 8px 6px;
-}
-.find__group ul {
-  display: grid;
-  gap: 2px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.finding {
-  display: grid;
-  width: 100%;
-  gap: 2px;
-  padding: 8px;
-  border: 0;
-  border-radius: var(--ws-radius);
-  background: transparent;
-  text-align: left;
-  cursor: pointer;
-}
-.finding:hover,
-.finding--open {
-  background: var(--ws-sunken);
-}
-.finding__top {
-  display: flex;
-  gap: 8px;
-  font-size: 12px;
-}
-.finding__seen {
-  margin-left: auto;
-  color: var(--ws-success);
-}
-.finding__match {
-  font-weight: 500;
-  overflow-wrap: anywhere;
-}
-.finding__detail {
-  display: grid;
-  gap: 6px;
-  justify-items: start;
-  margin: 2px 8px 8px;
-  padding: 8px 10px;
-  border-left: 2px solid var(--ws-border-strong);
-  font-size: 13px;
-}
-.context {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-.doc-switch {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 12px;
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--ws-border);
-}
 .seg {
-  display: inline-flex;
-  padding: 2px;
-  border-radius: var(--ws-radius);
-  background: var(--ws-sunken);
-}
-.seg button {
-  min-height: 28px;
-  padding: 0 12px;
-  border: 0;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--ws-muted);
+  height: 1.75rem;
+  border-radius: calc(var(--radius) - 2px);
+  padding-inline: 0.625rem;
+  color: var(--muted-foreground);
   font-size: 13px;
-  cursor: pointer;
 }
-.seg button:disabled {
+.seg:hover:not(:disabled) {
+  color: var(--foreground);
+}
+.seg[aria-pressed='true'] {
+  background: var(--muted);
+  color: var(--foreground);
+  font-weight: 500;
+}
+.seg:disabled {
   cursor: not-allowed;
   opacity: 0.5;
-}
-.seg button[aria-pressed='true'] {
-  background: var(--ws-surface);
-  box-shadow: 0 1px 2px var(--ws-border-strong);
-  color: var(--ws-text);
-  font-weight: 600;
-}
-.visibility {
-  color: var(--ws-muted);
-  font-size: 12px;
-}
-.doc-area {
-  display: grid;
-  min-height: 0;
-  background: var(--ws-sunken);
-}
-.doc-area--compare {
-  grid-template-columns: 1fr 1fr;
-  gap: 1px;
-  background: var(--ws-border);
-}
-.doc-frame {
-  width: 100%;
-  height: 100%;
-  min-height: 60vh;
-  border: 0;
-  background: var(--ws-surface);
-}
-.decide {
-  display: grid;
-  gap: 16px;
-  padding: 16px;
-}
-.banner {
-  display: grid;
-  gap: 6px;
-  justify-items: start;
-  padding: 10px 12px;
-  border-left: 3px solid var(--ws-action);
-  border-radius: 0 var(--ws-radius) var(--ws-radius) 0;
-  background: var(--ws-action-soft);
-  font-size: 13px;
-}
-.banner--danger {
-  border-left-color: var(--ws-danger);
-  background: var(--ws-danger-soft);
-}
-.basis h2,
-.choice legend {
-  margin-bottom: 8px;
-  font-size: 14px;
-  font-weight: 600;
-}
-.basis dl {
-  display: grid;
-  grid-template-columns: 76px 1fr;
-  gap: 6px 10px;
-  margin: 0;
-  font-size: 13px;
-}
-.basis dt {
-  color: var(--ws-muted);
-}
-.basis dd {
-  margin: 0;
-}
-.basis__stale {
-  margin-top: 10px;
-  padding: 10px 12px;
-  border-radius: var(--ws-radius);
-  background: var(--ws-warning-soft);
-  font-size: 13px;
-}
-.basis__note {
-  margin-top: 10px;
-  color: var(--ws-muted);
-  font-size: 13px;
-}
-.basis__recheck {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
-  margin-top: 10px;
-}
-.choice {
-  display: grid;
-  gap: 8px;
-  margin: 0;
-  padding: 0;
-  border: 0;
-}
-.choice__opt {
-  display: flex;
-  gap: 10px;
-  align-items: flex-start;
-  padding: 10px 12px;
-  border: 1px solid var(--ws-border);
-  border-radius: var(--ws-radius-panel);
-  cursor: pointer;
-}
-.choice__opt:has(input:checked) {
-  border-color: var(--ws-action);
-  background: var(--ws-action-soft);
-}
-.choice__opt--off {
-  cursor: not-allowed;
-  opacity: 0.7;
-}
-.choice__opt input {
-  margin-top: 3px;
-}
-.choice__opt span {
-  display: grid;
-  gap: 2px;
-}
-.choice__opt small {
-  color: var(--ws-muted);
-  font-size: 12px;
-}
-.btn--danger-outline {
-  border-color: var(--ws-danger);
-  color: var(--ws-danger);
-}
-.btn--danger-outline:hover:not(:disabled) {
-  background: var(--ws-danger-soft);
-}
-.decide-bar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px 16px;
-  min-height: 56px;
-  padding: 8px 16px;
-  border-top: 1px solid var(--ws-border);
-  background: var(--ws-surface);
-}
-.decide-bar__state {
-  font-size: 13px;
-}
-.decide-bar__done {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
-  font-size: 13px;
-}
-.decide-bar__actions {
-  display: flex;
-  gap: 8px;
-  margin-left: auto;
-}
-.mtabs {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  border-bottom: 1px solid var(--ws-border);
-  background: var(--ws-surface);
-}
-.mtabs button {
-  min-height: 44px;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  background: transparent;
-  color: var(--ws-muted);
-}
-.mtabs button[aria-pressed='true'] {
-  border-bottom-color: var(--ws-action);
-  color: var(--ws-text);
-  font-weight: 600;
-}
-@media (max-width: 859px) {
-  .vt-meta,
-  .vt-pos {
-    display: none;
-  }
-  .decide-bar__actions {
-    width: 100%;
-  }
-  .decide-bar__actions .btn--primary {
-    flex: 1;
-  }
 }
 </style>

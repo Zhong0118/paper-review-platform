@@ -106,6 +106,7 @@ it('shows correction notices', async () => {
 it('registers an objection with both fields after confirmation and a stable key on retry', async () => {
   api.createObjection.mockRejectedValueOnce(httpError(503))
   const { wrapper } = await mountAt(StudentPage, '/student/results')
+  await wrapper.get('[data-action="toggle-objection"]').trigger('click')
   await wrapper.get('[data-action="open-objection"]').trigger('click')
   expect(wrapper.get('[data-objection-error]').text()).toContain('异议理由')
   await wrapper.get('textarea[name="objectionReason"]').setValue('第三章评分与评语不一致')
@@ -126,6 +127,19 @@ it('registers an objection with both fields after confirmation and a stable key 
   expect(wrapper.get('[data-objection-notice]').text()).toContain('异议已登记')
   expect(wrapper.get('[data-objection-status]').text()).toContain('等待学校受理')
   expect(wrapper.find('[data-action="open-objection"]').exists()).toBe(false)
+})
+
+it('keeps the objection form folded until the student opens it (R3-4)', async () => {
+  const { wrapper } = await mountAt(StudentPage, '/student/results')
+  expect(wrapper.find('.objection').exists()).toBe(true)
+  expect(wrapper.find('textarea[name="objectionReason"]').exists()).toBe(false)
+  expect(wrapper.find('[data-action="open-objection"]').exists()).toBe(false)
+  const toggle = wrapper.get('[data-action="toggle-objection"]')
+  expect(toggle.attributes('aria-expanded')).toBe('false')
+  await toggle.trigger('click')
+  expect(toggle.attributes('aria-expanded')).toBe('true')
+  expect(wrapper.find('textarea[name="objectionReason"]').exists()).toBe(true)
+  expect(wrapper.text()).toContain('登记异议不会自动改变分数')
 })
 
 it('shows a resolved objection with its conclusion and no form when the server disallows a new one', async () => {

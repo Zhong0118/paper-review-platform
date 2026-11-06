@@ -13,9 +13,12 @@ import { apiFailure } from '@/api/failure'
 import { selectSchoolResultQueue } from '@/api/adapters'
 import { getSchoolThesis, listSchoolTheses } from '@/api/schoolReview'
 import type { ThesisDetail } from '@/api/theses'
+import ScopeSelect from '@/components/app/data/ScopeSelect.vue'
+import AppShell from '@/components/app/shell/AppShell.vue'
+import { useSignOut } from '@/components/app/shell/useSignOut'
+import StatePanel from '@/components/app/state/StatePanel.vue'
+import { Button } from '@/components/ui/button'
 import MasterDetail from '@/components/workspace/MasterDetail.vue'
-import OperationsShell from '@/components/workspace/OperationsShell.vue'
-import StateBlock from '@/components/workspace/StateBlock.vue'
 import type { WorkspaceAccount } from '@/components/workspace/types'
 import { useNarrow } from '@/components/workspace/useNarrow'
 import { useTimeScope } from '@/composables/useTimeScope'
@@ -146,6 +149,7 @@ const line = (row: ThesisDetail) => {
 }
 
 const resultCount = computed(() => (ready.value && !correctionsFailed.value ? countOf('publish') + countOf('correction') : undefined))
+const signOut = useSignOut()
 const nav = computed(() => workspaceNav('school_reviewer', '/school/results', { '/school/results': resultCount.value }))
 const account = computed<WorkspaceAccount>(() => ({
   name: auth.user?.displayName || '身份未取得',
@@ -157,16 +161,9 @@ const account = computed<WorkspaceAccount>(() => ({
 
 <template>
   <div class="ws">
-    <OperationsShell :nav="nav" :account="account" :org="account.org">
-      <template #title><h1 class="wsd-title">结果处理</h1></template>
-      <template #context>
-        <label class="ctx-scope">
-          <span class="sr-only">论文范围</span>
-          <select class="select" :value="timeScope.scope.value" data-time-scope @change="timeScope.setScope(($event.target as HTMLSelectElement).value)">
-            <option value="past_year">近一年（按论文创建日）</option>
-            <option value="all">全部年份</option>
-          </select>
-        </label>
+    <AppShell :nav="nav" :account="account" :workspace="account.org" layout="bare" title="结果处理" @sign-out="signOut">
+      <template #actions>
+        <ScopeSelect :model-value="timeScope.scope.value" @update:model-value="timeScope.setScope" />
       </template>
 
       <MasterDetail :open="Boolean(thesisId)" :narrow="narrow" list-label="结果清单" detail-label="当前论文结果" back-label="结果清单" @back="setQuery({ thesis: undefined, correction: undefined })">
@@ -179,19 +176,19 @@ const account = computed<WorkspaceAccount>(() => ({
             </div>
             <p v-if="ready" class="wsd-scope">计数为已加载的 {{ rows.length }} 篇（{{ timeScope.scope.value === 'past_year' ? '近一年，按论文创建日' : '全部年份' }}）。</p>
             <p v-if="ready && correctionsFailed" class="wsd-scope warn" role="status">
-              更正记录没有加载出来，“更正待确认”暂不可用。<button type="button" class="btn btn--quiet btn--sm" @click="load">重试</button>
+              更正记录没有加载出来，“更正待确认”暂不可用。<Button type="button" variant="ghost" size="sm" @click="load">重试</Button>
             </p>
           </div>
-          <StateBlock v-if="loading" kind="loading" title="正在读取评阅结果…" compact />
-          <StateBlock v-else-if="error" kind="error" title="结果清单没有加载出来" compact>
+          <StatePanel v-if="loading" kind="loading" title="正在读取评阅结果…" compact />
+          <StatePanel v-else-if="error" kind="error" title="结果清单没有加载出来" compact>
             {{ error }}
-            <template #actions><button type="button" class="btn btn--primary" @click="load">重试</button></template>
-          </StateBlock>
-          <StateBlock v-else-if="!all.length" kind="empty" title="这个范围内还没有完成评阅的论文" compact>
+            <template #actions><Button type="button" variant="outline" @click="load">重试</Button></template>
+          </StatePanel>
+          <StatePanel v-else-if="!all.length" kind="empty" title="这个范围内还没有完成评阅的论文" compact>
             专家提交评阅后，论文会出现在“待发布”。
-            <template v-if="timeScope.scope.value === 'past_year'" #actions><button type="button" class="btn" @click="timeScope.setScope('all')">查看全部年份</button></template>
-          </StateBlock>
-          <StateBlock v-else-if="!list.length" kind="empty" :title="view === 'correction' ? '没有待确认的更正' : '这个视图里没有论文'" compact />
+            <template v-if="timeScope.scope.value === 'past_year'" #actions><Button type="button" variant="outline" @click="timeScope.setScope('all')">查看全部年份</Button></template>
+          </StatePanel>
+          <StatePanel v-else-if="!list.length" kind="empty" :title="view === 'correction' ? '没有待确认的更正' : '这个视图里没有论文'" compact />
           <ul v-else class="wsd-tlist">
             <li v-for="row in list" :key="row.id">
               <button type="button" class="wsd-titem" :class="{ 'wsd-titem--on': row.id === thesisId }" :aria-current="row.id === thesisId || undefined" @click="select(row.id)">
@@ -206,19 +203,19 @@ const account = computed<WorkspaceAccount>(() => ({
         </template>
 
         <template #empty>
-          <StateBlock v-if="ready && all.length" kind="empty" title="从左侧选择一篇论文" compact>
+          <StatePanel v-if="ready && all.length" kind="empty" title="从左侧选择一篇论文" compact>
             对象区会列出发布后学生与导师能看到的全部内容。
-          </StateBlock>
+          </StatePanel>
         </template>
 
-        <StateBlock v-if="(loading || extraLoading) && !selected" kind="loading" title="正在读取论文…" />
-        <StateBlock v-else-if="error" kind="error" title="结果清单没有加载出来，暂时不能打开论文">
-          <template #actions><button type="button" class="btn btn--primary" @click="load">重试</button></template>
-        </StateBlock>
-        <StateBlock v-else-if="!selected" kind="forbidden" title="这篇论文不在本校可处理的结果中">
+        <StatePanel v-if="(loading || extraLoading) && !selected" kind="loading" title="正在读取论文…" />
+        <StatePanel v-else-if="error" kind="error" title="结果清单没有加载出来，暂时不能打开论文">
+          <template #actions><Button type="button" variant="outline" @click="load">重试</Button></template>
+        </StatePanel>
+        <StatePanel v-else-if="!selected" kind="forbidden" title="这篇论文不在本校可处理的结果中">
           它可能还没有进入结果处理，或不属于本校。
-          <template #actions><button type="button" class="btn" @click="setQuery({ thesis: undefined, correction: undefined })">返回结果清单</button></template>
-        </StateBlock>
+          <template #actions><Button type="button" variant="outline" @click="setQuery({ thesis: undefined, correction: undefined })">返回结果清单</Button></template>
+        </StatePanel>
         <ResultObject
           v-else
           :key="selected.id"
@@ -231,20 +228,11 @@ const account = computed<WorkspaceAccount>(() => ({
           @published="published"
         />
       </MasterDetail>
-    </OperationsShell>
+    </AppShell>
   </div>
 </template>
 
 <style scoped>
-.ctx-scope {
-  min-width: 0;
-}
-.ctx-scope .select {
-  width: auto;
-  max-width: 100%;
-  min-height: 32px;
-  font-size: 13px;
-}
 .warn {
   display: flex;
   flex-wrap: wrap;

@@ -5,23 +5,30 @@
  * - 发布快照按 schema 版本解读（publishedFeedback.ts）；无法识别 → 整页按接口错误处理（D7）。
  * - 异议：服务端给 SUBMIT_OBJECTION 且没有未结异议时才可登记；理由与诉求都必填；一次尝试幂等键稳定。
  */
+import { ChevronDown, MessageSquareWarning } from '@lucide/vue'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import { createObjection, listMyObjections, type ObjectionRow } from '@/api/objections'
 import { getPublishedResult } from '@/api/results'
 import { listTheses, type ThesisDetail } from '@/api/theses'
+import ScopeSelect from '@/components/app/data/ScopeSelect.vue'
+import StatusBadge from '@/components/app/data/StatusBadge.vue'
+import AppShell from '@/components/app/shell/AppShell.vue'
+import { useSignOut } from '@/components/app/shell/useSignOut'
+import StatePanel from '@/components/app/state/StatePanel.vue'
+import { Button } from '@/components/ui/button'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import ConfirmDialog from '@/components/workspace/ConfirmDialog.vue'
-import PersonalShell from '@/components/workspace/PersonalShell.vue'
-import StateBlock from '@/components/workspace/StateBlock.vue'
-import StatusPill from '@/components/workspace/StatusPill.vue'
 import { useTimeScope } from '@/composables/useTimeScope'
 import { studentAccount, studentNav } from '@/modules/thesis/workspace/studentShell'
 import { failureText } from '@/api/failure'
 import { useAuthStore } from '@/stores/auth'
 import '@/styles/workspace.css'
 
-import FeedbackArticle from './FeedbackArticle.vue'
+import FeedbackDocument from './FeedbackDocument.vue'
 import { readPublished, type FeedbackView } from './publishedFeedback'
 
 const route = useRoute()
@@ -69,6 +76,7 @@ async function loadResult() {
   objections.value = []
   objectionError.value = ''
   objectionNotice.value = ''
+  objectionFormOpen.value = false
   const id = queryId.value
   if (!id) {
     state.value = { kind: 'idle' }
@@ -108,6 +116,7 @@ function choose(id: string) {
 const objections = ref<ObjectionRow[]>([])
 const objectionError = ref('')
 const objectionNotice = ref('')
+const objectionFormOpen = ref(false)
 const latest = computed(() => objections.value[0] ?? null)
 const open = computed(() => Boolean(latest.value && ['SUBMITTED', 'PROCESSING'].includes(latest.value.status)))
 const canObject = computed(() => Boolean(thesis.value?.allowed_actions.includes('SUBMIT_OBJECTION')) && !open.value)
@@ -169,172 +178,110 @@ async function submitObjection() {
   }
 }
 
-const nav = computed(() => studentNav('/student/results'))
+const signOut = useSignOut()
+const nav = computed(() => [{ items: studentNav('/student/results') }])
 const account = computed(() => studentAccount(auth.user))
 </script>
 
 <template>
   <div class="ws">
-    <PersonalShell :nav="nav" :account="account" width="reading">
-      <div class="toolbar">
-        <label v-if="published.length > 1" class="picker">
-          <span>论文</span>
-          <select class="select" :value="queryId" data-thesis-picker @change="choose(($event.target as HTMLSelectElement).value)">
-            <option v-for="row in published" :key="row.id" :value="row.id">{{ row.current_version?.title || '未命名论文' }}</option>
-          </select>
-        </label>
-        <label class="scope">
-          <span class="sr-only">论文范围</span>
-          <select class="select" :value="timeScope.scope.value" data-time-scope @change="timeScope.setScope(($event.target as HTMLSelectElement).value)">
-            <option value="all">全部年份</option>
-            <option value="past_year">近一年</option>
-          </select>
-        </label>
-      </div>
+    <AppShell :nav="nav" :account="account" :workspace="account.org" layout="reading" title="评阅结果" @sign-out="signOut">
+      <template #context>学校发布后的正式反馈</template>
+      <template #actions><ScopeSelect :model-value="timeScope.scope.value" @update:model-value="timeScope.setScope" /></template>
 
-      <StateBlock v-if="listLoading || state.kind === 'loading'" kind="loading" title="正在载入正式反馈" />
-      <StateBlock v-else-if="listError" kind="error" title="本人论文没有加载出来">
+      <label v-if="published.length > 1" class="mb-6 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5 text-sm">
+        <span class="text-muted-foreground">论文</span>
+        <select
+          class="h-(--control-h) min-w-0 max-w-full rounded-md border border-input bg-background px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+          :value="queryId"
+          data-thesis-picker
+          @change="choose(($event.target as HTMLSelectElement).value)"
+        >
+          <option v-for="row in published" :key="row.id" :value="row.id">{{ row.current_version?.title || '未命名论文' }}</option>
+        </select>
+      </label>
+
+      <StatePanel v-if="listLoading || state.kind === 'loading'" kind="loading" title="正在载入正式反馈" />
+      <StatePanel v-else-if="listError" kind="error" title="本人论文没有加载出来">
         {{ listError }}
-        <template #actions><button type="button" class="btn" data-action="retry-feedback" @click="loadList">重试</button></template>
-      </StateBlock>
-      <StateBlock v-else-if="state.kind === 'idle'" kind="empty" title="还没有已发布的评阅结果">
+        <template #actions><Button variant="outline" data-action="retry-feedback" @click="loadList">重试</Button></template>
+      </StatePanel>
+      <StatePanel v-else-if="state.kind === 'idle'" kind="empty" title="还没有已发布的评阅结果">
         学校发布结果后，正式反馈会出现在这里。
-        <template #actions><RouterLink class="btn" to="/student/dashboard">回到我的送审</RouterLink></template>
-      </StateBlock>
-      <StateBlock v-else-if="state.kind === 'unpublished'" kind="empty" title="这篇论文的评阅结果还没有发布" data-unpublished>
+        <template #actions><Button variant="outline" as-child><RouterLink to="/student/dashboard">回到我的送审</RouterLink></Button></template>
+      </StatePanel>
+      <StatePanel v-else-if="state.kind === 'unpublished'" kind="empty" title="这篇论文的评阅结果还没有发布" data-unpublished>
         学校发布后会在这里显示正式反馈。发布前看不到分数或评语，这不代表评阅进度。
-        <template #actions><RouterLink class="btn" to="/student/dashboard">回到我的送审</RouterLink></template>
-      </StateBlock>
-      <StateBlock v-else-if="state.kind === 'invalid'" kind="error" title="这份评阅结果暂时无法显示" data-feedback-invalid>
+        <template #actions><Button variant="outline" as-child><RouterLink to="/student/dashboard">回到我的送审</RouterLink></Button></template>
+      </StatePanel>
+      <StatePanel v-else-if="state.kind === 'invalid'" kind="error" title="这份评阅结果暂时无法显示" data-feedback-invalid>
         结果数据的格式无法识别，为避免显示错误内容，本页没有展示任何部分。请稍后再试；如果一直如此，请联系学校。
-        <template #actions><RouterLink class="btn" to="/student/dashboard">回到我的送审</RouterLink></template>
-      </StateBlock>
-      <StateBlock v-else-if="state.kind === 'error'" kind="error" title="评阅结果没有加载出来">
+        <template #actions><Button variant="outline" as-child><RouterLink to="/student/dashboard">回到我的送审</RouterLink></Button></template>
+      </StatePanel>
+      <StatePanel v-else-if="state.kind === 'error'" kind="error" title="评阅结果没有加载出来">
         {{ loadError }}
-        <template #actions><button type="button" class="btn" data-action="retry-feedback" @click="loadResult">重试</button></template>
-      </StateBlock>
+        <template #actions><Button variant="outline" data-action="retry-feedback" @click="loadResult">重试</Button></template>
+      </StatePanel>
 
-      <FeedbackArticle v-else-if="state.kind === 'ready'" :view="state.view" :title="title" :context="context">
-        <section class="objection" aria-labelledby="objection-head">
-          <h2 id="objection-head">对这份结果有异议？</h2>
-          <p v-if="objectionNotice" class="ok" role="status" data-objection-notice>{{ objectionNotice }}</p>
-          <p v-if="objectionError" class="err" role="alert">
+      <FeedbackDocument v-else-if="state.kind === 'ready'" :view="state.view" :title="title" :context="context">
+        <section class="objection grid max-w-[42em] gap-3 border-t pt-6" aria-label="异议">
+          <p v-if="objectionNotice" class="rounded-md border-l-[3px] border-success bg-success-soft px-4 py-2.5 text-sm" role="status" data-objection-notice>{{ objectionNotice }}</p>
+          <p v-if="objectionError" class="flex flex-wrap items-center gap-3 rounded-md border-l-[3px] border-destructive bg-destructive-soft px-4 py-2.5 text-sm" role="alert">
             {{ objectionError }}
-            <button type="button" class="btn btn--sm" @click="loadObjections(queryId)">重试</button>
+            <Button variant="outline" size="sm" @click="loadObjections(queryId)">重试</Button>
           </p>
-          <div v-if="latest" class="record" data-objection-status>
-            <p><StatusPill :tone="latest.status === 'RESOLVED' ? 'success' : 'action'">{{ OBJECTION_TEXT[latest.status] ?? latest.status }}</StatusPill></p>
-            <dl>
-              <dt>你的理由</dt><dd class="pre">{{ latest.reason }}</dd>
-              <template v-if="latest.request"><dt>处理诉求</dt><dd class="pre">{{ latest.request }}</dd></template>
+
+          <div v-if="latest" class="grid gap-3 rounded-lg border bg-muted/40 px-4 py-3" data-objection-status>
+            <p class="flex items-center gap-2 text-sm"><span class="text-muted-foreground">你登记的异议</span><StatusBadge :tone="latest.status === 'RESOLVED' ? 'success' : 'brand'">{{ OBJECTION_TEXT[latest.status] ?? latest.status }}</StatusBadge></p>
+            <dl class="grid grid-cols-[5em_1fr] gap-x-3 gap-y-1.5 text-sm">
+              <dt class="text-muted-foreground">你的理由</dt><dd class="pre">{{ latest.reason }}</dd>
+              <template v-if="latest.request"><dt class="text-muted-foreground">处理诉求</dt><dd class="pre">{{ latest.request }}</dd></template>
               <template v-if="latest.status === 'RESOLVED'">
-                <dt>学校结论</dt><dd class="pre">{{ latest.conclusion || '学校未填写结论' }}<span v-if="latest.channel" class="muted">（{{ CHANNEL_TEXT[latest.channel] ?? latest.channel }}）</span></dd>
+                <dt class="text-muted-foreground">学校结论</dt><dd class="pre">{{ latest.conclusion || '学校未填写结论' }}<span v-if="latest.channel" class="text-muted-foreground">（{{ CHANNEL_TEXT[latest.channel] ?? latest.channel }}）</span></dd>
               </template>
             </dl>
           </div>
-          <template v-if="canObject && !objectionError">
-            <p class="muted">异议由学校处理。登记异议不会自动改变分数，也不会让专家重新评阅。</p>
-            <label class="field">
-              <span>异议理由</span>
-              <textarea v-model="reason" class="textarea" name="objectionReason" placeholder="写明你对哪一部分有异议，以及理由" />
-            </label>
-            <label class="field">
-              <span>处理诉求</span>
-              <textarea v-model="request" class="textarea" name="objectionRequest" placeholder="例如：请学校复核第三章的评分" />
-            </label>
-            <p v-if="formError" class="field-error" role="alert" data-objection-error>{{ formError }}</p>
-            <button type="button" class="btn btn--primary" data-action="open-objection" @click="openConfirm">登记异议…</button>
-          </template>
-          <p v-else-if="!latest && !objectionError" class="muted" data-objection-closed>这篇论文当前不能登记异议。如有疑问，请联系学院研究生秘书。</p>
+
+          <Collapsible v-if="canObject && !objectionError" v-model:open="objectionFormOpen">
+            <CollapsibleTrigger as-child>
+              <Button variant="ghost" class="-ml-3 text-muted-foreground" data-action="toggle-objection">
+                <MessageSquareWarning />对这份结果有异议？<ChevronDown :class="['transition-transform', objectionFormOpen && 'rotate-180']" />
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent class="grid gap-4 pt-3">
+              <p>异议由学校处理。登记异议不会自动改变分数，也不会让专家重新评阅。</p>
+              <p class="text-sm text-muted-foreground">理由和处理诉求都要写；一篇论文同时只能有一份未办结的异议。</p>
+              <div class="grid gap-1.5">
+                <Label for="objection-reason">异议理由</Label>
+                <Textarea id="objection-reason" v-model="reason" name="objectionReason" rows="3" placeholder="写明你对哪一部分有异议，以及理由" />
+              </div>
+              <div class="grid gap-1.5">
+                <Label for="objection-request">处理诉求</Label>
+                <Textarea id="objection-request" v-model="request" name="objectionRequest" rows="2" placeholder="例如：请学校复核第三章的评分" />
+              </div>
+              <p v-if="formError" class="text-sm text-destructive" role="alert" data-objection-error>{{ formError }}</p>
+              <Button variant="outline" class="justify-self-start" data-action="open-objection" @click="openConfirm">登记异议…</Button>
+            </CollapsibleContent>
+          </Collapsible>
+          <p v-else-if="!latest && !objectionError" class="text-sm text-muted-foreground" data-objection-closed>这篇论文当前不能登记异议。如有疑问，请联系学院研究生秘书。</p>
         </section>
-      </FeedbackArticle>
-    </PersonalShell>
+      </FeedbackDocument>
+    </AppShell>
 
     <ConfirmDialog :open="confirmOpen" title="登记这份异议？" :busy="submitting" @close="confirmOpen = false">
       <p>登记后不能撤回；同一篇论文同时只能有一份未办结的异议。学校处理完成后，你会在这里看到结论。</p>
-      <p v-if="submitError" class="err" role="alert" data-objection-submit-error>{{ submitError }}</p>
+      <p v-if="submitError" class="text-sm text-destructive" role="alert" data-objection-submit-error>{{ submitError }}</p>
       <template #actions>
-        <button type="button" class="btn" :disabled="submitting" @click="confirmOpen = false">继续修改</button>
-        <button type="button" class="btn btn--primary" data-action="confirm-objection" :disabled="submitting" @click="submitObjection">{{ submitting ? '正在登记…' : '确认登记' }}</button>
+        <Button variant="outline" :disabled="submitting" @click="confirmOpen = false">继续修改</Button>
+        <Button data-action="confirm-objection" :disabled="submitting" @click="submitObjection">{{ submitting ? '正在登记…' : '确认登记' }}</Button>
       </template>
     </ConfirmDialog>
   </div>
 </template>
 
 <style scoped>
-.toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 16px;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 20px;
-  font-size: 13px;
-}
-.picker {
-  display: flex;
-  flex: 1;
-  gap: 8px;
-  align-items: center;
-  min-width: 0;
-}
-.picker .select {
-  min-width: 0;
-  max-width: 100%;
-}
-.scope {
-  margin-left: auto;
-}
-.objection {
-  display: grid;
-  gap: 10px;
-  justify-items: start;
-  max-width: 42em;
-  padding-top: 24px;
-  border-top: 1px solid var(--ws-border);
-}
-.objection h2 {
-  font-size: 16px;
-  font-weight: 650;
-}
-.objection .field {
-  width: 100%;
-}
-.record {
-  display: grid;
-  gap: 8px;
-  width: 100%;
-  padding: 12px 14px;
-  border-radius: var(--ws-radius);
-  background: var(--ws-page);
-}
-.record dl {
-  display: grid;
-  grid-template-columns: 5em 1fr;
-  gap: 6px 12px;
-  margin: 0;
-  font-size: 14px;
-}
-.record dt {
-  color: var(--ws-muted);
-}
-.record dd {
-  margin: 0;
-}
 .pre {
   white-space: pre-line;
   overflow-wrap: anywhere;
-}
-.ok {
-  padding: 8px 12px;
-  border-left: 3px solid var(--ws-success);
-  background: var(--ws-success-soft);
-  font-size: 14px;
-}
-.err {
-  padding: 8px 12px;
-  border-left: 3px solid var(--ws-danger);
-  background: var(--ws-danger-soft);
-  font-size: 14px;
 }
 </style>

@@ -13,9 +13,12 @@ import { useRoute, useRouter } from 'vue-router'
 import { assignExpert, candidateUnavailableReason, dispatchCandidates, dispatchQueue, reassignExpert, type DispatchCandidate, type DispatchQueueItem } from '@/api/dispatch'
 import { failureText } from '@/api/failure'
 import { deadlineLabel } from '@/api/taskTiming'
+import ScopeSelect from '@/components/app/data/ScopeSelect.vue'
+import { Button } from '@/components/ui/button'
+import AppShell from '@/components/app/shell/AppShell.vue'
+import { useSignOut } from '@/components/app/shell/useSignOut'
+import StatePanel from '@/components/app/state/StatePanel.vue'
 import ConfirmDialog from '@/components/workspace/ConfirmDialog.vue'
-import OperationsShell from '@/components/workspace/OperationsShell.vue'
-import StateBlock from '@/components/workspace/StateBlock.vue'
 import StatusPill from '@/components/workspace/StatusPill.vue'
 import type { WorkspaceAccount } from '@/components/workspace/types'
 import { useTimeScope } from '@/composables/useTimeScope'
@@ -241,6 +244,7 @@ watch(() => item.value?.thesis_id, () => {
 const extOpen = ref(false)
 
 // ---- 外壳 ----
+const signOut = useSignOut()
 const nav = computed(() => workspaceNav('platform_reviewer', '/platform/dispatch', {
   '/platform/dispatch': !loading.value && !listError.value ? countOf('pending') : undefined,
 }))
@@ -250,18 +254,11 @@ const account = computed<WorkspaceAccount>(() => ({ name: auth.user?.displayName
 
 <template>
   <div class="ws">
-    <OperationsShell :nav="nav" :account="account" org="百杰运营">
-      <template #title><h1 class="title">派单台</h1></template>
-      <template #context>
-        <span class="muted ctx">单专家试点，每篇论文指派 1 位专家</span>
-        <label class="ctx-scope">
-          <span class="sr-only">论文范围</span>
-          <select class="select" :value="timeScope.scope.value" data-time-scope @change="timeScope.setScope(($event.target as HTMLSelectElement).value)">
-            <option value="all">全部年份</option>
-            <option value="past_year">近一年</option>
-          </select>
-        </label>
-        <button type="button" class="btn btn--sm" :aria-expanded="extOpen" data-action="toggle-extensions" @click="extOpen = !extOpen">延期审批</button>
+    <AppShell :nav="nav" :account="account" :workspace="account.org" layout="bare" title="派单台" @sign-out="signOut">
+      <template #context>单专家试点，每篇论文指派 1 位专家</template>
+      <template #actions>
+        <ScopeSelect :model-value="timeScope.scope.value" @update:model-value="timeScope.setScope" />
+        <Button variant="outline" :aria-expanded="extOpen" data-action="toggle-extensions" @click="extOpen = !extOpen">延期审批</Button>
       </template>
 
       <section v-if="extOpen" class="ext-panel" aria-label="评阅延期审批">
@@ -276,14 +273,14 @@ const account = computed<WorkspaceAccount>(() => ({ name: auth.user?.displayName
             </button>
           </div>
           <p v-if="flash" class="flash" role="status" data-dispatch-flash>{{ flash }}</p>
-          <StateBlock v-if="loading" kind="loading" title="正在载入派单清单" compact />
-          <StateBlock v-else-if="listError" kind="error" title="派单清单没有加载出来" compact>
+          <StatePanel v-if="loading" kind="loading" title="正在载入派单清单" compact />
+          <StatePanel v-else-if="listError" kind="error" title="派单清单没有加载出来" compact>
             {{ listError }}
-            <template #actions><button type="button" class="btn btn--sm" @click="loadQueue">重试</button></template>
-          </StateBlock>
-          <StateBlock v-else-if="!list.length" kind="empty" :title="view === 'pending' ? '没有待指派的论文' : '这个视图里没有论文'" compact>
+            <template #actions><Button type="button" variant="outline" size="sm" @click="loadQueue">重试</Button></template>
+          </StatePanel>
+          <StatePanel v-else-if="!list.length" kind="empty" :title="view === 'pending' ? '没有待指派的论文' : '这个视图里没有论文'" compact>
             {{ view === 'pending' ? '学校确认送出后，论文会出现在这里。' : '' }}
-          </StateBlock>
+          </StatePanel>
           <ul v-else class="tlist">
             <li v-for="row in list" :key="row.thesis_id">
               <button type="button" class="titem" :class="{ 'titem--on': row.thesis_id === selectedId }" :aria-current="row.thesis_id === selectedId" data-thesis-row @click="choose(row)">
@@ -316,8 +313,8 @@ const account = computed<WorkspaceAccount>(() => ({ name: auth.user?.displayName
               </div>
             </div>
             <div v-if="canReassign" class="task__actions">
-              <button v-if="!reassigning" type="button" class="btn btn--sm" data-action="start-reassign" @click="reassigning = true">改派…</button>
-              <button v-else type="button" class="btn btn--sm btn--quiet" @click="reassigning = false">取消改派</button>
+              <Button v-if="!reassigning" type="button" variant="outline" size="sm" data-action="start-reassign" @click="reassigning = true">改派…</Button>
+              <Button v-else type="button" variant="ghost" size="sm" @click="reassigning = false">取消改派</Button>
             </div>
           </section>
 
@@ -328,19 +325,19 @@ const account = computed<WorkspaceAccount>(() => ({ name: auth.user?.displayName
             </div>
             <div v-if="result" class="result" role="alert" data-dispatch-result>{{ result.text }}</div>
 
-            <StateBlock v-if="candLoading" kind="loading" title="正在载入候选专家" compact />
-            <StateBlock v-else-if="candError" kind="error" title="候选专家没有加载出来" compact>
+            <StatePanel v-if="candLoading" kind="loading" title="正在载入候选专家" compact />
+            <StatePanel v-else-if="candError" kind="error" title="候选专家没有加载出来" compact>
               论文信息不受影响。{{ candError }}
-              <template #actions><button type="button" class="btn btn--sm" @click="loadCandidates">重试</button></template>
-            </StateBlock>
-            <StateBlock v-else-if="!candidates.length" kind="empty" :title="`专家库里没有 ${item.discipline_code} 方向的专家`" compact>
+              <template #actions><Button type="button" variant="outline" size="sm" @click="loadCandidates">重试</Button></template>
+            </StatePanel>
+            <StatePanel v-else-if="!candidates.length" kind="empty" :title="`专家库里没有 ${item.discipline_code} 方向的专家`" compact>
               这不是推荐失败：目前没有该学科的专家档案。需要先在专家库新增或导入档案。
-              <template #actions><RouterLink class="btn btn--sm" to="/platform/experts">打开专家库</RouterLink></template>
-            </StateBlock>
+              <template #actions><Button variant="outline" size="sm" as-child><RouterLink to="/platform/experts">打开专家库</RouterLink></Button></template>
+            </StatePanel>
             <template v-else>
-              <StateBlock v-if="!available.length" kind="unconfigured" :title="`有 ${blocked.length} 位候选，但当前都不可指派`" compact>
+              <StatePanel v-if="!available.length" kind="empty" :title="`有 ${blocked.length} 位候选，但当前都不可指派`" compact>
                 {{ blockedSummary }}。可以在专家库调整资格或服务状态，或等待暂停结束。
-              </StateBlock>
+              </StatePanel>
               <div class="table-wrap">
                 <table class="ctable">
                   <thead>
@@ -385,12 +382,12 @@ const account = computed<WorkspaceAccount>(() => ({ name: auth.user?.displayName
             <p v-if="chosenExpert" class="commit__sel">已选：<strong>{{ nameOf(chosenExpert) }}</strong><span class="muted">　{{ chosenExpert.unit }}</span></p>
             <p v-else class="muted commit__sel">{{ available.length ? '在上方选择一位专家' : '暂无可指派的专家' }}</p>
             <p v-if="!reassigning && rejectedBefore(item)" class="muted commit__hint">上一位专家已拒绝，这是一次新的指派，不是改派。</p>
-            <button type="button" class="btn btn--primary" data-action="commit-dispatch" :disabled="!chosenExpert || pending" @click="commit">{{ pending ? '正在提交…' : commandLabel }}</button>
+            <Button type="button" data-action="commit-dispatch" :disabled="!chosenExpert || pending" @click="commit">{{ pending ? '正在提交…' : commandLabel }}</Button>
           </footer>
         </section>
-        <StateBlock v-else-if="!narrow && !loading && list.length" kind="empty" title="选择左侧一篇论文开始派单" />
+        <StatePanel v-else-if="!narrow && !loading && list.length" kind="empty" title="选择左侧一篇论文开始派单" />
       </div>
-    </OperationsShell>
+    </AppShell>
 
     <ConfirmDialog :open="reassignOpen" title="改派这篇论文？" wide :busy="pending" @close="reassignOpen = false">
       <dl class="swap">
@@ -399,21 +396,14 @@ const account = computed<WorkspaceAccount>(() => ({ name: auth.user?.displayName
       </dl>
       <p>当前任务会被关闭并保留在历史记录中，原专家不能再提交这篇论文的评阅。新专家收到邀请后需要先接受；期限按新任务重新计算，以服务端结果为准。</p>
       <template #actions>
-        <button type="button" class="btn" :disabled="pending" @click="reassignOpen = false">取消</button>
-        <button type="button" class="btn btn--primary" data-action="confirm-reassign" :disabled="!chosenExpert || pending" @click="run">{{ pending ? '正在改派…' : '确认改派' }}</button>
+        <Button type="button" variant="outline" :disabled="pending" @click="reassignOpen = false">取消</Button>
+        <Button type="button" data-action="confirm-reassign" :disabled="!chosenExpert || pending" @click="run">{{ pending ? '正在改派…' : '确认改派' }}</Button>
       </template>
     </ConfirmDialog>
   </div>
 </template>
 
 <style scoped>
-.title {
-  font-size: 17px;
-  font-weight: 600;
-}
-.ctx {
-  font-size: 13px;
-}
 .ext-panel {
   max-height: 40vh;
   overflow: auto;
@@ -458,9 +448,9 @@ const account = computed<WorkspaceAccount>(() => ({ name: auth.user?.displayName
   cursor: pointer;
 }
 .views__tab[aria-selected='true'] {
-  background: var(--ws-action-soft);
-  color: var(--ws-action);
-  font-weight: 600;
+  background: var(--ws-sunken);
+  color: var(--ws-text);
+  font-weight: 500;
 }
 .tlist {
   margin: 0;
@@ -486,7 +476,7 @@ const account = computed<WorkspaceAccount>(() => ({ name: auth.user?.displayName
 .titem--on,
 .titem--on:hover {
   border-left-color: var(--ws-action);
-  background: var(--ws-action-soft);
+  background: var(--ws-sunken);
 }
 .titem__title {
   font-weight: 500;
@@ -597,7 +587,7 @@ const account = computed<WorkspaceAccount>(() => ({ name: auth.user?.displayName
   border-collapse: collapse;
 }
 .ctable th {
-  height: 36px;
+  height: 40px;
   padding: 0 10px;
   border-bottom: 1px solid var(--ws-border);
   color: var(--ws-muted);
@@ -675,6 +665,7 @@ const account = computed<WorkspaceAccount>(() => ({ name: auth.user?.displayName
   padding: 10px 20px;
   border-top: 1px solid var(--ws-border);
   background: var(--ws-surface);
+  box-shadow: 0 -4px 12px rgb(22 25 29 / 0.06);
 }
 .commit__sel {
   flex: 1;
@@ -701,9 +692,6 @@ const account = computed<WorkspaceAccount>(() => ({ name: auth.user?.displayName
   margin: 0;
 }
 @media (max-width: 899px) {
-  .ctx {
-    display: none;
-  }
   .need,
   .tasks,
   .cands {

@@ -5,15 +5,18 @@
  * 编辑态分三段：论文信息与材料 → 匿名检测 → 提交前核对；保存为手动（与修复实现一致）。
  * 全部业务逻辑来自 useThesisEditor（与旧页同一份实现）；字段、上传、PDF 处理与检测组件原样沿用，只换外壳与令牌。
  */
+import { ChevronLeft } from '@lucide/vue'
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import PdfTransformDialog from '@/components/app/PdfTransformDialog.vue'
 import SensitiveFindingPanel from '@/components/app/SensitiveFindingPanel.vue'
+import AppShell from '@/components/app/shell/AppShell.vue'
+import { useSignOut } from '@/components/app/shell/useSignOut'
+import StatePanel from '@/components/app/state/StatePanel.vue'
+import { Button } from '@/components/ui/button'
 import ConfirmDialog from '@/components/workspace/ConfirmDialog.vue'
-import PersonalShell from '@/components/workspace/PersonalShell.vue'
 import SaveStatus from '@/components/workspace/SaveStatus.vue'
-import StateBlock from '@/components/workspace/StateBlock.vue'
 import StatusPill from '@/components/workspace/StatusPill.vue'
 import type { DraftState } from '@/components/workspace/types'
 import '@/styles/workspace.css'
@@ -42,6 +45,8 @@ const {
 } = session
 
 const account = computed(() => studentAccount(authStore.user))
+const nav = [{ items: studentNav('/student/dashboard') }]
+const signOut = useSignOut()
 
 const view = computed<'loading' | 'error' | 'create' | 'locked' | 'edit'>(() => {
   if (loading.value) return 'loading'
@@ -92,6 +97,7 @@ function focus(field: ValidationField) {
 function jump(id: string) {
   root.value?.querySelector<HTMLElement>(`#${id}`)?.scrollIntoView?.({ block: 'start', behavior: 'smooth' })
 }
+const shellTitle = computed(() => (view.value === 'edit' ? form.value.title || '未命名论文' : '送审材料'))
 const steps = computed(() => [
   { id: 'sec-info', label: '论文信息与材料', done: !issues.value.some((item) => item.field) },
   { id: 'sec-check', label: '匿名检测', done: Boolean(realDetail.value?.anonymization?.auto_conclusion) && !realDetail.value?.anonymization?.stale },
@@ -101,35 +107,43 @@ const steps = computed(() => [
 
 <template>
   <div ref="root" class="ws">
-    <PersonalShell :nav="studentNav('/student/dashboard')" :account="account">
-      <RouterLink class="back" to="/student/dashboard">‹ 我的送审</RouterLink>
+    <AppShell :nav="nav" :account="account" :workspace="account.org" layout="form" :title="shellTitle" @sign-out="signOut">
+      <template #back>
+        <Button variant="ghost" size="sm" as-child class="-ml-1 text-muted-foreground">
+          <RouterLink to="/student/dashboard" data-back><ChevronLeft />我的送审</RouterLink>
+        </Button>
+      </template>
+      <template v-if="view === 'edit'" #title>
+        <span class="flex min-w-0 items-center gap-2">
+          <StatusPill :tone="returnReason ? 'warning' : 'neutral'" class="shrink-0">{{ returnReason ? '已退回，待修改' : '草稿' }}</StatusPill>
+          <h1 class="truncate text-md font-semibold" :title="shellTitle">{{ shellTitle }}</h1>
+        </span>
+      </template>
+      <template v-if="view === 'edit'" #actions><SaveStatus :state="saveState" :saved-at="savedAt" manual /></template>
 
-      <StateBlock v-if="view === 'loading'" kind="loading" title="正在载入论文" />
+      <StatePanel v-if="view === 'loading'" kind="loading" title="正在载入论文" />
 
-      <StateBlock v-else-if="view === 'error'" kind="error" :title="loadError">
-        <template #actions><button type="button" class="btn" @click="loadDraft">重新加载</button></template>
-      </StateBlock>
+      <StatePanel v-else-if="view === 'error'" kind="error" :title="loadError">
+        <template #actions><Button type="button" variant="outline" @click="loadDraft">重新加载</Button></template>
+      </StatePanel>
 
       <!-- 新建态（D5） -->
       <section v-else-if="view === 'create'" class="card create" aria-labelledby="create-h">
-        <header class="card__head">
-          <h1 id="create-h">开始送审</h1>
-          <RouterLink class="btn btn--quiet" to="/student/dashboard">取消</RouterLink>
-        </header>
+        <h2 id="create-h" class="text-lg font-semibold">开始送审</h2>
         <p class="muted">先填写论文题目、关键词和所属专业。创建后在本页上传原稿与匿名稿。</p>
 
         <div v-if="createError" class="banner" :class="existingId ? 'banner--info' : 'banner--danger'" role="alert">
           <strong>{{ existingId ? '你在本批次已经有一篇论文，不能再新建。' : `没有创建成功：${createError}` }}</strong>
           <span>{{ existingId ? '打开时会按它现在的状态显示。' : '你填写的内容还在，可以直接重试。' }}</span>
           <span class="banner__actions">
-            <button v-if="existingId" type="button" class="btn btn--sm" data-open-existing @click="openExisting">打开已有论文</button>
-            <button v-else type="button" class="btn btn--sm" @click="loadDraft">刷新可选专业</button>
+            <Button v-if="existingId" type="button" variant="outline" size="sm" data-open-existing @click="openExisting">打开已有论文</Button>
+            <Button v-else type="button" variant="outline" size="sm" @click="loadDraft">刷新可选专业</Button>
           </span>
         </div>
 
-        <StateBlock v-if="noOptions" kind="unconfigured" title="本批次还没有可选的专业" compact>
+        <StatePanel v-if="noOptions" kind="empty" title="本批次还没有可选的专业" compact>
           学校还没有为本批次维护专业目录或开放学科，暂时不能开始送审。请联系学院研究生秘书。
-        </StateBlock>
+        </StatePanel>
 
         <form v-else class="create__form" novalidate @submit.prevent="create">
           <label class="field">
@@ -156,28 +170,21 @@ const steps = computed(() => [
             <span v-if="createTouched && createErrors.program" class="field-error">{{ createErrors.program }}</span>
           </div>
           <div class="create__actions">
-            <button type="submit" class="btn btn--primary" data-action="create-selected-draft" :disabled="saving">{{ saving ? '正在创建…' : '创建并继续' }}</button>
+            <Button type="submit" data-action="create-selected-draft" :disabled="saving">{{ saving ? '正在创建…' : '创建并继续' }}</Button>
             <span class="muted">摘要可以在下一步填写。</span>
+            <Button variant="ghost" as-child class="ml-auto"><RouterLink to="/student/dashboard">取消</RouterLink></Button>
           </div>
         </form>
       </section>
 
       <!-- 已不可编辑 -->
-      <StateBlock v-else-if="view === 'locked'" kind="forbidden" :title="realDetail?.current_version?.title || '这篇论文'">
+      <StatePanel v-else-if="view === 'locked'" kind="forbidden" :title="realDetail?.current_version?.title || '这篇论文'">
         这篇论文当前不能编辑。返回“我的送审”查看进度和可以做的操作。
-        <template #actions><RouterLink class="btn btn--primary" to="/student/dashboard">查看我的论文</RouterLink></template>
-      </StateBlock>
+        <template #actions><Button as-child><RouterLink to="/student/dashboard">查看我的论文</RouterLink></Button></template>
+      </StatePanel>
 
       <!-- 编辑态 -->
       <template v-else>
-        <header class="page-head">
-          <div class="page-head__title">
-            <StatusPill :tone="returnReason ? 'warning' : 'neutral'">{{ returnReason ? '已退回，待修改' : '草稿' }}</StatusPill>
-            <h1>{{ form.title || '未命名论文' }}</h1>
-          </div>
-          <SaveStatus :state="saveState" :saved-at="savedAt" manual />
-        </header>
-
         <div v-if="returnReason" class="returned">
           <p class="returned__who">学校退回了这篇论文，原因：</p>
           <blockquote>{{ returnReason }}</blockquote>
@@ -193,8 +200,8 @@ const steps = computed(() => [
             <dt>服务器材料</dt><dd>{{ serverCopy.current_version.files.map((file) => file.filename).join('、') || '无' }}</dd>
           </dl>
           <span class="banner__actions">
-            <button v-if="!serverCopy" type="button" class="btn btn--sm btn--primary" data-action="compare-server-thesis" @click="compareServerCopy">查看服务器版本</button>
-            <button v-else type="button" class="btn btn--sm" @click="loadDraft">重新打开论文</button>
+            <Button v-if="!serverCopy" type="button" size="sm" data-action="compare-server-thesis" @click="compareServerCopy">查看服务器版本</Button>
+            <Button v-else type="button" variant="outline" size="sm" @click="loadDraft">重新打开论文</Button>
           </span>
         </div>
 
@@ -232,7 +239,7 @@ const steps = computed(() => [
                   <p class="pdf__title">需要合并、提取或删除 PDF 页面？</p>
                   <p class="muted small">会先保存本页内容并上传已选文件，再打开处理窗口；处理前会给出预览，原文件保留到你确认应用。</p>
                 </div>
-                <button type="button" class="btn" data-open-pdf-transform :disabled="busy" @click="openTransform">{{ preparingTransform ? '正在保存材料…' : '保存并处理 PDF 材料' }}</button>
+                <Button type="button" variant="outline" data-open-pdf-transform :disabled="busy" @click="openTransform">{{ preparingTransform ? '正在保存材料…' : '保存并处理 PDF 材料' }}</Button>
               </div>
               <PdfTransformDialog
                 v-if="transformOpen && realDetail"
@@ -268,7 +275,7 @@ const steps = computed(() => [
                 <li v-for="issue in issues" :key="issue.message">
                   <StatusPill tone="warning">{{ issue.field ? sectionLabel[issue.field] : '资格' }}</StatusPill>
                   <span>{{ issue.message }}</span>
-                  <button v-if="issue.field" type="button" class="btn btn--sm btn--quiet" @click="focus(issue.field)">去填写</button>
+                  <Button v-if="issue.field" type="button" variant="ghost" size="sm" @click="focus(issue.field)">去填写</Button>
                 </li>
               </ul>
               <p v-else class="ok" role="status">当前没有缺项。提交时会再次核对专业和文件。</p>
@@ -285,15 +292,15 @@ const steps = computed(() => [
             <template v-else-if="hasPendingFiles">信息已保存；已选文件尚未上传。</template>
             <template v-else>学校确认匿名检测结果后，论文才会进入专家匹配。</template>
           </span>
-          <button type="button" class="btn" data-action="save-draft" :disabled="saving" @click="saveDraft">
+          <Button type="button" variant="outline" data-action="save-draft" :disabled="saving" @click="saveDraft">
             {{ saving ? '正在保存…' : saveFailed ? '重新保存' : '保存草稿' }}
-          </button>
-          <button type="button" class="btn btn--primary" data-action="open-submit-confirmation" :disabled="refreshingChecklist || busy" @click="openSubmitConfirmation">
+          </Button>
+          <Button type="button" data-action="open-submit-confirmation" :disabled="refreshingChecklist || busy" @click="openSubmitConfirmation">
             {{ refreshingChecklist ? '正在核对…' : '提交学校审核' }}
-          </button>
+          </Button>
         </footer>
       </template>
-    </PersonalShell>
+    </AppShell>
 
     <ConfirmDialog :open="showConfirmation" title="提交给学校审核？" wide :busy="submitting" @close="closeSubmitConfirmation">
       <p>提交后进入学校材料核验。核验完成前不能替换文件；需要修改时，可以在送出前撤回，或等学校退回。</p>
@@ -307,21 +314,14 @@ const steps = computed(() => [
       </dl>
       <p v-if="submitError" class="field-error" data-submit-error role="alert">{{ submitError }}</p>
       <template #actions>
-        <button type="button" class="btn" data-action="close-submit-confirmation" :disabled="submitting" @click="closeSubmitConfirmation">继续检查</button>
-        <button type="button" class="btn btn--primary" data-action="confirm-submit" :disabled="submitting" @click="confirmSubmit">{{ submitting ? '正在提交…' : '确认提交' }}</button>
+        <Button type="button" variant="outline" data-action="close-submit-confirmation" :disabled="submitting" @click="closeSubmitConfirmation">继续检查</Button>
+        <Button type="button" data-action="confirm-submit" :disabled="submitting" @click="confirmSubmit">{{ submitting ? '正在提交…' : '确认提交' }}</Button>
       </template>
     </ConfirmDialog>
   </div>
 </template>
 
 <style scoped>
-.back {
-  display: inline-block;
-  margin-bottom: 12px;
-  color: var(--ws-action);
-  font-size: 13px;
-  text-decoration: none;
-}
 .card {
   display: grid;
   gap: 14px;
@@ -329,16 +329,6 @@ const steps = computed(() => [
   border: 1px solid var(--ws-border);
   border-radius: var(--ws-radius-panel);
   background: var(--ws-surface);
-}
-.card__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.card__head h1,
-.page-head h1 {
-  font-size: 20px;
-  font-weight: 650;
 }
 .create__form {
   display: grid;
@@ -358,26 +348,6 @@ const steps = computed(() => [
   border-radius: var(--ws-radius);
   background: var(--ws-page);
   font-size: 13px;
-}
-.page-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px 16px;
-  margin-bottom: 16px;
-}
-.page-head__title {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 10px;
-}
-.page-head__title h1 {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .returned {
   display: grid;

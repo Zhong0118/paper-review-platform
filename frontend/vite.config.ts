@@ -6,7 +6,6 @@ import vueDevTools from 'vite-plugin-vue-devtools'
 import tailwindcss from '@tailwindcss/vite'
 import AutoImport from 'unplugin-auto-import/vite'
 import Components from 'unplugin-vue-components/vite'
-import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -14,14 +13,11 @@ export default defineConfig({
     vue(),
     vueDevTools(),
     tailwindcss(),
-    // Element Plus 按需引入：自动导入 API 与组件
+    // 自动导入 vue / vue-router / pinia 的 API，自动注册 src/components 下的组件（R4 起不再含 Element Plus）
     AutoImport({
       imports: ['vue', 'vue-router', 'pinia'],
-      resolvers: [ElementPlusResolver()],
     }),
-    Components({
-      resolvers: [ElementPlusResolver()],
-    }),
+    Components(),
   ],
   resolve: {
     alias: {

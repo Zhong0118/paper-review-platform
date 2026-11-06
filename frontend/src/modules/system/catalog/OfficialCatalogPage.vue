@@ -8,9 +8,11 @@ import { computed, onBeforeUnmount, ref } from 'vue'
 
 import { applyCatalogImport, previewCatalogImport, type ImportPreview } from '@/api/catalogs'
 import { apiFailure } from '@/api/failure'
+import AppShell from '@/components/app/shell/AppShell.vue'
+import { useSignOut } from '@/components/app/shell/useSignOut'
+import StatePanel from '@/components/app/state/StatePanel.vue'
+import { Button } from '@/components/ui/button'
 import ConfirmDialog from '@/components/workspace/ConfirmDialog.vue'
-import OperationsShell from '@/components/workspace/OperationsShell.vue'
-import StateBlock from '@/components/workspace/StateBlock.vue'
 import StatusPill from '@/components/workspace/StatusPill.vue'
 import type { WorkspaceAccount } from '@/components/workspace/types'
 import { workspaceNav } from '@/router/workspaceNav'
@@ -86,15 +88,15 @@ const rows = (p: ImportPreview) => [
   { key: 'institutions', label: '院校', ...p.institutions },
 ]
 
+const signOut = useSignOut()
 const nav = computed(() => workspaceNav('system_admin', '/system/catalog'))
 const account = computed<WorkspaceAccount>(() => ({ name: auth.user?.displayName || '身份未取得', username: auth.user?.username ?? '', role: '系统管理员', org: '系统管理' }))
 </script>
 
 <template>
   <div class="ws">
-    <OperationsShell :nav="nav" :account="account" :org="account.org">
-      <template #title><h1 class="wsd-title">官方基础目录</h1></template>
-      <template #context><span class="wsd-ctx">学科目录与院校名录</span></template>
+    <AppShell :nav="nav" :account="account" :workspace="account.org" layout="bare" title="官方基础目录" @sign-out="signOut">
+      <template #context>学科目录与院校名录</template>
 
       <div class="page">
         <div class="wsd-obj catalog">
@@ -105,16 +107,16 @@ const account = computed<WorkspaceAccount>(() => ({ name: auth.user?.displayName
             <span>学科新增 {{ applied.disciplines.added }}、变更 {{ applied.disciplines.changed }}；院校新增 {{ applied.institutions.added }}、变更 {{ applied.institutions.changed }}。</span>
           </div>
 
-          <StateBlock v-if="previewing" kind="loading" title="正在读取官方来源并比较差异…" />
-          <StateBlock v-else-if="previewError && !preview" kind="error" title="预览没有生成">
+          <StatePanel v-if="previewing" kind="loading" title="正在读取官方来源并比较差异…" />
+          <StatePanel v-else-if="previewError && !preview" kind="error" title="预览没有生成">
             {{ previewError }}。库内目录没有变化。
-            <template #actions><button type="button" class="btn btn--primary" data-action="preview-catalog" @click="makePreview">重试</button></template>
-          </StateBlock>
+            <template #actions><Button type="button" data-action="preview-catalog" @click="makePreview">重试</Button></template>
+          </StatePanel>
 
           <section v-else-if="!preview" class="wsd-sec">
             <div class="wsd-sec__head"><h3>更新目录</h3></div>
             <p class="wsd-hint">预览只读取与比较，不写入任何数据。</p>
-            <div class="wsd-acts"><button type="button" class="btn btn--primary" data-action="preview-catalog" @click="makePreview">生成预览</button></div>
+            <div class="wsd-acts"><Button type="button" data-action="preview-catalog" @click="makePreview">生成预览</Button></div>
           </section>
 
           <section v-else class="wsd-sec wsd-sec--attention" aria-labelledby="pv-h" data-preview>
@@ -148,10 +150,10 @@ const account = computed<WorkspaceAccount>(() => ({ name: auth.user?.displayName
             <p v-if="!hasChanges && !expired" class="wsd-hint" data-unchanged>官方来源与库内目录一致，不需要导入。</p>
             <p v-if="applyError && !confirming" class="field-error" role="alert">{{ applyError }}</p>
             <div class="wsd-acts wsd-acts--end">
-              <button v-if="expired" type="button" class="btn btn--primary" data-action="preview-catalog" @click="makePreview">重新生成预览</button>
+              <Button v-if="expired" type="button" data-action="preview-catalog" @click="makePreview">重新生成预览</Button>
               <template v-else>
-                <button type="button" class="btn" data-action="discard-preview" @click="discard">放弃预览</button>
-                <button type="button" class="btn btn--primary" data-action="apply-catalog" :disabled="!hasChanges" @click="confirming = true; applyError = ''">确认导入…</button>
+                <Button type="button" variant="outline" data-action="discard-preview" @click="discard">放弃预览</Button>
+                <Button type="button" data-action="apply-catalog" :disabled="!hasChanges" @click="confirming = true; applyError = ''">确认导入…</Button>
               </template>
             </div>
           </section>
@@ -163,20 +165,21 @@ const account = computed<WorkspaceAccount>(() => ({ name: auth.user?.displayName
         <p class="muted">导入只新增与更新条目，不停用任何已有条目；各校已开放的学科与已建的学校不受影响，之后可选的范围随之更新。</p>
         <p v-if="applyError" class="field-error" role="alert">{{ applyError }}</p>
         <template #actions>
-          <button type="button" class="btn" :disabled="applying" @click="confirming = false">取消</button>
-          <button type="button" class="btn btn--primary" data-action="confirm-apply" :disabled="applying" @click="apply">{{ applying ? '正在导入…' : '确认导入' }}</button>
+          <Button type="button" variant="outline" :disabled="applying" @click="confirming = false">取消</Button>
+          <Button type="button" data-action="confirm-apply" :disabled="applying" @click="apply">{{ applying ? '正在导入…' : '确认导入' }}</Button>
         </template>
       </ConfirmDialog>
-    </OperationsShell>
+    </AppShell>
   </div>
 </template>
 
 <style scoped>
 .page {
-  min-height: calc(100vh - var(--ws-bar));
+  min-height: calc(100svh - var(--bar-h));
 }
+/* form 模板：居中 960 */
 .catalog {
-  max-width: 880px;
+  margin-inline: auto;
 }
 .intro {
   max-width: 72ch;

@@ -70,7 +70,7 @@ describe('member settings', () => {
     expect(api.listMembers).toHaveBeenCalledWith('SUPERVISOR', { quiet: true })
     expect(api.listEligibilities).toHaveBeenCalledWith('o', { quiet: true })
     expect(titles(wrapper)).toEqual(['张三', '李四', '王五', '赵六'])
-    expect(wrapper.findAll('.wsd-views__count').map((c) => c.text())).toEqual(['4', '2', '6'])
+    expect(wrapper.findAll('[data-view] span').map((c) => c.text())).toEqual(['4', '2', '6'])
     expect(rowText(wrapper, '张三')).not.toMatch(/无资格|资格暂停|已停用/)
     expect(rowText(wrapper, '李四')).toContain('无资格')
     expect(rowText(wrapper, '王五')).toContain('资格暂停')
@@ -81,7 +81,7 @@ describe('member settings', () => {
 
   it('switches views and searches by name, number or username within the loaded members', async () => {
     const { wrapper, router } = await mountAt('/school/members')
-    await wrapper.findAll('.wsd-views__tab')[1]!.trigger('click')
+    await wrapper.findAll('[data-view]')[1]!.trigger('click')
     await flushPromises()
     expect(router.currentRoute.value.query.view).toBe('SUPERVISOR')
     expect(titles(wrapper)).toEqual(['陈老师', '孙老师'])

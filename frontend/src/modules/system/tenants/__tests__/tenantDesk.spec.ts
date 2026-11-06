@@ -113,7 +113,7 @@ describe('tenant desk: list', () => {
     const { wrapper } = await mountAt('/system/tenants')
     expect(wrapper.text()).toContain('学校列表没有加载出来')
     expect(wrapper.find('[data-action="new-tenant"]').exists()).toBe(false)
-    await click(wrapper, 'button.btn--primary')
+    await click(wrapper, '[data-action="retry-tenants"]')
     expect(wrapper.findAll('tbody tr')).toHaveLength(2)
   })
 })

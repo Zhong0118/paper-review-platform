@@ -1,5 +1,5 @@
 import { createPinia } from 'pinia'
-import { flushPromises, mount } from '@vue/test-utils'
+import { DOMWrapper, flushPromises, mount } from '@vue/test-utils'
 import { createMemoryHistory, createRouter } from 'vue-router'
 
 import type { ThesisDetail } from '@/api/theses'
@@ -50,4 +50,11 @@ export async function mountAt(url: string) {
   const wrapper = mount(Page, { global: { plugins: [createPinia(), router] }, attachTo: document.body })
   await flushPromises()
   return { wrapper, router }
+}
+
+/** 对话框、抽屉经 Teleport 渲染到 body：按 document 查询（R2） */
+export function inBody(selector: string) {
+  const element = document.body.querySelector(selector)
+  if (!element) throw new Error(`Unable to find ${selector} in document.body`)
+  return new DOMWrapper(element)
 }

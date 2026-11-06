@@ -380,3 +380,600 @@ U2 计划 §4 与本文 §4 约定：页面切片验收后，统一删除被替�
 **验收：** vue-tsc 通过；vitest 两种模式均 106 个文件、840 项通过（`--maxWorkers=4`；相对登录修复后的 107 / 847，删 10 项、补 3 项）；两种模式生产构建通过；`routes.spec` 通过（pageId 不变）。演示模式浏览器抽查：直接输入 `/school/members` 加载新页，它调用真实学校接口，演示令牌得到 401 后回到登录页；旧页调用同样的接口，表现相同，演示菜单不显示这三项。
 
 **U4-9 到此结束。** C 类按 D1-b 保留；D 类（改造前就无人引用的 7 个文件）不在本切片，留给用户决定。
+
+## 17. R 轮：统一设计语言与 shadcn-vue（R0–R4）
+
+执行要求：用户 2026-11-05 提供的《统一设计语言与 shadcn-vue 重构提示词 v3》（以下称“v3”）。本节沿用本计划，不另起计划文件。U0–U4 的业务成果、测试与合同保持不变，R 轮只改视觉基础、外壳与页面结构。
+
+### 17.1 R0 基线（2026-11-05 核对）
+
+- 分支 `claude/laughing-vaughan-4ca76f`，HEAD `34bbbf0`，与 `origin/claude/laughing-vaughan-4ca76f` 一致，工作树干净。从这里继续，不回退，不重放历史补丁。
+- 栈：Vue 3.5、Vite 8、Tailwind v4（`@tailwindcss/vite`，Preflight 已全局生效）、Pinia 3、Vue Router 5、Element Plus 2.14；包管理 pnpm（node_modules 由 pnpm 12.5.1 安装，锁文件 v9）。
+- **Element Plus 实际依赖很少**（真实模式可达文件，按 import 图统计）：没有任何真实页面使用 `<el-*>` 组件。剩余三处：`api/request.ts` 的 `ElMessage` 全局错误提示；`main.ts` 的 `app.use(ElementPlus)`；`PdfTransformDialog`、`ColumnPreferences` 的 `@element-plus/icons-vue` 图标。
+- **外壳四套并存**（真实模式）：`OperationsShell` 14 页、`PersonalShell` 4 页、`FocusShell` 2 页、旧 `PortalLayout` 10 页。`PortalLayout` 页里接真实接口的只有 `ReviewProgressPage`、`ExpertTasksPage`、`InvitationPage`；其余（财务、资料、通知、审计、导出、结算、学校账户）在真实模式是演示或“待接入”页，不在真实菜单里，R 轮不为它们开放入口。
+- 令牌三处各自维护：`styles/theme.css`（全局 `@theme`，含宋体 display 字体）、`styles/workspace.css`（`.ws` 作用域）、`styles/element.css`（EP 变量）。
+
+### 17.2 页面地图（真实模式；模板按 v3 §6）
+
+| 路由 | 现页面 | 现外壳 | R 模板 | 批次 |
+|---|---|---|---|---|
+| `/school/preparation` | SchoolPreparationPage → PreparationQueue | Operations | data（满宽表＋可选预览） | R2 |
+| `/school/preparation?thesis=` | VerifyDesk | Focus | focus | R2（R1 样板） |
+| `/school/progress` | ReviewProgressPage | **PortalLayout** | data | R3-1 |
+| `/school/results` | SchoolResultsDesk | Operations | queue | R3-1 |
+| `/school/objections` | SchoolObjectionsDesk | Operations | queue | R3-1 |
+| `/platform/dispatch` | PlatformDispatchDesk | Operations | queue＋候选比较表 | R3-2 |
+| `/platform/experts` | ExpertLibraryDesk | Operations | data（R1 样板） | R3-2 |
+| `/platform/corrections` | CorrectionApprovalDesk | Operations | queue | R3-2 |
+| `/expert/tasks` | ExpertTasksPage | **PortalLayout** | data（任务少时同一表） | R3-3 |
+| `/expert/invitation` | InvitationPage | **PortalLayout** | form（单任务详情） | R3-3 |
+| `/expert/review` | ExpertReviewDesk | Focus | focus | R3-3 |
+| `/student/dashboard` | StudentPortalPage | Personal | reading 宽（当前论文＋下一步） | R3-4 |
+| `/student/thesis/edit` | StudentThesisEditor | Personal | form | R3-4 |
+| `/student/results` | StudentFeedbackPage | Personal | reading（R1 样板） | R3-4 |
+| `/supervisor/results` | SupervisorFeedbackPage | Personal | reading（与学生共用阅读组件） | R3-4 |
+| `/school/batch-rules` | BatchSettingsPage | Operations | queue（批次少时索引收窄） | R3-5 |
+| `/school/members` | MemberSettingsPage | Operations | data（可比较表＋详情 Sheet） | R3-5 |
+| `/school/disciplines` | DisciplineSettingsPage | Operations | form | R3-5 |
+| `/school/sensitive-terms` | TermSettingsPage | Operations | form（可编辑表） | R3-5 |
+| `/system/tenants` | TenantDesk | Operations | data | R3-5 |
+| `/system/catalog` | OfficialCatalogPage | Operations | form | R3-5 |
+| `/login` | LoginPage | AuthLayout | 独立（沿用控件体系） | R3-5 |
+
+### 17.3 旧功能去向（只列 R 轮会动到外观的入口）
+
+| 功能 | 现位置 | R 轮去向 | 数据来源 | 验证 |
+|---|---|---|---|---|
+| 角色菜单 | `menus.ts` `LIVE_PATHS`＋`workspaceNav` | 同一 `AppSidebar`；菜单仍只由 `portalMenus` 决定 | 现有 | `workspaceNav.spec`＋新外壳 spec |
+| 对象深链接 `?thesis=` `?expert=` `?tenant=` 等 | 各页 query | 不变；Focus 退出回到原 query | 现有 | 各页 spec |
+| 确认弹窗 | `workspace/ConfirmDialog` | shadcn AlertDialog 外观，接口不变 | — | 组件 spec |
+| 全局错误提示 | `request.ts` `ElMessage` | 展示适配层（`notify`），请求与错误协议不变 | 现有 | `loginFailure.spec`、request spec |
+| 列设置 | `ColumnPreferences`（学校表、专家任务、候选） | 表格的“显示”弹层；本浏览器保存规则不变 | 现有 | 原 spec |
+| 上传、PDF 处理 | `StudentThesisEditor`＋`PdfTransformDialog` | 只换外围控件外观；`If-Draft-Revision` 不动 | 现有 | 原 spec |
+| 延期 | `ExtensionPanel`（专家）、派单台审批 | 原位置；外观统一 | 现有 | 原 spec |
+| 更正 | `RealCorrectionPanel`（专家）、更正审批 | 原位置；仍手动保存 | 现有 | 原 spec |
+| 导出评阅书 | 学校结果 `downloadPublishedReview` | 原位置 | 现有 | 原 spec |
+| 批次收尾/归档 | `BatchObject` 收尾清单 | 原位置，危险区语义 | 现有 | 原 spec |
+| 时间范围 | `TimeScopeSelect` | 筛选栏 Select（仍只有全部/近一年） | 现有 | 原 spec |
+
+### 17.4 参考对应（已看官方帮助页截图；未登录使用参考产品）
+
+| 参考 | 看了什么 | 借鉴的结构 | 保留的交互 | 本平台差异 |
+|---|---|---|---|---|
+| Attio 表视图（help: create-and-manage-table-views，`recruiting-list.png`、`view-settings.png`） | 记录表、视图选择器、View settings 列菜单、底部计数 | 一行“视图 ▾ ＋ 显示设置 ▾ … 右侧导入/新建”；第二行“排序/筛选”条件 chip；表头带图标、细竖分隔、约 36–40px 行、底部 `N 条` | 列显示与业务筛选分开；条件 chip 可逐个移除 | 不做自定义视图保存、列计算；计数来自全量加载后的本地过滤，明说“共 N 位（已全部加载）” |
+| Attio 记录页（help: create-and-view-records，`full-record-page-overview.png`） | 左栏属性键值、右侧分区 | 预览 Sheet 用“键—值”两列属性，分组折叠；完整档案单独页 | 预览不是强制中间步骤，行内主动作可直达 | 不展示活动流、邮件；只展示接口给出的字段 |
+| Linear Filters（help: filters，筛选条截图） | 页头下方的条件条 | 条件以“字段 是 值 ×”chip 呈现，末尾一个筛选入口 | 清除全部；条件与显示设置分层 | 无“匹配全部/任一”，条件固定为“且” |
+| Linear Display options（help: display-options） | 右上 Display 弹层：分组、排序、显示属性 | 右上“显示”按钮 → 弹层里放排序和列显示 | 偏好按本浏览器保存 | 不做看板视图 |
+| Linear 外壳（同上截图） | 紧凑页头、侧栏 | 页头一行：标题＋上下文＋右侧动作；侧栏短名称＋计数 | 侧栏可折叠，⌘B | 侧栏不放收藏、团队切换 |
+| Overleaf 新编辑器（blog: introducing-overleafs-new-look，官方示意图 `redesigned-editor.png`） | 官方图是低保真示意；文字说明：工具集中到左侧菜单、界面去拥挤、错误日志更清楚 | Focus：左侧窄工具轨（发现、页码、对照）＋文档＋右侧判断；工具按需展开 | 文档位置不因定位发现丢失 | 只读匿名稿，没有编辑器；判断区是命令而非编辑 |
+
+### 17.5 统一规格（R1 落地为 token 与 variant；样板验收后冻结）
+
+- **单一 token 来源** `styles/tokens.css`：shadcn 语义变量（`--background`、`--foreground`、`--primary`、`--muted`、`--border`、`--ring`、`--sidebar-*` 等）＋本项目补充（`--warning`、`--success`、`--page`、尺寸）。`@theme inline` 映射为 Tailwind 类。旧 `--ws-*`、`theme.css` 的 `--color-*`、`--el-*` 改为指向它的别名，迁移完再删。
+- 色：页面 `#F6F7F9`、内容面 `#FFFFFF`、凹面 `#F1F3F5`、边线 `#E4E7EB`／强 `#D0D5DB`、正文 `#16191D`、次要 `#5B6470`、弱 `#6B7380`、品牌 `#1B4F8A`（hover `#163F6E`、浅 `#EBF1F8`）、危险 `#B42318`、警告 `#8A5300`（浅 `#FDF3E1`）、成功 `#1E7A46`（浅 `#E8F4EC`）。文字色对白底对比度实测记录在 R1 结果里。
+- 字：系统中文无衬线（`-apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif`）；正文 14、数据 13、辅助 12、顶栏标题 16、正文页标题 20、分区 14–15；阅读正文 16／行高 1.75；字重 400／500／600。工作页不用宋体。
+- 距：4、8、12、16、24、32；控件间 8、字段间 16、分区间 24；页面边距 24／16／12。
+- 控件高 36，密集行内 32，移动关键触控 44。圆角：控件 6、面板 8、Dialog/Sheet 10、标签胶囊。
+- 表格行高 44 起；数字右对齐；表头 12–13/500 次要色；悬停凹面、选中品牌浅色。
+- 外壳：侧栏展开 224、折叠 56、菜单行 36；顶栏 52；选中态＝凹面填充＋500 字重＋品牌色图标，不加竖线或大色块。
+- 阴影只给浮层。动效 150ms，尊重 `prefers-reduced-motion`。
+- 浮层统一 Teleport 到 `body`，token 定义在 `:root`，所以弹出后字体与颜色一致；不靠 `!important` 或叠 z-index。
+
+### 17.6 依赖与迁移边界
+
+- 新增（实际版本见 17.8）：`reka-ui`、`class-variance-authority`、`cn`（shadcn 发布的 clsx＋tailwind-merge 封装，CLI 生成代码直接引用，替代本地 `lib/utils.ts`）、`@lucide/vue`（`lucide-vue-next` 已弃用，CLI 改用它）、`@vueuse/core`、`tw-animate-css`；比较表用 `@tanstack/vue-table` v9（按 feature 组合，项目共用 `components/app/data/tableFeatures.ts`）。
+- 不用 `shadcn-vue init` 改写现有 CSS/Vite 配置：手写 `components.json`，用官方 CLI 逐个 `add`，审查生成文件后再提交给页面使用。
+- 分层：`components/ui/`（shadcn 源码，不调接口）→ `components/app/shell/` 等产品公共组件（AppShell、AppSidebar、PageHeader、FilterBar、DataTable、StatusBadge、SaveStatus 外观、StateBlock）→ 各模块展示 → 现有 API/stores/composables（不动）。
+- Element Plus：R1 不卸载。退出条件：`request.ts` 改走展示适配层；两处图标换 Lucide；`main.ts` 移除注册后两种模式测试与构建通过。R4 再定是否从依赖中删除（演示旧页若仍依赖 EP 自动导入则保留）。
+- 旧外壳：`OperationsShell`／`PersonalShell`／`FocusShell`／`PortalLayout` 在迁移期保留；页面按切片换到 `AppShell`，全部迁完后 R4 删除。
+
+### 17.7 R1 交付与隔离
+
+- 三张样板＋六角色导航示例，放在 `src/prototypes/r1/`，只在 `import.meta.env.DEV` 注册（沿用 `router/index.ts` 的原型路由机制）；生产构建不包含，用构建产物检索验证。
+- 样板 fixtures 明确标注为虚构；只做类型导入（`import type`），不导入 `src/api` 运行时、不调用 stores、不发请求。纯展示函数可复用（如 `expertView.ts`、`publishedFeedback.ts`）。
+- 样板使用的外壳与展示组件就是 R2/R3 要接入真实页面的那一套，不另造。
+- 正式路由与页面在 R1 不改。
+
+### 17.8 R1 结果（2026-11-05，未提交）
+
+**入口**（只在 dev 构建注册）：`/prototype/r1`；样板 `/prototype/r1/experts`（含 `/experts/:id` 完整档案）、`/prototype/r1/verify`、`/prototype/r1/feedback`；六角色导航 `/prototype/r1/nav?role=`。每页底部虚线框“样板状态”切换加载 / 空 / 错误 / 过期 / 冲突等状态，不是产品界面。
+
+**依赖实际版本**：reka-ui 2.11.0、class-variance-authority 0.7.1、cn 0.5.2、@lucide/vue 1.68.0、@vueuse/core 15.0.0、tw-animate-css 1.4.0、@tanstack/vue-table 9.3.1。shadcn-vue CLI 2.9.0 逐个 `add`，未运行 `init`。
+
+**对 shadcn 生成组件的本地改动**（以后重新 `add` 时要保留）：
+- sidebar：宽度 224 / 56 / 手机 280；折叠偏好改存 localStorage（`bj.sidebar.open`），新增 `persist` 属性（Focus 模式不写偏好）；去掉 cookie；菜单按钮 36px、图标 18px、激活项品牌色图标；中文无障碍文案。
+- dialog / alert-dialog / sheet / popover 等：遮罩 `bg-foreground/30`，浮层统一 `shadow-float`；Dialog 圆角 10px。
+- table：表头 40px / 12px 次要色，单元格 44px 允许换行，选中行 `primary-soft`。
+- badge：6px 圆角，新增 neutral / brand / warning / danger / success 浅底变体。
+
+**本轮顺带修正（影响真实页面）**：
+- `theme.css` 的 `:root` 字体/颜色与全局 `:focus-visible` 原本不在层里，会盖过 tokens 与组件工具类（Teleport 浮层字体不一致、shadcn 焦点环叠加旧描边）。改为读 tokens 并放进 `@layer base`。
+- `accountInitial`：姓名末尾带括注（如“（外聘）”）时头像字取括注前的最后一个字；补测试。
+- `NavItem.iconKey`：链接被改写时（原型）按原路径取图标；真实页面不受影响。
+- `--faint` 由 #6b7380 调为 #646c78：原值在侧栏与文档底色上只有 4.46 / 4.42:1。
+
+**对比度实测**（WCAG，正文要求 4.5）：正文 17.6；次要文字 6.0（白）/ 5.6（页面底）/ 5.4（muted）；弱文字 5.3 / 4.95 / 4.77；品牌色字 8.3，品牌浅底上 7.3；警告 5.75、危险 5.75、成功 4.73（均在各自浅底上）；白字在主按钮上 8.3、危险按钮上 6.6。
+
+**验证**（命令在 `frontend/`）：
+- `vue-tsc --noEmit -p tsconfig.app.json`：通过。
+- `VITE_DEMO_MODE=false vitest run --maxWorkers=4`：107 文件 / 843 测试通过，exit 0；`VITE_DEMO_MODE=true` 同为 107 / 843，exit 0。（新增 `prototypes/r1/__tests__/isolation.spec.ts`：沿值导入走依赖图，样板到不了 `api/request` 与 stores，且不值导入任何 `src/api` 模块；自检确认走查器能发现真实专家库页面对 HTTP 客户端的依赖。）
+- `vite build`（两种模式，输出到临时目录）：exit 0；产物中检索不到 R1 代码（`MockPaper`、`r1-verify`、“样板状态”等）。
+- 浏览器（5187，真实模式 dev）：核验台 1920×1080（三栏 289 / 1207 / 367px，侧栏按像素不随屏宽放大）、1440×900（287 / 727 / 368px）、1366×768（三栏）、1024×768（发现收进左侧抽屉，判断栏 340px）、390×844（发现 / 材料 / 判断标签页）；专家库与正式反馈 1440×900；六角色导航逐个切换。已点验：发现定位到页（平滑滚动后页顶距容器 14px）、写入退回原因、通过需说明、通过后单独“确认送出…”、自动不通过时禁止通过、抽屉内点发现后关闭并跳页、专家库视图计数与无结果状态、预览抽屉 440px、Teleport 浮层字体为 tokens 字体。控制台无错误。
+
+**未覆盖 / 已知**：
+- 文档区是示意页，不是真实 PDF；R2 接入受控 PDF（文件接口＋`#page`）时需要重新验证定位与并排对照。
+- 键盘：只在核验台用 Tab 抽查侧栏链接（2px 品牌色焦点环、无旧描边叠加），未逐页走完整 Tab 顺序。
+- 分栏宽度不跨会话保存（reka 按比例恢复会让像素侧栏在宽屏放大）；R2 如需记住宽度，自行按像素存。
+- 旧页面在 tokens 生效后的视觉偏移（圆角、边框色经 `@theme inline` 覆盖）未逐页截图；R2 起按切片检查。
+- 构建有既存的 >500 kB chunk 提示，与本轮无关。
+
+
+## 18. R2：学校送审准备清单 → 单篇匿名核验 → 返回清单（施工规格）
+
+用户 2026-11-05 验收 R1 样板后开始。范围只有真实模式 `/school/preparation`（`SchoolPreparationPage` / `PreparationQueue` / `VerifyDesk`）；demo 模式旧页 `PreparationListPage` 不动。
+
+### 18.1 不变的契约（脚本逻辑原样保留，只换模板与样式）
+
+- 清单：一次读取（时间范围 `useTimeScope`），视图计数只数已加载集合并写明口径，加载中/失败时不显示 0；视图、搜索、专业、选中行、密度都在查询参数里，进入核验台再返回时原样恢复，并带回 `sel`；选中行被筛掉时只关闭预览。
+- 可送出视图的行内“确认送出…”：只看 `allowed_actions`，单独确认，一次尝试固定版本与幂等键，409/404 刷新清单并说明。
+- 核验台：检测维度分开读（`checkReport.ts`）；通过/退回只按 `allowed_actions`；有学校词表警告时通过必须写说明；退回必须写原因；同一次提交重试沿用同一幂等键；409 先重读再分“已被处理 / 已更新（可载入最新材料且保留说明）/ 已不可用”；“下一篇”只在服务器确认后出现；确认送出与通过核验分开、按服务端当前版本送出；永久终止在“更多操作”里、原因必填、独立确认；重新检测匿名稿保留；退回状态只读显示学生看到的原因；PDF Blob 只在本页、离开即撤销；原稿按需读取。
+- 不显示专家信息；学校本就能看学生与原稿，可见性提示照旧写明“匿名稿将交给专家 / 原稿仅本校可见”。
+
+### 18.2 外观（R1 已验收的那一套）
+
+- 两页都用 `AppShell`（学校导航，计数“送审准备 = 已加载的待核验数”）；退出登录用新的 `useSignOut`（调用现有 `auth.logout()` 后回登录页），AppShell 本身仍不读 store。
+- 清单（queue 模板）：顶栏标题“送审准备”，页级动作放时间范围选择；`FilterBar` = `ViewTabs`（待核验 / 可送出 / 已退回 / 全部）＋“显示”菜单（紧凑行距）＋ `SearchField` ＋专业 `ComboFilter`＋已选条件；口径说明一行；shadcn `Table`；预览 ≥1180 为右侧 360px 栏，以下为右侧抽屉。状态统一用 `StatePanel`。
+- 核验台（focus 模板）：顶栏返回“送审准备”、论文题目、学生与专业、“待核验 i / n”；≥1280 三栏可拖动（发现 288、材料、判断 368，像素最小宽度，不跨会话保存）；1024–1279 发现收进左侧抽屉；<1024 发现 / 材料 / 判断标签页。发现用 R1 的 `FindingsList`（来源名称改用真实页的“文件名 / 文件元数据 / 登记信息 / 标题文字核对”，分组名“阻断 / 警告”与报告依据一致）。判断栏底部固定提交条；对话框用 `AlertDialog`；“更多操作”用 `Collapsible`。
+- 材料区仍是受控 PDF：`iframe` + `#page=` 跳页（R2 不换 PDF 查看器）。
+
+### 18.3 测试
+
+- 现有 26 条清单与核验台测试保留断言内容，只按新结构改选择器：视图改为 `aria-pressed` 按钮组；对话框经 Teleport 渲染到 body，按 document 查询；横幅用 `data-banner`；“更多操作”用 `data-more-ops`。
+- jsdom 没有 `matchMedia`：断点用 `max-width` 查询，默认走宽屏布局，与旧测试一致。
+- 两种模式全量测试、两种构建；浏览器在 5196（真实模式，后端 8021）走清单 → 核验 → 返回清单。
+
+### 18.4 R2 结果（2026-11-05，未提交）
+
+- 改动：`PreparationQueue.vue`、`VerifyDesk.vue` 换成 AppShell（queue / focus 模板），脚本逻辑未改（只把旧的 matchMedia 分栏换成 `useMediaQuery`、发现列表换成共用的 `FindingsList`）；`SchoolPreparationPage.vue` 去掉旧 `.ws` 外层与 `workspace.css`，把导航传给核验台。新增 `components/app/shell/useSignOut.ts`、`verify/findingSource.ts`（发现来源名称，纯函数）。`FindingsList` 分组名改为“阻断 / 警告”，与报告依据一致。
+- 测试：原 26 条只改选择器（视图按钮 `aria-pressed`、对话框按 body 查询、`data-more-ops`、`data-back`），断言内容不变；横幅保留 `.banner` 类作钩子（未改用 data-banner）。新增 1 条：点发现后匿名稿跳到对应页并计为已查看。`vue-tsc` exit 0；`vitest run --maxWorkers=4` 两种模式均 107 文件 / 844 测试通过；两种 `vite build` exit 0，产物不含原型代码。
+- 浏览器（5196 真实模式 → 后端 8021，学校审核种子账号）：清单 1440×900（视图计数、口径说明、右侧 360 预览）、点“打开”进入核验台（三栏 287 / 727 / 368，匿名稿 PDF 为本页 Blob、`#page=1`），“送审准备”返回后视图、选中行与预览原样恢复；核验台 1024×768（发现收进抽屉，判断栏 340）；清单 390×844（行改两段式、预览为抽屉，无横向溢出）。
+- 未在真实后端走到：待核验论文的通过 / 退回 / 冲突 / 送出 / 终止（走查库里唯一一篇已完成）；这些由 36 条组件测试覆盖，外观见 R1 样板。首次打开 5196 时 Vite 预构建新依赖会强制刷新一次（开发环境现象）。
+
+## 19. R3：其余真实页面并入统一外壳（施工规格）
+
+用户 2026-11-05 要求继续 R3。按 17.2 的批次推进；每批：规格 → 测试 → 实现 → 两种模式测试与构建 → 浏览器检查。
+
+### 19.1 R3-0 共用一步（先做，影响全部旧外壳页面）
+
+- `OperationsShell`、`PersonalShell` 改为 `AppShell` 的薄适配层：对外 props / 插槽不变（`nav`、`account`、`org`、`#title`、`#context`、默认插槽；`width`），内部渲染 `AppShell`，退出登录走 `useSignOut`。这样所有旧外壳页面立刻共用同一侧栏、顶栏与账户入口；各批次再逐页细化。`FocusShell` 只剩专家评阅台在用（没有导航参数），留到 R3-3 单独迁移。
+- `AppShell` 新增 `layout="bare"`：无内边距、不限高度，给自带 `MasterDetail` 或自带版式的旧页面用。
+- `workspace.css`：`--ws-*` 全部改为读 tokens（颜色、圆角、控件高度 36、浮层阴影、字体）；共享类（`.btn`、`.input/.select/.textarea`、`wsd-views__tab`、`wsd-titem--on`、`wsd-sec`、`wsd-banner`、`wsd-dtable`）对齐 R1 规格：选中视图为中性填充＋字重，不用整块品牌浅底；小按钮 32px。只改外观，类名与结构不变，测试不受影响。
+- `StateBlock` 改为 `StatePanel` 的外观（图标、居中），种类、role 与插槽不变；`StatusPill` 改为 `Badge` 的外观（保留形状记号，不只靠颜色）；`ConfirmDialog` 保留原生 `<dialog>`（不 Teleport，焦点与 Esc 行为不变），外观对齐 AlertDialog。
+
+### 19.2 R3-1 学校：评审进度、结果处理、异议处理
+
+- 评审进度：真实模式新页 `modules/school/progress/SchoolProgressDesk.vue`（demo 仍用 `ReviewProgressPage`）。data 模板：顶栏标题＋时间范围；原四张指标卡改为列表的工作视图（全部 / 待派论文 / 邀请中任务 / 评阅中任务 / 已提交任务，数字来自指标接口，点了即下钻，仍写 `status_filter`），指标失败时视图不显示数字并给出“重试指标”；逾期说明一行；评分分布为右侧小节（只在学校端）；列表为表格（论文、学生、阶段、任务化名·状态·截止），不显示专家身份。数据逻辑沿用 `useOperationsDashboard` 与 `schoolProgressList`，代际防晚到、下钻计数变化提示不变。
+- 时间范围用原生 `<select>` 的统一控件 `ScopeSelect`（36px、tokens 外观，`data-time-scope` 不变），R2 清单同步换用，保证各页一致且键盘、手机原生。
+- 结果处理、异议处理：经 19.1 进入新外壳；顶栏时间范围换 `ScopeSelect`；清单头部、对象区按 19.1 的共享类外观统一。业务与测试不变。
+- 测试：`dashboardMetrics.spec` 与 `realProgress.wiring.spec` 中针对真实模式的用例改为挂新页（断言不变：指标单位、分布、下钻、失败分开重试、晚到丢弃、已选再点刷新、不含专家身份）；demo 页相关用例保留。
+
+### 19.3 R3-0 与 R3-1 结果（2026-11-05）
+
+做了什么：
+
+- R3-0：`OperationsShell`、`PersonalShell` 已是 `AppShell` 的适配层（`components/workspace/`）；`AppShell` 加了 `bare` 版式。`PersonalShell` 的 `width=reading` 用阅读栏 840，`work` 用表单栏 960；菜单放进统一侧栏，不再是顶部横向导航。`StateBlock`、`StatusPill`、`ConfirmDialog` 换成 shadcn 外观，类名（`.block--*`、`.pill--*`、`.dlg`）、role 与插槽不变。
+- R3-1：新页 `modules/school/progress/SchoolProgressDesk.vue`，路由按模式三元（demo 仍用 `ReviewProgressPage`）。新统一控件 `components/app/data/ScopeSelect.vue`（原生 select，36px），R2 送审准备清单与结果处理已换用。`ViewTabs` 加了 `select` 事件（再点当前视图也会发，给“已选再点＝刷新”用）和单个视图的 `attrs`。
+- 测试：新增 `progress/__tests__/schoolProgressDesk.spec.ts`（8 例，含原 `dashboardMetrics` 的 5 个学校真实模式用例、原 `realProgress.wiring` 的租户用例，另加表格行内容与列表失败原位重试）；两份旧文件只留平台派单台与菜单 / 字段映射用例。
+
+和 19.1 / 19.2 的出入：
+
+- 适配层插槽：旧 `#context` 有的页面放说明文字、有的放按钮。现在 `#context` 是标题旁的说明（窄屏隐藏），页级控件改放新增的 `#actions`。结果处理、派单台、专家库、学校主体、批次、成员这几页（以及旧原型屏）的按钮已移到 `#actions`；派单台的说明文字与控件已拆开。
+- `StatusPill` 没有保留圆点 / 菱形记号：标签文字本身说明状态，与 `StatusBadge` 统一为同一外观，不再有两种标签。
+- 已有的 `components/app/TimeScopeSelect.vue`（旧页面在用，带说明块）没有改，新页面一律用 `ScopeSelect`；近一年的说明放在页面里。
+- 时间范围在派单台、学生 / 导师反馈页仍是旧的原生 select，分别在 R3-2、R3-4 换。
+
+验证：
+
+- 两种模式各 108 个文件 / 846 例通过；`vue-tsc --build` 退出 0；两种模式 `vite build` 成功，产物不含原型代码。
+- 浏览器（5196 → 8021 走查后端，学校账号）：1440 宽评审进度显示五个视图与计数、逾期说明、表格（论文、学生、阶段、任务化名与状态）、右侧评分分布；点“已提交任务”后 URL 写入 `status_filter=SUBMITTED`、视图按下、列表显示“当前 1 个任务”。结果处理（已发布对象区）、异议处理都在统一外壳内正常显示、接口全部 200。390 宽评审进度为卡片列表、无横向溢出。
+- 没有走到：走查数据里没有逾期任务、没有进行中的邀请，计数变化提示（“数据已更新”）只在测试里验证。
+
+### 19.4 R3-2 平台：派单台、专家库、更正审批（施工规格）
+
+用户 2026-11-05 要求开始 R3-2。
+
+**专家库**（data，按 R1 样板一，`modules/expert-management/library/ExpertLibraryDesk.vue`）：
+
+- 没有 `expert` / `new` / `import` 参数时是清单页（`layout="data"`）：
+  - 工具栏用 `FilterBar`，依次放工作视图、显示设置、搜索、筛选、已选条件。
+    - 工作视图：全部 / 可指派 / 待审核 / 暂不可派，默认“全部”（R1 已确认）；写 `?view=`，默认值不写进地址。
+    - 显示设置：可隐藏的列只存在本页状态里。
+    - 搜索：写 `?q=`。
+    - 筛选：学科 `ComboFilter`，选项只列库里出现过的学科，写 `?discipline=`；职称 `Select`，写 `?title=`；省份 `ComboFilter`，写 `?province=`。
+    - 已选条件可以逐个移除，也可以一次全部清除。
+  - 表格是 `ExpertTable`。
+  - 表格下一行写“显示 n / m 位专家”，并说明“资料为人工维护、未核验；来源说明不代表实名认证”。
+  - 点姓名打开预览 Sheet（`ExpertPreview`，只读，打开状态只在本页）；在预览里点“打开完整档案”或在表格行点“档案”，写入 `?expert=`。
+  - 顶栏动作是“导入档案”“新建专家”，`data-action` 不变。
+  - 清单页不再自动选中第一位专家，因为表格页没有详情栏。
+- `?expert=`、`?new=1`、`?import=1` 是完整页（`layout="form"`，960 居中）：
+  - 顶栏有返回链接“专家库”（`data-back`）。返回时只去掉这三个参数，视图和筛选保留。
+  - 内容仍是 `ExpertObject`、`ExpertCreate`、`ExpertImportPane`，业务、命令、版本号、幂等键、409 处理都不变。
+  - 专家不在库里时，提示“这位专家不在专家库中”，并给出“返回专家库”。
+  - 新建成功后的地址仍是 `{ view: 'pending', expert }`。
+- 窄屏：清单页的表格可以横向滚动（`DataTableShell` 已处理），完整页本来就是单栏。旧的“窄屏先显示清单、‹ 返回”行为随主从布局一起取消。
+- 测试：只改清单相关的用例，选择器换成 `[data-preview]` 行、`[data-view-tabs]` 计数、`[data-search] input`、经地址设置学科筛选，并验证已选条件可以移除。窄屏用例改成“预览 → 完整档案 → 返回保留视图”。对象区、新建、导入的用例不改。
+
+**派单台**（queue＋候选比较表）：结构与业务不变（清单｜论文需求、任务与候选表、提交条、改派确认）。
+
+- 顶栏时间范围换成 `ScopeSelect`；“延期审批”换成 shadcn 次要按钮，保留 `aria-expanded` 与 `data-action`。
+- 页内 scoped 样式按令牌对齐 R1：
+  - 视图选中时用中性填充＋字重；
+  - 清单选中行用中性底；
+  - 候选表表头为 12px 弱色、40px 高；
+  - 提交条用浮层阴影；
+  - 改派确认框随 `ConfirmDialog` 统一。
+- 测试不改。
+
+**更正审批**（queue）：经 R3-0 已在统一外壳里，共享类已经对齐。本批只检查外观，必要时修页内样式，测试不改。
+
+验收：两种模式测试、`vue-tsc --build`、两种构建；浏览器在 5196 用平台账号检查三页（1440 / 1024 / 390）；结果记在 19.5。
+
+### 19.5 R3-2 结果（2026-11-05）
+
+做了什么：
+
+- 专家库按 19.4 改为“清单页（满宽比较表＋预览）｜完整页（档案 / 新建 / 导入）”。`ExpertLibraryDesk.vue` 直接用 `AppShell`，不再经 `OperationsShell` 和 `MasterDetail`；`ExpertTable`、`ExpertPreview`（R1 建的展示组件）接入真实数据；`ExpertObject`、`ExpertCreate`、`ExpertImportPane` 原样复用。
+- 派单台：顶栏换成 `ScopeSelect` 和 shadcn 次要按钮；页内视图选中、清单选中行改为中性底，候选表表头 40px，提交条加了浮层阴影。
+- 更正审批：没有改代码。R3-0 之后外观已经一致。
+- 测试：`expertLibraryDesk.spec.ts` 改了 4 例，都是清单相关的：
+  - 视图计数与默认“全部”、地址打开档案；
+  - 搜索、学科筛选与已选条件移除、“清除筛选”；
+  - 预览 → 完整档案 → 返回保留视图（替代原窄屏用例）；
+  - 加载失败后重试，期望改为全部 4 位。
+  
+  对象区、新建、导入用例都没动；派单台、更正审批的测试也没动。
+
+和 19.4 的出入：没有。
+
+验证：
+
+- 两种模式各 108 个文件 / 846 例通过；`vue-tsc --build` 退出 0；两种构建成功，产物不含原型代码。
+- 浏览器（5196，平台账号）：
+  - 专家库 1440：五列以上可比较，视图计数正确；点姓名打开预览，“打开完整档案”进入 960 居中档案页，返回链接回到清单。
+  - 专家库 1024 / 390：表格在自己的容器里横向滚动，页面没有横向溢出。
+  - 派单台、更正审批：在统一外壳里显示空态。
+- 没有走到：走查数据里没有待派论文，也没有更正申请，所以派单台候选表、改派确认、更正审批对象区只在测试里验证过。
+- 遗留（原有行为，没改）：派单台清单为空时，右侧没有任何说明。
+
+### 19.6 R3-3 专家：任务、评审邀请、专注评阅（施工规格）
+
+用户 2026-11-05 要求开始 R3-3。`ExpertTasksPage`、`InvitationPage` 是 demo / 真实两用的旧页（PortalLayout）。做法同 R3-1：真实模式换新页，路由按模式三元，demo 仍用旧页；旧页的真实模式用例移到新页。
+
+**我的任务**（data，新页 `modules/review/tasks/ExpertTaskDesk.vue`）：
+
+- 顶栏：标题“评审任务”。说明“只显示本人任务；接受前只能看到匿名概要”。右侧放 `ScopeSelect`。选“近一年”时，页内加一行说明“较早建立论文的未结任务可能未显示”。
+- 工作视图（`ViewTabs`，每个视图挂 `data-tab`）：待接受 / 评阅中 / 已完成 / 已拒绝 / 已撤销 / 需要更正，都带计数。默认停在第一个有任务的视图（规则同旧页）。
+- 表格（宽屏）列为：匿名任务（编号＋匿名题目）、送审方向、截止（北京时间；待接受显示接单截止，其余显示评阅截止）、状态（`StatusBadge`，另有“已逾期”“需要更正”标签）、操作。窄屏（<768）改为卡片。行与容器保留 `data-expert-task`、`data-expert-task-table`。
+- 操作按服务端 `allowed_actions` 决定，规则与旧表相同：
+  - 待接受：“接受”（`data-action="accept-task"`），打开确认框；
+  - 评阅中：“继续评阅”链接（`continue-review`，带 `task_id`）；
+  - 已提交：“查看”链接（`view-submitted`）；
+  - 有评阅截止时多一个“评阅延期”，在表格下方展开 `ExtensionPanel`。
+- 接受确认用 `AlertDialog`，文案与旧页相同；不显示费用；失败时错误留在框内；`data-action` 不变。
+- 状态：加载中、失败（原位重试）、视图为空（“当前分组暂无任务。”）。
+- 不做旧表的“列偏好”（顺序 / 显示持久化）。新表只有 5 列，没有可隐藏的必要；旧页在 demo 模式下保留这项功能。
+
+**评审邀请**（form，新页 `modules/review/invitation/InvitationDesk.vue`）：
+
+- 顶栏有返回链接“我的任务”（`data-back`），标题“评审邀请”。
+- 和旧页一样，取本人第一个“待接受”任务并读取邀请详情。
+- 内容是一张卡片：匿名任务编号＋“待接受”，下面列匿名题目、送审方向、接单截止（北京时间，逾期时标注）。
+- 回避声明改为说明文字，不再用“已勾选且禁用”的复选框，因为它不是可操作的控件。
+- 卡片里说明“接受前不开放论文正文”。操作有“拒绝任务”（`open-reject-dialog`）和“接受任务并开始评阅”（`accept-task`）。
+- 接受确认用 `AlertDialog`，接受后进入 `/expert/review?task_id=`。
+- 拒绝确认框：原因用原生 select（`data-reject-reason`），选“其他”时说明必填（`data-reject-reason-detail`），确认按钮为 `confirm-reject-task`，提交内容为“其他：说明”。拒绝后显示“当前没有待处理的评审邀请”，并给出回到任务列表的链接。
+- 状态：加载中、失败、没有邀请。
+
+**专注评阅**（focus，`ExpertReviewDesk.vue`）：
+
+- `FocusShell` 换成 `AppShell layout="focus"`，进入时收起侧栏、不写偏好；侧栏只有“我的任务”。
+- 插槽对应：
+  - 返回按钮 → `#back`（`data-action="back-to-tasks"`，离开前仍先保存）；
+  - 任务编号与匿名题目 → `#title`（`.code`、`.rv-title`）；
+  - 截止与逾期 → `#context`；
+  - `SaveStatus` → `#actions`。
+- 正文布局、保存队列、冲突、提交、更正面板都不变。
+- `FocusShell` 改完后不再有页面使用，先保留文件，最后的清理批次再删。
+
+**测试**：
+
+- 新增 `tasks/__tests__/expertTaskDesk.spec.ts`、`invitation/__tests__/invitationDesk.spec.ts`。移入的用例有：`realWorkspace.spec` 里任务列表与邀请的 5 个真实模式用例、`timeScopePages.spec` 的 3 个用例（挂新页）。
+- “分组名显示在页头”这一例原来断言 BlindRail 的 stage，改为断言视图按下状态与空态文字。
+- 评阅台测试不改。
+
+验收：两种模式测试、`vue-tsc --build`、两种构建；浏览器在 5196 用专家账号检查三页（1440 / 390）；结果记在 19.7。
+
+### 19.7 R3-3 结果（2026-11-05）
+
+做了什么：
+
+- 新页 `modules/review/tasks/ExpertTaskDesk.vue`、`modules/review/invitation/InvitationDesk.vue`，按 19.6 实现，路由按模式三元（demo 仍用旧页）。
+- `ExpertReviewDesk.vue` 从 `FocusShell` 换到 `AppShell layout="focus"`，插槽按 19.6 对应；窄屏只在 ≤640 时隐藏题目（原来 ≤899 就隐藏，统一外壳之后顶栏有足够宽度）。
+- 三页账户角色统一显示为“评阅专家”。
+- 测试：
+  - 新增 `tasks/__tests__/expertTaskDesk.spec.ts`（8 例）、`invitation/__tests__/invitationDesk.spec.ts`（4 例）；
+  - `realWorkspace.spec` 去掉移走的 5 例；
+  - `components/app/__tests__/timeScopePages.spec.ts` 的 3 例全部移到新页，原文件删除（未暂存）；
+  - 评阅台测试不改。
+
+和 19.6 的出入：没有。旧表的列偏好按 19.6 没有带到新页。
+
+验证：
+
+- 两种模式各 109 个文件 / 850 例通过；`vue-tsc --build` 退出 0；两种构建成功，产物不含原型代码。
+- 浏览器（5196，专家账号）：
+  - 1440 宽：
+    - 任务页停在第一个有任务的视图（已完成 1），“查看”进入评阅台；
+    - 评阅台进入时侧栏收起为图标轨，已提交意见在自己的滚动区内滚动；返回“我的任务”后侧栏恢复展开；
+    - 邀请页在没有邀请时给出空态和“查看我的任务”。
+  - 390 宽：任务卡片和评阅台顶栏都没有横向溢出。
+- 没有走到：走查数据里这位专家没有待接受或评阅中的任务，所以接受确认、拒绝确认、邀请卡片、评阅表单与自动保存只在测试里验证过。
+
+### 19.8 R3-4 学生与导师：首页、编辑、正式反馈（施工规格）
+
+用户 2026-11-05 要求开始 R3-4。四页都只在真实模式使用（demo 走旧组件，路由已有三元），所以原地改，不新建页面、不动路由。
+
+**学生首页**（`StudentPortalPage.vue`，reading）：
+
+- 去掉 `PersonalShell`，直接用 `AppShell layout="reading"`：顶栏标题“我的送审”，`#context` 放批次名和“收件截止 …（北京时间）”；内容区不再重复 h1。
+- 当前论文卡、退回原因、下一步、材料状态、处理记录、空态 / 无资格说明，内容与条件都不变，只换成令牌样式；按钮、链接换 shadcn `Button`（链接用 `as-child`）。
+- “更多”菜单保留自写的小菜单（`data-action="more"` 后出现 `delete-draft` / `withdraw`），只换外观；不用 reka DropdownMenu，因为它按 pointerdown 打开、在测试和触屏上行为不同，这里两个选项不值得。
+- “其他论文”的时间范围换 `ScopeSelect`；列表换令牌样式，窄屏仍折行。
+- 状态换 `StatePanel`（加载、列表失败带“重新加载”、无资格用 forbidden、资格读取失败用 error）。
+- 删除 / 撤回确认仍用原生 `ConfirmDialog`（R3-0 已换外观），按钮换 `Button`，`data-action` 与 `data-withdraw-reason` 不变。
+
+**编辑页**（`StudentThesisEditor.vue`，form）：
+
+- 直接用 `AppShell layout="form"`：`#back` 放“我的送审”链接（`data-back`）；标题按状态：新建为“开始送审”，编辑为论文题目（前面带草稿 / 已退回标签），其余为“编辑论文”；编辑态的 `SaveStatus` 放 `#actions`。内容区不再写 h1。
+- 只做外壳层面的迁移：内嵌的 `ThesisMaterialEditor`、`SensitiveFindingPanel`、`DisciplineSelector`、`PdfTransformDialog` 不改（它们还依赖 `.ws` 旧样式，整页仍包在 `.ws` 里）。
+- 步骤导航、三个分区卡片、冲突横幅、底部操作条换令牌样式；按钮换 `Button`，`data-*` 钩子全部不变。
+- 状态换 `StatePanel`（加载、失败、不可编辑用 forbidden）；“本批次没有可选专业”用 `StatePanel compact`（kind empty）。
+- 提交确认仍用原生 `ConfirmDialog`。
+
+**学生正式反馈**（`StudentFeedbackPage.vue`，reading，按 R1 样板）：
+
+- `AppShell layout="reading"`，标题“评阅结果”，`ScopeSelect` 放 `#actions`。
+- 多篇已发布论文时，内容区顶部仍是原生论文选择（`data-thesis-picker`）。
+- 正文换 `FeedbackDocument`（R1），旧 `FeedbackArticle` 不再被页面使用（文件留到清理批次）。
+- 状态换 `StatePanel`，保留 `data-unpublished`、`data-feedback-invalid`、`data-action="retry-feedback"`。
+- 异议区（`.objection`）：
+  - 已有异议的记录（`data-objection-status`）和提示（`data-objection-notice`）始终直接显示；
+  - 可以登记时，表单按 R1 收在“对这份结果有异议？”折叠里（`Collapsible`，触发按钮 `data-action="toggle-objection"`，默认收起），展开后先说明规则，再是两个必填文本框（`name` 不变）和“登记异议…”；
+  - 不能登记且没有记录时，直接显示 `data-objection-closed` 说明；
+  - 确认仍用 `ConfirmDialog`，幂等键与 409 处理不变。
+
+**导师正式反馈**（`SupervisorFeedbackPage.vue`）：同上外壳，标题“学生评阅结果”；学生选择仍是原生 select（`data-student-picker`）加提示；正文用 `FeedbackDocument`，没有异议区，页面不出现“异议”。
+
+**测试**：
+
+- `feedbackPages.spec` 的异议用例先点开折叠（`toggle-objection`），这是设计改动带来的测试改动；其余断言不变。
+- `studentWorkspace.spec` 不改：编辑页 `h1` 仍是论文题目（现在在顶栏）。
+- 新增一例：学生反馈页在可登记时默认不显示表单，点开后才出现。
+
+验收：两种模式测试、`vue-tsc --build`、两种构建；浏览器在 5196 用学生、导师账号检查（1440 / 390）；结果记在 19.9。
+
+### 19.9 R3-4 结果（2026-11-05）
+
+做了什么：
+
+- `StudentFeedbackPage.vue`、`SupervisorFeedbackPage.vue`：
+  - 改用 `AppShell layout="reading"`，标题分别为“评阅结果”“学生评阅结果”，`ScopeSelect` 放在 `#actions`；
+  - 正文换成 `FeedbackDocument`；状态换成 `StatePanel`；
+  - 学生异议表单收进 `Collapsible`（`toggle-objection`），记录与提示始终显示；
+  - 导师的“只列出你指导的……”提示移到 `#context`。
+- `StudentPortalPage.vue`：
+  - 改用 `AppShell layout="reading"`，标题“我的送审”，批次和截止放 `#context`；
+  - 当前论文卡、下一步、材料、处理记录、其他论文换成令牌样式；“更多”改为图标按钮，菜单点外面会关闭（`onClickOutside`）；
+  - `ScopeSelect`、`StatePanel`、`Button` 都已替换；两个确认框的按钮换成 `Button`；
+  - 测试用的类名钩子 `.current`、`.empty`、`.returned`、`.materials`、`.others` 保留。
+- `StudentThesisEditor.vue`：
+  - 改用 `AppShell layout="form"`；`#back` 链接回“我的送审”（`data-back`）；
+  - 编辑态的 `#title` 显示状态标签和论文题目，`#actions` 放 `SaveStatus`；
+  - 状态改用 `StatePanel`，12 个按钮换成 `Button`，并显式写了 `type`；
+  - 内嵌的旧组件和分区样式没有改。
+- 测试：
+  - `feedbackPages.spec` 里的异议用例先点开折叠；
+  - 新增一例：表单默认收起；
+  - `studentWorkspace.spec` 没有改。
+
+和 19.8 的出入：编辑页顶栏标题在非编辑态显示“送审材料”，不是“开始送审”。新建卡片保留自己的标题“开始送审”（`#create-h`，测试会读它），这样顶栏和卡片不会重复同一句话。
+
+验证：
+
+- 两种模式各 109 个文件 / 851 例通过；`vue-tsc --build` 退出 0；两种构建成功，产物不含原型代码。
+- `FeedbackArticle` 现在没有页面使用（只在 `FeedbackDocument` 的注释里提到），文件留到清理批次再删。
+- 浏览器：**还没有做。** 5196 上要用学生和导师的种子账号登录，但本轮会话没有权限读取测试口令。浏览器里现在登录的是专家账号。
+
+### 19.10 R3-5 设置、系统、登录（施工规格）
+
+用户 2026-11-06 要求开始 R3-5（R3-4 的浏览器检查按用户决定跳过）。七页都已经通过 R3-0 的适配层进入统一外壳，共享类也已经读令牌，所以这一批做页面层：
+
+- 不再经过 `OperationsShell`，直接用 `AppShell`：标题用 `title` 属性（不再写 `h1.wsd-title`），说明放 `#context`，页级按钮放 `#actions`；
+- 状态换 `StatePanel`，页面上的按钮换 `Button`；
+- 内嵌的对象组件不改结构，只靠已有的共享类外观：`BatchObject`、`BatchCreate`、`MemberObject`、`MemberCreate`、`OpenDisciplines`、`ProgramImport`、`TenantObject`、`TenantCreate`。
+
+逐页：
+
+- **批次与规则**（`BatchSettingsPage`，queue）：
+  - `layout="bare"`，仍用 `MasterDetail`（清单 300 宽）；
+  - 清单项保留 `wsd-titem`；“新建批次”在 `#actions`（`data-action="new-batch"`）。
+- **成员与资格**（`MemberSettingsPage`）：
+  - `layout="bare"`，仍用 `MasterDetail`；
+  - 成员类型视图换 `ViewTabs`（学生 / 导师 / 全部，带计数）；
+  - 搜索保留原生输入，只用令牌外观。
+  - 和 17.2 的出入：不改成“可比较表＋详情 Sheet”。成员对象区里有资格的新建、编辑和停用表单，放进 Sheet 会让表单变窄，而且会遮住清单；成员清单本身只有姓名、类型、编号、账号四项，用不上表格比较。清单｜对象两栏已经满足“边看清单边处理”。
+- **学科与专业**（`DisciplineSettingsPage`，form 960）：两个分区换 `ViewTabs`，每项挂 `data-tab`；地址里的 `?tab=` 规则不变。
+- **检测词表**（`TermSettingsPage`，form 960）：
+  - 版本与条数放在 `#context`；
+  - 可编辑表、冲突横幅、底部提交条（`.wsd-commit`）结构不变，按钮换 `Button`。
+- **学校管理**（`TenantDesk`）：
+  - 清单页 `layout="data"`：工具条（搜索、状态，原生控件，`data-field` 不变）；表格改为令牌样式，整行可点，名称按钮可用键盘操作；底部是数量说明；
+  - 详情页和新增页 `layout="form"`：`#back` 放“学校管理”（`data-action="to-list"`），标题为学校名称或“新增学校”。
+- **官方基础目录**（`OfficialCatalogPage`，form 960）：预览、差异计数表、来源、确认导入的流程不变，外观换令牌；确认仍用 `ConfirmDialog`。
+- **登录**（`LoginPage`、`AuthLayout`、三个登录方式面板、`LoginChannelTabs`）：
+  - 全部改为令牌颜色和 shadcn 控件（`Input`、`Button`、`Label`）；
+  - 去掉英文大写眉题（ACCOUNT ACCESS / DOUBLE-BLIND REVIEW）；左侧品牌区用主色，不再用硬编码的渐变色值；
+  - 结构、文案主体、`role="tablist"` / `tabpanel` 语义、`autocomplete`、`name`、`data-*` 钩子、演示入口都不变。
+
+**测试**：
+
+- `memberSettings.spec` 里的视图用例改用 `ViewTabs` 的钩子（`[data-view]` 和按钮内的计数），这是设计改动带来的测试改动；
+- 其余测试不改。
+
+验收：
+
+- 两种模式测试、`vue-tsc --build`、两种构建；
+- 浏览器：登录页 1440 / 390（不需要账号）；其余页面需要学校或系统管理员登录，本会话没有权限读取测试口令，能做多少记多少，结果记在 19.11。
+
+### 19.11 R3-5 结果（2026-11-06）
+
+做了什么：
+
+- 批次与规则、成员与资格、学科与专业、检测词表、学校管理、官方基础目录这六页不再经过 `OperationsShell`，直接用 `AppShell`：
+  - 标题走 `title` 属性，说明放 `#context`，页级按钮放 `#actions`；
+  - 状态换 `StatePanel`（`nomatch` 对应 `noresult`，`unconfigured` 对应 `empty`）；
+  - 页面上的按钮换 `Button` 并显式写 `type`；状态面板里的“重试”统一用 outline。
+- 成员类型视图、学科分区都换成 `ViewTabs`。学科分区保留 `data-tab`，`?tab=` 规则不变。
+- 学校管理：
+  - 清单页 `layout="data"`：工具条用令牌外观的原生控件，表格是令牌样式，整行可点，名称按钮有焦点环，底部是数量说明（`data-count`）；“只管理学校与账号、不读正文”改放 `#context`；
+  - 详情页和新增页：`#back` 是“学校管理”（`data-action="to-list"`），标题为学校名或“新增学校”；
+  - 列表失败时的重试按钮加了 `data-action="retry-tenants"`。
+- 登录：
+  - `AuthLayout` 左侧品牌区用主色，标题用宋体，去掉了两处英文大写眉题，补了一句双盲说明；窄屏时品牌区收成顶部一条，表单贴着它从上往下排；
+  - `LoginPage` 换 `Input`、`Button`、`Label`，演示入口换令牌样式；
+  - 三个登录方式面板和 `LoginChannelTabs`：硬编码色值全部换成令牌，控件高 40，并加了焦点环；
+  - 结构、`role`、`autocomplete`、`name`、`data-*` 都没变，测试钩子 `.login-form__notice` 保留。
+- 测试：
+  - `memberSettings.spec` 的视图用例改用 `[data-view]`；
+  - `tenantDesk.spec` 的重试改用 `retry-tenants`，原来靠的是 `.btn--primary` 类；
+  - 其余测试没有改。
+
+和 19.10 的出入：
+
+- 学科与专业、检测词表、官方基础目录用的是 `layout="bare"`，不是 `form`。这三页的 `.wsd-obj` 自带内边距，提交条是贴底的满宽条；用 `form` 会让内边距加倍，提交条也会被压进 960 栏里。现在的做法是内容居中 960（`margin-inline: auto`），提交条仍然满宽贴底。学校管理的详情页和新增页同样处理。
+- 成员页没有改成表格加 Sheet，原因见 19.10。
+
+验证：
+
+- 两种模式各 109 个文件 / 851 例通过；`vue-tsc --build` 退出 0；两种构建成功，产物不含原型代码。
+- 浏览器（5187，登录页不需要账号）：
+  - 1440：两栏，空提交时提示“请输入账号和密码。”；
+  - 390：品牌条在上，表单紧跟在下面，切到“学校统一认证”正常，没有横向溢出；
+  - 第一次检查时窄屏表单在剩余高度里垂直居中，上方空出一大块，已改为从上往下排。
+- 没有走到：其余六页需要学校或系统管理员登录，本会话没有权限读取测试口令，只在测试里验证过。
+
+### 19.12 R4 清理（施工规格）
+
+用户 2026-11-06 要求开始清理批次。按 17.6，R4 要删除旧外壳，并决定 Element Plus 的去留。演示模式按 D1-b 保留（§16.4），只在演示模式可达的旧页和 `PortalLayout` 都不在本批范围内。
+
+盘点（按源码 import，不含测试）：
+
+| 对象 | 现在谁在用 | 本批处理 |
+|---|---|---|
+| `OperationsShell` | 真实页：结果处理、异议处理、派单台、更正审批；U3 原型屏 11 个 | 四个真实页改为直接用 `AppShell`，之后只剩原型屏在用 |
+| `PersonalShell`、`FocusShell` | 只有 U3 原型屏（学生门户、反馈阅读、学校核验、专家评阅） | 不动，见下文“待用户决定” |
+| `PortalLayout` | 演示旧页，以及两种模式都还在用的未改造页（财务、档案、通知、导出、审计、学校账户） | 保留 |
+| `FeedbackArticle` | 没有页面使用 | 删除 |
+| `StateBlock`、`StatusPill`、`MasterDetail`、`useNarrow`、`ConfirmDialog` | 真实页仍在用（R3-0 已换外观） | 保留 |
+| Element Plus | `main.ts` 全局注册；`request.ts` 的 `ElMessage`；`PdfTransformDialog`、`ColumnPreferences` 各用了一组图标。没有任何模板用到 `el-*` 组件，`components.d.ts` 里也没有 El 组件 | 按 17.6 的退出条件移除 |
+
+做法：
+
+1. **四个真实页**（`SchoolResultsDesk`、`SchoolObjectionsDesk`、`PlatformDispatchDesk`、`CorrectionApprovalDesk`）：
+   - 和 R3-5 一样直接用 `AppShell layout="bare"`：标题走 `title`，说明放 `#context`，页级按钮放 `#actions`；
+   - 状态换 `StatePanel`，页面层的按钮换 `Button`；
+   - `MasterDetail` 和对象组件不动。
+2. **全局错误提示**：
+   - 新增 `components/app/notify/`：`notify.ts` 是一个响应式队列，对外只有 `notify.error(text)`；同一句话正在显示时不会再叠一条，5 秒后自动消失；`AppToaster.vue` 放在 `App.vue`，是顶部居中的提示区（`role="status"`、`aria-live="polite"`），颜色读令牌；
+   - `request.ts` 的 `ElMessage.error` 改为 `notify.error`，文案和触发条件不变；
+   - `quietErrors.spec`、`loginFailure.spec` 改为 mock 这个模块。
+3. **图标**：两处 `@element-plus/icons-vue` 换成 `@lucide/vue`。
+4. **去掉注册与依赖**：
+   - `main.ts` 不再注册 Element Plus；`vite.config.ts` 去掉 `ElementPlusResolver`，两个 unplugin 保留，它们还负责本地组件的自动注册；
+   - 从依赖里删除 `element-plus`、`@element-plus/icons-vue`；
+   - 构建产物里不再出现 element-plus。
+5. **删除** `modules/result/feedback/FeedbackArticle.vue`。`FeedbackDocument` 注释里提到它的那句一并改掉。
+
+**待用户决定（本批不做）：**
+
+- U3 原型屏 `src/prototypes/screens/`（16 个文件，只在开发模式注册）已经被真实新页和 R1 样板取代；
+- 它们是 `OperationsShell`、`PersonalShell`、`FocusShell` 的最后使用者；
+- 删掉它们，三个旧外壳就可以一起删除；
+- 这是删除已有成果，所以先列出来，由用户决定。
+
+验收：
+
+- 两种模式测试、`vue-tsc --build`、两种构建；
+- 产物里检索不到 element-plus；
+- 浏览器（5187 登录页，不需要账号）：空提交仍是页内提示，不弹全局提示。
+
+结果记在 19.13。
+
+### 19.13 R4 清理结果（2026-11-06）
+
+做了什么：
+
+- 结果处理、异议处理、派单台、更正审批四页改为直接用 `AppShell layout="bare"`；状态换 `StatePanel`，页面层的按钮换 `Button`（派单台已有的 `Button` 导入没有重复）。现在所有真实页面都不经过 `OperationsShell`。
+- 全局提示：
+  - 新增 `components/app/notify/notify.ts` 和 `AppToaster.vue`，并挂在 `App.vue`；
+  - `request.ts` 改用 `notify.error`，文案和触发条件不变；
+  - 新增 `notify/__tests__/notify.spec.ts`（1 例：同一句不重复、能手动关闭、5 秒后自动消失）；
+  - `quietErrors.spec`、`loginFailure.spec` 改为 mock 这个模块。
+- Element Plus：
+  - `main.ts` 不再注册；`vite.config.ts` 去掉 `ElementPlusResolver`，两个 unplugin 保留；
+  - 两处图标换成 Lucide（`ArrowUp`、`ArrowDown`、`X`、`Plus`、`GripVertical`）；
+  - `pnpm remove element-plus @element-plus/icons-vue`（离线完成，lockfile 同步，少了 12 个包）；
+  - 删除 `styles/element.css` 及其在 `main.css` 里的引入，`main.css`、`tokens.css` 的注释同步。
+- 删除 `modules/result/feedback/FeedbackArticle.vue`，`FeedbackDocument` 的注释同步。
+
+所有删除都是受 git 跟踪、删除前未改动的文件，都没有暂存。
+
+和 19.12 的出入：`styles/element.css` 不在原来的盘点里。浏览器检查时发现页面仍带着 `--el-*` 变量，追查到这个文件，就一并删除了。
+
+验证：
+
+- 两种模式各 110 个文件 / 852 例通过（比 R3-5 多 1 个文件 1 例，就是 `notify.spec`）；
+- `vue-tsc --build` 退出 0；两种构建成功；产物里检索不到 `element-plus`、`--el-`，也没有原型代码；
+- 浏览器（5187 登录页）：页面正常，空提交仍是页内提示，没有弹全局提示；提示区已挂载；样式表里没有 `--el-*`；控制台没有错误。
+
+仍然保留：
+
+- `OperationsShell`、`PersonalShell`、`FocusShell` 只剩 U3 原型屏（`src/prototypes/screens/`，16 个文件，只在开发模式注册）在用，等用户决定（见 19.12）；
+- `PortalLayout`、演示旧页、`TimeScopeSelect` 按 D1-b 保留；
+- `StateBlock`、`StatusPill`、`MasterDetail`、`useNarrow`、`ConfirmDialog` 仍被真实页使用。
+
+### 19.14 R4 补充：删除 U3 原型屏与旧外壳（2026-11-06）
+
+用户确认删除（对 19.13 末尾待决事项的答复）。
+
+先更正 19.13 的说法：U3 原型屏引用的是 `src/prototypes/kit/` 里的外壳副本，不是 `components/workspace/` 下的那三个。后者在 R4 前四页迁走后已经没有任何引用。
+
+删除（均未暂存，可从 git 恢复）：
+
+- `src/prototypes/screens/`（17 个文件，含 `PrototypeIndex.vue`）；
+- `src/prototypes/kit/`、`src/prototypes/data/`：只被 U3 屏使用，R1 样板一个都没引用，连同 `kit/__tests__/draftController.spec.ts`；
+- `components/workspace/` 下的 `OperationsShell`、`PersonalShell`、`FocusShell`，以及只被它们用到的 `AccountMenu`、`WorkspaceBrandMark`。
+
+改动：
+
+- `prototypes/routes.ts`：去掉 17 条 U3 路由，`/prototype` 改为重定向到 `/prototype/r1`；
+- `workspace.css`、`useSignOut.ts`、`useNarrow.ts` 里提到已删文件的注释同步修改。
+
+保留：R1 样板（`src/prototypes/r1/`），以及仍被真实页使用的 `StateBlock`、`StatusPill`、`MasterDetail`、`SplitPane`、`SaveStatus`、`ConfirmDialog`、`useNarrow`、`accountInitial`、`types`。
+
+验证：
+
+- 两种模式各 109 个文件 / 838 例通过。比 19.13 少 1 个文件 14 例，就是随 kit 删除的 `draftController.spec`；
+- `vue-tsc --build` 退出 0，两种构建成功；
+- 浏览器（5187）：`/prototype` 重定向到 R1 索引，R1 专家库样板和登录页正常，控制台没有错误。

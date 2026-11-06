@@ -9,9 +9,12 @@ import { useRoute, useRouter } from 'vue-router'
 
 import { apiFailure } from '@/api/failure'
 import { listBatches, listEligibilities, listMembers, type ReviewBatch, type SchoolMember, type StudentEligibility } from '@/api/schoolOperations'
+import AppShell from '@/components/app/shell/AppShell.vue'
+import { useSignOut } from '@/components/app/shell/useSignOut'
+import ViewTabs from '@/components/app/data/ViewTabs.vue'
+import StatePanel from '@/components/app/state/StatePanel.vue'
+import { Button } from '@/components/ui/button'
 import MasterDetail from '@/components/workspace/MasterDetail.vue'
-import OperationsShell from '@/components/workspace/OperationsShell.vue'
-import StateBlock from '@/components/workspace/StateBlock.vue'
 import StatusPill from '@/components/workspace/StatusPill.vue'
 import type { WorkspaceAccount } from '@/components/workspace/types'
 import { useNarrow } from '@/components/workspace/useNarrow'
@@ -82,6 +85,8 @@ function setQuery(patch: Record<string, string | undefined>) {
 }
 
 const ready = computed(() => !loading.value && !error.value)
+const viewTabs = computed(() => views.map((item) => ({ value: item.key, label: item.label, count: ready.value ? countOf(item.key) : undefined })))
+const pickView = (key: string) => setQuery({ view: key === 'STUDENT' ? undefined : key, member: undefined })
 const countOf = (key: ViewKey) => (key === 'all' ? members.value.length : members.value.filter((row) => row.membership_type === key).length)
 const list = computed(() => {
   const needle = keyword.value.trim().toLowerCase()
@@ -108,6 +113,7 @@ async function created(member: SchoolMember) {
   setQuery({ new: undefined, view: member.membership_type, q: undefined, member: member.membership_id })
 }
 
+const signOut = useSignOut()
 const nav = computed(() => workspaceNav('school_reviewer', '/school/members'))
 const account = computed<WorkspaceAccount>(() => ({
   name: auth.user?.displayName || '身份未取得',
@@ -119,39 +125,34 @@ const account = computed<WorkspaceAccount>(() => ({
 
 <template>
   <div class="ws">
-    <OperationsShell :nav="nav" :account="account" :org="account.org">
-      <template #title><h1 class="wsd-title">成员与资格</h1></template>
-      <template #context>
-        <button v-if="ready" type="button" class="btn btn--sm" data-action="new-member" @click="setQuery({ new: '1', member: undefined })">新建成员</button>
+    <AppShell :nav="nav" :account="account" :workspace="account.org" layout="bare" title="成员与资格" @sign-out="signOut">
+      <template #actions>
+        <Button v-if="ready" type="button" variant="outline" size="sm" data-action="new-member" @click="setQuery({ new: '1', member: undefined })">新建成员</Button>
       </template>
 
       <MasterDetail :open="Boolean(memberId) || creating" :narrow="narrow" list-label="成员清单" detail-label="当前成员" back-label="成员清单" @back="setQuery({ member: undefined, new: undefined })">
         <template #list>
           <div class="wsd-lhead">
-            <div class="wsd-views" role="tablist" aria-label="成员类型">
-              <button v-for="v in views" :key="v.key" type="button" role="tab" class="wsd-views__tab" :aria-selected="view === v.key" @click="setQuery({ view: v.key === 'STUDENT' ? undefined : v.key, member: undefined })">
-                {{ v.label }}<span v-if="ready" class="wsd-views__count num">{{ countOf(v.key) }}</span>
-              </button>
-            </div>
+            <ViewTabs :model-value="view" :views="viewTabs" label="成员类型" @select="pickView" />
             <label>
               <span class="sr-only">搜索成员</span>
               <input class="input" type="search" :value="keyword" placeholder="姓名、学号/工号或账号" :disabled="!ready || !members.length" @input="setQuery({ q: ($event.target as HTMLInputElement).value || undefined, member: undefined })" />
             </label>
-            <p v-if="ready && eligibilityError" class="wsd-scope warn" role="status">送审资格没有加载出来，行上不标资格状态。<button type="button" class="btn btn--quiet btn--sm" @click="load">重试</button></p>
+            <p v-if="ready && eligibilityError" class="wsd-scope warn" role="status">送审资格没有加载出来，行上不标资格状态。<Button type="button" variant="ghost" size="sm" @click="load">重试</Button></p>
           </div>
-          <StateBlock v-if="loading && !members.length" kind="loading" title="正在读取成员…" compact />
-          <StateBlock v-else-if="error" kind="error" title="成员没有加载出来" compact>
+          <StatePanel v-if="loading && !members.length" kind="loading" title="正在读取成员…" compact />
+          <StatePanel v-else-if="error" kind="error" title="成员没有加载出来" compact>
             {{ error }}
-            <template #actions><button type="button" class="btn btn--primary" @click="load">重试</button></template>
-          </StateBlock>
-          <StateBlock v-else-if="!members.length" kind="empty" title="还没有本校成员" compact>
+            <template #actions><Button type="button" variant="outline" @click="load">重试</Button></template>
+          </StatePanel>
+          <StatePanel v-else-if="!members.length" kind="empty" title="还没有本校成员" compact>
             先建立学生与导师账号，再为学生建立送审资格。
-            <template #actions><button type="button" class="btn btn--primary" @click="setQuery({ new: '1' })">新建成员</button></template>
-          </StateBlock>
-          <StateBlock v-else-if="!list.length && keyword.trim()" kind="nomatch" :title="`没有匹配“${keyword.trim()}”的成员`" compact>
-            <template #actions><button type="button" class="btn" @click="setQuery({ q: undefined })">清除搜索</button></template>
-          </StateBlock>
-          <StateBlock v-else-if="!list.length" kind="empty" title="这个视图里没有成员" compact />
+            <template #actions><Button type="button" @click="setQuery({ new: '1' })">新建成员</Button></template>
+          </StatePanel>
+          <StatePanel v-else-if="!list.length && keyword.trim()" kind="noresult" :title="`没有匹配“${keyword.trim()}”的成员`" compact>
+            <template #actions><Button type="button" variant="outline" @click="setQuery({ q: undefined })">清除搜索</Button></template>
+          </StatePanel>
+          <StatePanel v-else-if="!list.length" kind="empty" title="这个视图里没有成员" compact />
           <ul v-else class="wsd-tlist">
             <li v-for="row in list" :key="row.membership_id">
               <button type="button" class="wsd-titem" :class="{ 'wsd-titem--on': row.membership_id === memberId }" :aria-current="row.membership_id === memberId || undefined" @click="setQuery({ member: row.membership_id, new: undefined })">
@@ -166,18 +167,18 @@ const account = computed<WorkspaceAccount>(() => ({
         </template>
 
         <template #empty>
-          <StateBlock v-if="ready && members.length" kind="empty" title="从左侧选择一位成员" compact />
+          <StatePanel v-if="ready && members.length" kind="empty" title="从左侧选择一位成员" compact />
         </template>
 
         <MemberCreate v-if="creating" :initial-type="view === 'SUPERVISOR' ? 'SUPERVISOR' : 'STUDENT'" @created="created" @cancel="setQuery({ new: undefined })" />
-        <StateBlock v-else-if="loading && !selected" kind="loading" title="正在读取成员…" />
-        <StateBlock v-else-if="error" kind="error" title="成员没有加载出来，暂时不能打开">
-          <template #actions><button type="button" class="btn btn--primary" @click="load">重试</button></template>
-        </StateBlock>
-        <StateBlock v-else-if="!selected" kind="forbidden" title="这个成员已不在本校">
+        <StatePanel v-else-if="loading && !selected" kind="loading" title="正在读取成员…" />
+        <StatePanel v-else-if="error" kind="error" title="成员没有加载出来，暂时不能打开">
+          <template #actions><Button type="button" variant="outline" @click="load">重试</Button></template>
+        </StatePanel>
+        <StatePanel v-else-if="!selected" kind="forbidden" title="这个成员已不在本校">
           可能已被另一位学校审核移出，或链接来自其他学校。成员清单已是最新。
-          <template #actions><button type="button" class="btn" @click="setQuery({ member: undefined })">回到成员清单</button></template>
-        </StateBlock>
+          <template #actions><Button type="button" variant="outline" @click="setQuery({ member: undefined })">回到成员清单</Button></template>
+        </StatePanel>
         <MemberObject
           v-else
           :key="selected.membership_id"
@@ -189,7 +190,7 @@ const account = computed<WorkspaceAccount>(() => ({
           :reload="load"
         />
       </MasterDetail>
-    </OperationsShell>
+    </AppShell>
   </div>
 </template>
 

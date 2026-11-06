@@ -5,13 +5,16 @@
  * 系统管理员只管理学校与学校管理员账号，不读论文正文；官方目录在 /system/catalog（E10）。
  * demo 模式与旧页 TenantPermissionsPage 不变（见 router/routes.ts）。
  */
+import { ChevronLeft } from '@lucide/vue'
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import { apiFailure } from '@/api/failure'
 import { listTenants, type TenantSummary } from '@/api/systemOperations'
-import OperationsShell from '@/components/workspace/OperationsShell.vue'
-import StateBlock from '@/components/workspace/StateBlock.vue'
+import AppShell from '@/components/app/shell/AppShell.vue'
+import { useSignOut } from '@/components/app/shell/useSignOut'
+import StatePanel from '@/components/app/state/StatePanel.vue'
+import { Button } from '@/components/ui/button'
 import StatusPill from '@/components/workspace/StatusPill.vue'
 import type { WorkspaceAccount } from '@/components/workspace/types'
 import { workspaceNav } from '@/router/workspaceNav'
@@ -82,150 +85,118 @@ async function created(tenant: TenantSummary) {
   await load()
 }
 
+const signOut = useSignOut()
+const onList = computed(() => !tenantId.value && !creating.value)
+const shellTitle = computed(() => (onList.value ? '学校管理' : creating.value ? '新增学校' : selected.value?.name ?? '学校详情'))
 const nav = computed(() => workspaceNav('system_admin', '/system/tenants'))
 const account = computed<WorkspaceAccount>(() => ({ name: auth.user?.displayName || '身份未取得', username: auth.user?.username ?? '', role: '系统管理员', org: '系统管理' }))
 </script>
 
 <template>
   <div class="ws">
-    <OperationsShell :nav="nav" :account="account" :org="account.org">
-      <template #title>
-        <h1 class="wsd-title">
-          <template v-if="!tenantId && !creating">学校管理</template>
-          <template v-else>
-            <button type="button" class="crumb" data-action="to-list" @click="toList">学校管理</button><span class="sep" aria-hidden="true"> › </span>{{ creating ? '新增学校' : selected?.name ?? '学校详情' }}
-          </template>
-        </h1>
+    <AppShell :nav="nav" :account="account" :workspace="account.org" :layout="onList ? 'data' : 'bare'" :title="shellTitle" @sign-out="signOut">
+      <template v-if="!onList" #back>
+        <Button variant="ghost" size="sm" class="-ml-1 text-muted-foreground" data-action="to-list" @click="toList"><ChevronLeft />学校管理</Button>
       </template>
-      <template #context>
-        <button v-if="!tenantId && !creating && ready" type="button" class="btn btn--sm btn--primary" data-action="new-tenant" @click="setQuery({ new: '1' })">新增学校</button>
+      <template v-if="onList" #context>系统管理员只管理学校与账号，不读论文正文</template>
+      <template v-if="onList && ready" #actions>
+        <Button size="sm" data-action="new-tenant" @click="setQuery({ new: '1' })">新增学校</Button>
       </template>
 
-      <div class="page">
+      <div v-if="!onList" class="page">
         <TenantCreate v-if="creating" :tenants="rows" @created="created" @cancel="toList" @open="open" @refresh="load" />
-
-        <template v-else-if="tenantId">
-          <StateBlock v-if="loading && !selected" kind="loading" title="正在读取学校…" />
-          <StateBlock v-else-if="error && !selected" kind="error" title="学校列表没有加载出来，暂时不能打开">
-            {{ error }}
-            <template #actions><button type="button" class="btn btn--primary" @click="load">重试</button></template>
-          </StateBlock>
-          <StateBlock v-else-if="!selected" kind="forbidden" title="这所学校已不可见">
-            链接可能已过期。学校列表已是最新。
-            <template #actions><button type="button" class="btn" @click="toList">回到学校管理</button></template>
-          </StateBlock>
-          <TenantObject v-else :key="selected.id" :tenant="selected" :flash="shownFlash" :reload="load" @say="say" />
-        </template>
-
-        <div v-else class="wsd-obj">
-          <div class="toolbar" role="search">
-            <label>
-              <span class="sr-only">搜索学校</span>
-              <input class="input" type="search" placeholder="学校名称或代码" data-field="tenant-search" :value="keyword" :disabled="!rows.length" @input="setQuery({ q: ($event.target as HTMLInputElement).value })" />
-            </label>
-            <label>
-              <span class="sr-only">状态</span>
-              <select class="select" data-field="tenant-status" :value="status" :disabled="!rows.length" @change="setQuery({ status: ($event.target as HTMLSelectElement).value })">
-                <option value="">全部状态</option>
-                <option value="ACTIVE">正常</option>
-                <option value="SUSPENDED">已暂停</option>
-              </select>
-            </label>
-          </div>
-          <StateBlock v-if="loading && !rows.length" kind="loading" title="正在读取学校…" />
-          <StateBlock v-else-if="error" kind="error" title="学校列表没有加载出来">
-            {{ error }}
-            <template #actions><button type="button" class="btn btn--primary" @click="load">重试</button></template>
-          </StateBlock>
-          <StateBlock v-else-if="!rows.length" kind="empty" title="还没有接入的学校">
-            新增学校时会同时建立首位学校管理员，之后由学校自己维护成员。
-            <template #actions><button type="button" class="btn btn--primary" @click="setQuery({ new: '1' })">新增学校</button></template>
-          </StateBlock>
-          <StateBlock v-else-if="!list.length" kind="nomatch" title="当前筛选没有匹配的学校">
-            <template #actions><button type="button" class="btn" @click="setQuery({ q: undefined, status: undefined })">清除筛选</button></template>
-          </StateBlock>
-          <template v-else>
-            <div class="wsd-twrap">
-              <table class="wsd-dtable tenants">
-                <thead>
-                  <tr>
-                    <th scope="col">学校</th>
-                    <th scope="col">代码</th>
-                    <th scope="col">根组织</th>
-                    <th scope="col" class="wsd-n">学校管理员</th>
-                    <th scope="col">状态</th>
-                    <th scope="col">接入日期</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="row in list" :key="row.id" :data-tenant="row.id" @click="open(row.id)">
-                    <td><button type="button" class="rowlink" @click.stop="open(row.id)">{{ row.name }}</button></td>
-                    <td class="num">{{ row.code }}</td>
-                    <td>{{ row.root_organization.name }}</td>
-                    <td class="wsd-n num">{{ row.reviewer_count }}</td>
-                    <td><StatusPill :tone="statusTone(row.status)">{{ statusText[row.status] }}</StatusPill></td>
-                    <td class="num">{{ dateText(row.created_at) }}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <p class="wsd-scope">共 {{ list.length }} 所{{ list.length !== rows.length ? `（全部 ${rows.length} 所）` : '' }}。系统管理员只管理学校与账号，不读论文正文。</p>
-          </template>
-        </div>
+        <StatePanel v-else-if="loading && !selected" kind="loading" title="正在读取学校…" />
+        <StatePanel v-else-if="error && !selected" kind="error" title="学校列表没有加载出来，暂时不能打开">
+          {{ error }}
+          <template #actions><Button variant="outline" data-action="retry-tenants" @click="load">重试</Button></template>
+        </StatePanel>
+        <StatePanel v-else-if="!selected" kind="forbidden" title="这所学校已不可见">
+          链接可能已过期。学校列表已是最新。
+          <template #actions><Button variant="outline" @click="toList">回到学校管理</Button></template>
+        </StatePanel>
+        <TenantObject v-else :key="selected.id" :tenant="selected" :flash="shownFlash" :reload="load" @say="say" />
       </div>
-    </OperationsShell>
+
+      <div v-else class="grid gap-4">
+        <div class="flex flex-wrap items-center gap-2" role="search">
+          <label class="relative">
+            <span class="sr-only">搜索学校</span>
+            <input
+              class="h-(--control-h) w-60 rounded-md border border-input bg-background px-3 text-sm shadow-xs outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50"
+              type="search"
+              placeholder="学校名称或代码"
+              data-field="tenant-search"
+              :value="keyword"
+              :disabled="!rows.length"
+              @input="setQuery({ q: ($event.target as HTMLInputElement).value })"
+            />
+          </label>
+          <label>
+            <span class="sr-only">状态</span>
+            <select
+              class="h-(--control-h) w-36 rounded-md border border-input bg-background px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50"
+              data-field="tenant-status"
+              :value="status"
+              :disabled="!rows.length"
+              @change="setQuery({ status: ($event.target as HTMLSelectElement).value })"
+            >
+              <option value="">全部状态</option>
+              <option value="ACTIVE">正常</option>
+              <option value="SUSPENDED">已暂停</option>
+            </select>
+          </label>
+        </div>
+
+        <StatePanel v-if="loading && !rows.length" kind="loading" title="正在读取学校…" />
+        <StatePanel v-else-if="error" kind="error" title="学校列表没有加载出来">
+          {{ error }}
+          <template #actions><Button variant="outline" data-action="retry-tenants" @click="load">重试</Button></template>
+        </StatePanel>
+        <StatePanel v-else-if="!rows.length" kind="empty" title="还没有接入的学校">
+          新增学校时会同时建立首位学校管理员，之后由学校自己维护成员。
+          <template #actions><Button @click="setQuery({ new: '1' })">新增学校</Button></template>
+        </StatePanel>
+        <StatePanel v-else-if="!list.length" kind="noresult" title="当前筛选没有匹配的学校">
+          <template #actions><Button variant="outline" @click="setQuery({ q: undefined, status: undefined })">清除筛选</Button></template>
+        </StatePanel>
+        <template v-else>
+          <div class="overflow-x-auto rounded-lg border bg-background">
+            <table class="w-full min-w-[720px] border-collapse text-sm">
+              <thead class="bg-muted/50 text-left text-muted-foreground">
+                <tr class="h-10 border-b">
+                  <th scope="col" class="px-4 font-medium">学校</th>
+                  <th scope="col" class="px-4 font-medium">代码</th>
+                  <th scope="col" class="px-4 font-medium">根组织</th>
+                  <th scope="col" class="px-4 text-right font-medium">学校管理员</th>
+                  <th scope="col" class="px-4 font-medium">状态</th>
+                  <th scope="col" class="px-4 font-medium">接入日期</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="row in list" :key="row.id" class="h-12 cursor-pointer border-b last:border-b-0 hover:bg-muted/50" :data-tenant="row.id" @click="open(row.id)">
+                  <td class="px-4"><button type="button" class="rowlink rounded-sm text-left font-medium text-foreground hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none" @click.stop="open(row.id)">{{ row.name }}</button></td>
+                  <td class="tabular px-4 text-muted-foreground">{{ row.code }}</td>
+                  <td class="px-4">{{ row.root_organization.name }}</td>
+                  <td class="tabular px-4 text-right">{{ row.reviewer_count }}</td>
+                  <td class="px-4"><StatusPill :tone="statusTone(row.status)">{{ statusText[row.status] }}</StatusPill></td>
+                  <td class="tabular px-4 text-muted-foreground">{{ dateText(row.created_at) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="text-sm text-muted-foreground" data-count>共 {{ list.length }} 所{{ list.length !== rows.length ? `（全部 ${rows.length} 所）` : '' }}。</p>
+        </template>
+      </div>
+    </AppShell>
   </div>
 </template>
 
 <style scoped>
 .page {
-  min-height: calc(100vh - var(--ws-bar));
+  min-height: calc(100svh - var(--bar-h));
 }
-.page > .wsd-obj {
-  max-width: 1080px;
-}
-.crumb {
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--ws-action);
-  font: inherit;
-  cursor: pointer;
-}
-.crumb:hover {
-  text-decoration: underline;
-}
-.sep {
-  color: var(--ws-muted);
-}
-.toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-.toolbar .input {
-  width: 240px;
-}
-.toolbar .select {
-  width: 140px;
-}
-.tenants tbody tr {
-  cursor: pointer;
-}
-.tenants tbody tr:hover {
-  background: var(--ws-sunken);
-}
-.rowlink {
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--ws-action);
-  font: inherit;
-  font-weight: 600;
-  text-align: left;
-  cursor: pointer;
-}
-.rowlink:hover {
-  text-decoration: underline;
+/* 详情、新增：内容居中 960 */
+.page :deep(.wsd-obj) {
+  margin-inline: auto;
 }
 </style>

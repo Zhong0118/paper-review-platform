@@ -50,7 +50,9 @@ const click = async (w: VueWrapper, selector: string) => {
   await w.get(selector).trigger('click')
   await flushPromises()
 }
-const titles = (w: VueWrapper) => w.findAll('.wsd-titem__title').map((t) => t.text().split('　')[0])
+/** R3-2：清单是比较表，每行姓名是打开预览的按钮 */
+const titles = (w: VueWrapper) => w.findAll('[data-preview]').map((t) => t.text())
+const inBody = (selector: string) => document.body.querySelector(selector)
 async function decideWith(w: VueWrapper, action: string, text: string) {
   await click(w, `[data-action="${action}"]`)
   await w.get('[data-field="decision-reason"]').setValue(text)
@@ -58,34 +60,52 @@ async function decideWith(w: VueWrapper, action: string, text: string) {
 }
 
 describe('expert library desk', () => {
-  it('splits views with counts, names reasons separately and opens the first ready expert', async () => {
+  it('splits views with counts and names reasons separately; the full profile opens by address', async () => {
     const { wrapper, router } = await mountAt('/platform/experts')
     expect(api.listExperts).toHaveBeenCalledWith({}, { quiet: true })
     expect(api.expertOptions).toHaveBeenCalledWith({ quiet: true })
-    expect(wrapper.findAll('.wsd-views__count').map((c) => c.text())).toEqual(['1', '1', '2', '4'])
-    expect(titles(wrapper)).toEqual(['王教授'])
-    expect(router.currentRoute.value.query.expert).toBe('a')
-    expect(wrapper.get('[data-availability]').text()).toBe('可以指派；对 1 项回避对象的论文不可派')
-    expect(wrapper.get('[data-conflicts]').text()).toContain('甲大学')
-    expect(wrapper.text()).not.toContain('在途')
+    // 全部 / 可指派 / 待审核 / 暂不可派（R1 样板：默认“全部”）
+    expect(wrapper.findAll('[data-view-tabs] button').map((b) => b.text())).toEqual(['全部 4', '可指派 1', '待审核 1', '暂不可派 2'])
+    expect(titles(wrapper)).toEqual(['王教授', '李研究员', '赵老师', '钱老师'])
+    expect(router.currentRoute.value.query.expert).toBeUndefined()
+    expect(wrapper.text()).toContain('显示 4 / 4 位专家')
     wrapper.unmount()
-    const blocked = await mountAt('/platform/experts?view=blocked&expert=c')
+    const ready = await mountAt('/platform/experts?view=ready')
+    expect(titles(ready.wrapper)).toEqual(['王教授'])
+    ready.wrapper.unmount()
+    const profile = await mountAt('/platform/experts?expert=a')
+    expect(profile.wrapper.get('[data-availability]').text()).toBe('可以指派；对 1 项回避对象的论文不可派')
+    expect(profile.wrapper.get('[data-conflicts]').text()).toContain('甲大学')
+    expect(profile.wrapper.text()).not.toContain('在途')
+    profile.wrapper.unmount()
+    const blocked = await mountAt('/platform/experts?view=blocked')
     expect(titles(blocked.wrapper)).toEqual(['赵老师', '钱老师'])
-    expect(blocked.wrapper.findAll('.wsd-titem')[1]!.text()).toContain('账号停用')
-    expect(blocked.wrapper.get('[data-availability]').text()).toBe('现在不能指派：已暂停接单')
+    expect(blocked.wrapper.findAll('tbody tr')[1]!.text()).toContain('账号停用')
+    blocked.wrapper.unmount()
+    const paused = await mountAt('/platform/experts?view=blocked&expert=c')
+    expect(paused.wrapper.get('[data-availability]').text()).toBe('现在不能指派：已暂停接单')
   })
 
-  it('searches the loaded experts and filters by discipline', async () => {
-    const { wrapper, router } = await mountAt('/platform/experts?view=all&q=代数')
+  it('searches the loaded experts, filters by discipline and removes a filter chip', async () => {
+    const { wrapper, router } = await mountAt('/platform/experts?q=代数')
     expect(titles(wrapper)).toEqual(['李研究员'])
-    await wrapper.get('[data-field="expert-search"]').setValue('')
-    await wrapper.get('[data-field="expert-discipline"]').setValue('0701')
+    await wrapper.get('[data-search] input').setValue('')
     await flushPromises()
-    expect(router.currentRoute.value.query.discipline).toBe('0701')
-    expect(titles(wrapper)).toEqual(['李研究员'])
+    expect(router.currentRoute.value.query.q).toBeUndefined()
+    expect(titles(wrapper)).toHaveLength(4)
     wrapper.unmount()
+    const byDiscipline = await mountAt('/platform/experts?discipline=0701')
+    expect(titles(byDiscipline.wrapper)).toEqual(['李研究员'])
+    expect(byDiscipline.wrapper.text()).toContain('学科：数学')
+    await byDiscipline.wrapper.get('[aria-label="已应用的筛选"] button').trigger('click')
+    await flushPromises()
+    expect(byDiscipline.router.currentRoute.value.query.discipline).toBeUndefined()
+    expect(titles(byDiscipline.wrapper)).toHaveLength(4)
+    byDiscipline.wrapper.unmount()
     const none = await mountAt('/platform/experts?q=量子')
     expect(none.wrapper.text()).toContain('当前筛选没有匹配的专家')
+    await click(none.wrapper, '[data-action="clear-filters"]')
+    expect(none.router.currentRoute.value.query.q).toBeUndefined()
   })
 
   it('says when a linked expert is not in the library', async () => {
@@ -207,15 +227,18 @@ describe('expert library desk', () => {
     expect(document.body.innerHTML).not.toContain(PASSWORD)
   })
 
-  it('starts on the list when narrow', async () => {
-    vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() })))
-    const { wrapper, router } = await mountAt('/platform/experts')
+  it('previews a row, opens the full profile and returns with the view kept', async () => {
+    const { wrapper, router } = await mountAt('/platform/experts?view=blocked')
+    await click(wrapper, '[data-preview="c"]')
+    expect(inBody('[data-expert-preview]')?.textContent).toContain('赵老师')
     expect(router.currentRoute.value.query.expert).toBeUndefined()
-    await click(wrapper, '.wsd-titem')
-    expect(router.currentRoute.value.query.expert).toBe('a')
-    await wrapper.findAll('button').find((b) => b.text().startsWith('‹'))!.trigger('click')
+    ;(inBody('[data-action="open-full"]') as HTMLButtonElement).click()
     await flushPromises()
-    expect(router.currentRoute.value.query.expert).toBeUndefined()
+    expect(router.currentRoute.value.query).toEqual({ view: 'blocked', expert: 'c' })
+    expect(wrapper.get('[data-availability]').text()).toContain('已暂停接单')
+    await click(wrapper, '[data-back]')
+    expect(router.currentRoute.value.query).toEqual({ view: 'blocked' })
+    expect(titles(wrapper)).toEqual(['赵老师', '钱老师'])
   })
 })
 
@@ -295,7 +318,7 @@ describe('carried over from the old real expert library', () => {
     expect(wrapper.text()).not.toContain('王教授')
     await wrapper.findAll('button').find((b) => b.text() === '重试')!.trigger('click')
     await flushPromises()
-    expect(titles(wrapper)).toEqual(['王教授'])
+    expect(titles(wrapper)).toEqual(['王教授', '李研究员', '赵老师', '钱老师'])
   })
 
   it('does not offer a disabled account for dispatch and shows no demo-only fields', async () => {

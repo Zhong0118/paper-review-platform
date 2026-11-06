@@ -35,7 +35,7 @@ const channels: Array<{ value: LoginChannel; label: string }> = [
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   margin-bottom: 1.25rem;
-  border-bottom: 1px solid #dce3e9;
+  border-bottom: 1px solid var(--border);
 }
 
 .login-tabs button {
@@ -44,8 +44,8 @@ const channels: Array<{ value: LoginChannel; label: string }> = [
   padding: 0.625rem 0.35rem;
   border: 0;
   background: transparent;
-  color: #6a7782;
-  font-size: 0.75rem;
+  color: var(--muted-foreground);
+  font-size: 0.8125rem;
   font-weight: 650;
   cursor: pointer;
 }
@@ -61,10 +61,16 @@ const channels: Array<{ value: LoginChannel; label: string }> = [
 }
 
 .login-tabs button.is-active {
-  color: #123d6b;
+  color: var(--primary);
 }
 
 .login-tabs button.is-active::after {
-  background: #1b4f8a;
+  background: var(--primary);
+}
+
+.login-tabs button:focus-visible {
+  border-radius: var(--radius);
+  outline: none;
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--ring) 60%, transparent);
 }
 </style>

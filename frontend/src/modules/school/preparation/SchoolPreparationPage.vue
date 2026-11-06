@@ -3,6 +3,7 @@
  * U2-1 学校送审准备（真实模式）：/school/preparation 为清单，?thesis=<id> 为核验台。
  * 清单数据在这里读一次，清单与核验台共用（核验台只用它算位置与下一篇）。
  * demo 模式仍走旧页 PreparationListPage（见 router/routes.ts）。
+ * R2：两者都在 AppShell 里（清单 queue 模板、核验台 focus 模板），导航由这里按权限生成。
  */
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
@@ -13,7 +14,6 @@ import type { WorkspaceAccount } from '@/components/workspace/types'
 import { useTimeScope } from '@/composables/useTimeScope'
 import { workspaceNav } from '@/router/workspaceNav'
 import { useAuthStore } from '@/stores/auth'
-import '@/styles/workspace.css'
 
 import { apiFailure } from './checkReport'
 import PreparationQueue from './PreparationQueue.vue'
@@ -59,27 +59,26 @@ const account = computed<WorkspaceAccount>(() => ({
 </script>
 
 <template>
-  <div class="ws">
-    <VerifyDesk
-      v-if="thesisId"
-      :key="thesisId"
-      :thesis-id="thesisId"
-      :rows="rows"
-      :rows-ready="!loading && !error"
-      :account="account"
-      @changed="load"
-    />
-    <PreparationQueue
-      v-else
-      :rows="rows"
-      :loading="loading"
-      :error="error"
-      :nav="nav"
-      :account="account"
-      :scope="timeScope.scope.value"
-      @set-scope="timeScope.setScope"
-      @retry="load"
-      @changed="load"
-    />
-  </div>
+  <VerifyDesk
+    v-if="thesisId"
+    :key="thesisId"
+    :thesis-id="thesisId"
+    :rows="rows"
+    :rows-ready="!loading && !error"
+    :account="account"
+    :nav="nav"
+    @changed="load"
+  />
+  <PreparationQueue
+    v-else
+    :rows="rows"
+    :loading="loading"
+    :error="error"
+    :nav="nav"
+    :account="account"
+    :scope="timeScope.scope.value"
+    @set-scope="timeScope.setScope"
+    @retry="load"
+    @changed="load"
+  />
 </template>

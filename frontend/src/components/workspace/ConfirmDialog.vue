@@ -34,37 +34,40 @@ watch(
 </template>
 
 <style scoped>
+/* R3-0：外观与 AlertDialog 一致（U4 计划 §19.1）——圆角 12、浮层阴影、24 内边距、页脚按钮右对齐无底色 */
 .dlg {
   /* 全局 preflight 把所有元素 margin 清零，原生 dialog 会贴到左上角；这里恢复居中 */
   margin: auto;
-  width: min(480px, calc(100vw - 32px));
+  width: min(512px, calc(100vw - 32px));
   max-height: calc(100vh - 32px);
   overflow-y: auto;
-  padding: 0;
-  border: 1px solid var(--ws-border);
-  border-radius: 10px;
-  box-shadow: var(--ws-shadow-float);
-  color: var(--ws-text);
-  font-family: var(--ws-font);
-  font-size: 14px;
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--background);
+  box-shadow: var(--shadow-float);
+  color: var(--foreground);
+  font-family: var(--app-font);
+  font-size: var(--text-base, 14px);
+}
+.dlg[open] {
+  display: grid;
+  gap: 16px;
 }
 .dlg--wide {
   width: min(640px, calc(100vw - 32px));
 }
 .dlg::backdrop {
-  background: var(--ws-scrim);
-}
-.dlg__head {
-  padding: 16px 20px 0;
+  background: color-mix(in srgb, var(--foreground) 30%, transparent);
 }
 .dlg__head h2 {
-  font-size: 17px;
+  font-size: 18px;
   font-weight: 600;
+  line-height: 1.4;
 }
 .dlg__body {
   display: grid;
   gap: 12px;
-  padding: 12px 20px 16px;
   line-height: 1.65;
 }
 .dlg__foot {
@@ -72,9 +75,5 @@ watch(
   flex-wrap: wrap;
   gap: 8px;
   justify-content: flex-end;
-  padding: 12px 20px;
-  border-top: 1px solid var(--ws-border);
-  background: var(--ws-page);
-  border-radius: 0 0 10px 10px;
 }
 </style>

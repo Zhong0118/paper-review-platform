@@ -8,8 +8,10 @@ import { computed, onBeforeUnmount, ref } from 'vue'
 
 import { apiFailure } from '@/api/failure'
 import { getSensitiveTerms, saveSensitiveTerms } from '@/api/sensitiveChecks'
-import OperationsShell from '@/components/workspace/OperationsShell.vue'
-import StateBlock from '@/components/workspace/StateBlock.vue'
+import AppShell from '@/components/app/shell/AppShell.vue'
+import { useSignOut } from '@/components/app/shell/useSignOut'
+import StatePanel from '@/components/app/state/StatePanel.vue'
+import { Button } from '@/components/ui/button'
 import type { WorkspaceAccount } from '@/components/workspace/types'
 import { workspaceNav } from '@/router/workspaceNav'
 import { useAuthStore } from '@/stores/auth'
@@ -121,6 +123,7 @@ function adopt(keepMine: boolean) {
 const changeText = (change: TermChange) =>
   change.kind === 'added' ? `新增“${change.text}”（${change.detail}）` : change.kind === 'removed' ? `删除“${change.text}”` : `“${change.text}”：${change.detail}`
 
+const signOut = useSignOut()
 const nav = computed(() => workspaceNav('school_reviewer', '/school/sensitive-terms'))
 const account = computed<WorkspaceAccount>(() => ({
   name: auth.user?.displayName || '身份未取得',
@@ -132,17 +135,16 @@ const account = computed<WorkspaceAccount>(() => ({
 
 <template>
   <div class="ws">
-    <OperationsShell :nav="nav" :account="account" :org="account.org">
-      <template #title><h1 class="wsd-title">检测词表</h1></template>
-      <template #context><span v-if="!loading && !error" class="wsd-ctx num">第 {{ version }} 版　{{ rows.length }} / {{ MAX_TERMS }}</span></template>
+    <AppShell :nav="nav" :account="account" :workspace="account.org" layout="bare" title="检测词表" @sign-out="signOut">
+      <template v-if="!loading && !error" #context><span class="tabular">第 {{ version }} 版　{{ rows.length }} / {{ MAX_TERMS }}</span></template>
       <div class="page">
         <div class="wsd-obj terms-page">
           <p class="wsd-hint">匿名检测会在匿名稿中按字面查找这些词，不支持正则。“阻断”出现即不通过，需要修改材料后重新检测；“警告”由学校填写理由后确认。姓名与学号检测始终保留，不受词表影响。</p>
-          <StateBlock v-if="loading" kind="loading" title="正在读取词表…" />
-          <StateBlock v-else-if="error" kind="error" title="词表没有加载出来">
+          <StatePanel v-if="loading" kind="loading" title="正在读取词表…" />
+          <StatePanel v-else-if="error" kind="error" title="词表没有加载出来">
             {{ error }}
-            <template #actions><button type="button" class="btn btn--primary" @click="load">重试</button></template>
-          </StateBlock>
+            <template #actions><Button type="button" variant="outline" @click="load">重试</Button></template>
+          </StatePanel>
           <template v-else>
             <div v-if="flash" class="wsd-banner wsd-banner--ok" role="status">{{ flash }}</div>
             <div v-if="conflict" class="wsd-banner wsd-banner--danger" role="alert" data-conflict>
@@ -153,16 +155,16 @@ const account = computed<WorkspaceAccount>(() => ({
                 <li v-if="!conflict.changes.length">词语没有变化（可能只是重新保存）</li>
               </ul>
               <div class="wsd-acts">
-                <button type="button" class="btn btn--sm btn--primary" data-action="merge-mine" @click="adopt(true)">在第 {{ conflict.version }} 版上保留我的修改</button>
-                <button type="button" class="btn btn--sm" data-action="take-theirs" @click="adopt(false)">放弃我的修改</button>
+                <Button type="button" size="sm" data-action="merge-mine" @click="adopt(true)">在第 {{ conflict.version }} 版上保留我的修改</Button>
+                <Button type="button" variant="outline" size="sm" data-action="take-theirs" @click="adopt(false)">放弃我的修改</Button>
               </div>
             </div>
 
             <section class="wsd-sec">
-              <StateBlock v-if="!rows.length" kind="empty" title="词表为空" compact>
+              <StatePanel v-if="!rows.length" kind="empty" title="词表为空" compact>
                 目前只按平台内置的姓名与学号规则检测。加入本校全称、简称、院系与实验室名称，可以减少匿名稿漏检。
-                <template #actions><button type="button" class="btn btn--primary" data-action="add-term" @click="addRow">添加第一个词</button></template>
-              </StateBlock>
+                <template #actions><Button type="button" data-action="add-term" @click="addRow">添加第一个词</Button></template>
+              </StatePanel>
               <div v-else class="wsd-twrap">
                 <table class="wsd-dtable">
                   <thead>
@@ -193,14 +195,14 @@ const account = computed<WorkspaceAccount>(() => ({
                         <small v-if="tried && errors[row.id]?.description" class="field-error">{{ errors[row.id]!.description }}</small>
                       </td>
                       <td class="wsd-shrink">
-                        <button type="button" class="btn btn--sm btn--quiet" data-action="remove-term" :disabled="saving" :aria-label="`删除“${row.text.trim() || '空行'}”`" @click="removeRow(row.id)">删除</button>
+                        <Button type="button" variant="ghost" size="sm" data-action="remove-term" :disabled="saving" :aria-label="`删除“${row.text.trim() || '空行'}”`" @click="removeRow(row.id)">删除</Button>
                       </td>
                     </tr>
                   </tbody>
                 </table>
               </div>
               <div v-if="rows.length" class="wsd-acts">
-                <button type="button" class="btn btn--sm" data-action="add-term" :disabled="saving || full" @click="addRow">添加一行</button>
+                <Button type="button" variant="outline" size="sm" data-action="add-term" :disabled="saving || full" @click="addRow">添加一行</Button>
                 <span v-if="full" class="wsd-hint">已到 {{ MAX_TERMS }} 条上限</span>
               </div>
             </section>
@@ -211,11 +213,11 @@ const account = computed<WorkspaceAccount>(() => ({
 
         <footer v-if="!loading && !error" class="wsd-commit">
           <p class="wsd-commit__text" role="status">{{ changes ? `未保存的修改 ${changes} 处` : '没有未保存的修改' }}</p>
-          <button type="button" class="btn" :disabled="!changes || saving" @click="revert">撤销修改</button>
-          <button type="button" class="btn btn--primary" data-action="save-terms" :disabled="!changes || saving || Boolean(conflict)" @click="save">{{ saving ? '正在保存…' : '保存词表' }}</button>
+          <Button type="button" variant="outline" :disabled="!changes || saving" @click="revert">撤销修改</Button>
+          <Button type="button" data-action="save-terms" :disabled="!changes || saving || Boolean(conflict)" @click="save">{{ saving ? '正在保存…' : '保存词表' }}</Button>
         </footer>
       </div>
-    </OperationsShell>
+    </AppShell>
   </div>
 </template>
 
@@ -223,10 +225,10 @@ const account = computed<WorkspaceAccount>(() => ({
 .page {
   display: flex;
   flex-direction: column;
-  min-height: calc(100vh - var(--ws-bar));
+  min-height: calc(100svh - var(--bar-h));
 }
 .terms-page {
-  max-width: 1080px;
+  margin-inline: auto;
 }
 .theirs {
   margin: 0;

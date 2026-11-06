@@ -10,8 +10,12 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { isNavigationFailure, useRouter } from 'vue-router'
 
 import type { CheckAck } from '@/api/reviewChecks'
+import { ChevronLeft } from '@lucide/vue'
+
+import AppShell from '@/components/app/shell/AppShell.vue'
+import { useSignOut } from '@/components/app/shell/useSignOut'
+import { Button } from '@/components/ui/button'
 import ConfirmDialog from '@/components/workspace/ConfirmDialog.vue'
-import FocusShell from '@/components/workspace/FocusShell.vue'
 import SaveStatus from '@/components/workspace/SaveStatus.vue'
 import SplitPane from '@/components/workspace/SplitPane.vue'
 import StateBlock from '@/components/workspace/StateBlock.vue'
@@ -19,6 +23,7 @@ import StatusPill from '@/components/workspace/StatusPill.vue'
 import type { DraftState, WorkspaceAccount } from '@/components/workspace/types'
 import type { ReviewScoreInput } from '@/demo/types'
 import RealCorrectionPanel from '@/modules/result/components/RealCorrectionPanel.vue'
+import { workspaceNav } from '@/router/workspaceNav'
 import { useAuthStore } from '@/stores/auth'
 import '@/styles/workspace.css'
 
@@ -35,6 +40,8 @@ const {
   loadRealTask, edited, flushDraft, compareDraft, resolveConflict, confirmSubmit,
 } = session
 
+const signOut = useSignOut()
+const nav = computed(() => workspaceNav('expert', '/expert/tasks'))
 const account = computed<WorkspaceAccount>(() => ({
   name: auth.user?.displayName || '身份未取得',
   username: auth.user?.username ?? '',
@@ -153,20 +160,24 @@ const result = computed(() => (submitted.value ? draft.value : null))
 
 <template>
   <div class="ws">
-    <FocusShell :account="account">
+    <AppShell :nav="nav" :account="account" layout="focus" @sign-out="signOut">
       <template #back>
-        <button type="button" class="btn btn--quiet back" :disabled="leaving" data-action="back-to-tasks" @click="leave">‹ 我的任务</button>
+        <Button variant="ghost" size="sm" class="-ml-1 text-muted-foreground" :disabled="leaving" data-action="back-to-tasks" @click="leave"><ChevronLeft />我的任务</Button>
       </template>
-      <template #identity>
-        <template v-if="task">
+      <template #title>
+        <span v-if="task" class="flex min-w-0 items-center gap-2">
           <span class="code num">{{ task.anonymousId }}</span>
-          <h1 class="rv-title">{{ task.anonymousTitle }}</h1>
-          <span v-if="task.dueAt" class="due muted" data-review-deadline>截止 {{ task.dueAt }}（北京时间）</span>
-          <StatusPill v-if="task.overdue && !submitted" tone="danger">已逾期，仍可保存和提交</StatusPill>
-        </template>
+          <h1 class="rv-title" :title="task.anonymousTitle">{{ task.anonymousTitle }}</h1>
+        </span>
         <h1 v-else class="rv-title">在线评阅</h1>
       </template>
-      <template #status>
+      <template #context>
+        <span v-if="task" class="inline-flex items-center gap-2">
+          <span v-if="task.dueAt" data-review-deadline>截止 {{ task.dueAt }}（北京时间）</span>
+          <StatusPill v-if="task.overdue && !submitted" tone="danger">已逾期，仍可保存和提交</StatusPill>
+        </span>
+      </template>
+      <template #actions>
         <SaveStatus v-if="task" :state="saveState" :saved-at="savedAt" />
       </template>
 
@@ -276,7 +287,7 @@ const result = computed(() => (submitted.value ? draft.value : null))
           </template>
         </SplitPane>
       </div>
-    </FocusShell>
+    </AppShell>
 
     <ConfirmDialog :open="Boolean(pendingInput) && !locked" title="提交正式评阅意见？" wide :busy="submitPending" @close="cancelSubmit">
       <p>提交后以下内容会锁定，不能再修改；如需更正需要走更正申请。提交后不再提供匿名稿阅读。</p>
@@ -299,11 +310,6 @@ const result = computed(() => (submitted.value ? draft.value : null))
 </template>
 
 <style scoped>
-.back {
-  min-height: 32px;
-  padding: 0 8px;
-  color: var(--ws-action);
-}
 .code {
   flex: none;
   padding: 1px 6px;
@@ -319,10 +325,6 @@ const result = computed(() => (submitted.value ? draft.value : null))
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-.due {
-  flex: none;
-  font-size: 13px;
 }
 .review {
   height: 100%;
@@ -547,13 +549,10 @@ const result = computed(() => (submitted.value ? draft.value : null))
   color: var(--ws-text);
   font-weight: 600;
 }
-@media (max-width: 899px) {
-  .rv-title,
-  .due {
+@media (max-width: 640px) {
+  .rv-title {
     display: none;
   }
-}
-@media (max-width: 640px) {
   .diff__cols {
     grid-template-columns: 1fr;
   }
