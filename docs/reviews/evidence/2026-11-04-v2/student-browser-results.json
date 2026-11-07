@@ -1,0 +1,38 @@
+{
+  "mode": "VITE_DEMO_MODE=false",
+  "browser": "Google Chrome",
+  "source": "student_browser.py",
+  "observations": [
+    {
+      "create": 200,
+      "school_program": "0007",
+      "discipline_code": "0812",
+      "keywords": [
+        "权限",
+        "校验"
+      ],
+      "revision_length": 64,
+      "stale_write": 409,
+      "local_copy_preserved": true
+    },
+    {
+      "submit": 200,
+      "stage": "PREPARING",
+      "confirmed_materials": 2
+    },
+    {
+      "create": 200,
+      "school_program": null,
+      "discipline_code": "0835",
+      "keywords": [
+        "权限",
+        "校验"
+      ],
+      "revision_length": 64,
+      "stale_write": 409,
+      "local_copy_preserved": true
+    }
+  ],
+  "school_retry_after_injected_500": true,
+  "uncaught_page_errors": 0
+}

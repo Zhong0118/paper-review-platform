@@ -1,0 +1,45 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "frontend-dev-demo",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--", "--host", "127.0.0.1"],
+      "port": 5173,
+      "autoPort": true,
+      "cwd": "/Users/zhongxu/Desktop/0-Inbox/paper-review-platform/frontend",
+      "env": { "VITE_DEMO_MODE": "true" }
+    },
+    {
+      "name": "frontend-dev-real",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["dev", "--host", "127.0.0.1"],
+      "port": 5173,
+      "autoPort": true,
+      "cwd": "/Users/zhongxu/Desktop/0-Inbox/paper-review-platform/frontend",
+      "env": { "VITE_DEMO_MODE": "false", "VITE_API_BASE_URL": "/api/v1" }
+    },
+    {
+      "name": "backend-api",
+      "runtimeExecutable": "/Users/zhongxu/Desktop/0-Inbox/paper-review-platform/backend/.venv/bin/uvicorn",
+      "runtimeArgs": ["app.main:app", "--reload", "--port", "8000", "--app-dir", "/Users/zhongxu/Desktop/0-Inbox/paper-review-platform/backend"],
+      "port": 8000,
+      "cwd": "/Users/zhongxu/Desktop/0-Inbox/paper-review-platform/backend"
+    },
+    {
+      "name": "frontend-demo-attach",
+      "url": "http://127.0.0.1:5173",
+      "port": 5173
+    },
+    {
+      "name": "ui-prototypes",
+      "url": "http://127.0.0.1:5187",
+      "port": 5187
+    },
+    {
+      "name": "u2-school-real-attach",
+      "url": "http://127.0.0.1:5196",
+      "port": 5196
+    }
+  ]
+}

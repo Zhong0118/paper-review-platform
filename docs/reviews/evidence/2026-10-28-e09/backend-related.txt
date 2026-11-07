@@ -1,0 +1,12 @@
+.................................                                        [100%]
+=============================== warnings summary ===============================
+backend/.venv/lib/python3.12/site-packages/passlib/utils/__init__.py:854
+  /Users/zhongxu/Desktop/0-Inbox/paper-review-platform/backend/.venv/lib/python3.12/site-packages/passlib/utils/__init__.py:854: DeprecationWarning: 'crypt' is deprecated and slated for removal in Python 3.13
+    from crypt import crypt as _crypt
+
+tests/test_expert_profile_import.py::test_profile_fields_tristate_filters_and_role_boundaries
+  /Users/zhongxu/Desktop/0-Inbox/paper-review-platform/backend/.venv/lib/python3.12/site-packages/passlib/handlers/argon2.py:716: DeprecationWarning: Accessing argon2.__version__ is deprecated and will be removed in a future release. Use importlib.metadata directly to query for argon2-cffi's packaging metadata.
+    _argon2_cffi.__version__, max_version)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+33 passed, 2 warnings in 256.05s (0:04:16)

@@ -68,4 +68,5 @@ related_documents:
 
 - 数据来源：`GET /school-review/results`、`POST /result-summaries/{id}:publish`；补充任务由百杰侧 `POST /review-rounds/{id}:supplement` 执行；
 - 仅本租户；可识别学生；不出现专家身份；
+- 甲方演示批次需要 1 份有效评阅，专家提交后直接进入本页待发布；通用平台仍依学校/批次规则支持多份评阅、冲突与补审。
 - 学校侧审核人员不得修改专家原始分数（AC-017）。

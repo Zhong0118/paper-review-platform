@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: paper-review-postgres
+    ports:
+      - "127.0.0.1:5433:5432"
+    environment:
+      POSTGRES_DB: paper_review
+      POSTGRES_USER: paper_review
+      POSTGRES_PASSWORD: paper_review_dev
+    volumes:
+      - paper_review_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U paper_review -d paper_review"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  paper_review_pgdata:

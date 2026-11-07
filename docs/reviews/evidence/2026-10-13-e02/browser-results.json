@@ -1,0 +1,53 @@
+{
+  "date": "2026-10-13",
+  "browser": "Chrome headless via Playwright",
+  "frontend": "real mode",
+  "backend": "8013 accepted isolated schema",
+  "task_id": "5a74354a-3258-4855-b984-d582f992353b",
+  "thesis_id": "5fd71f18-27ef-47e0-83fe-2fa81d03ea67",
+  "results": [
+    {
+      "scenario": "original warnings and Unicode location",
+      "status": "PASS",
+      "codes": [
+        "PHONE_CANDIDATE",
+        "SHORT_ISSUES",
+        "SHORT_OVERALL"
+      ],
+      "located": {
+        "focused": true,
+        "selected": "13800138000",
+        "value": "😀核对13800138000"
+      }
+    },
+    {
+      "scenario": "score edits invalidate confirmation",
+      "status": "PASS"
+    },
+    {
+      "scenario": "network failure and retry, original final submission",
+      "status": "PASS",
+      "total": 81
+    },
+    {
+      "scenario": "school sees anonymous original receipt",
+      "status": "PASS",
+      "expert_name_absent": true
+    },
+    {
+      "scenario": "approved correction uses same checks and restores dimension text",
+      "status": "PASS",
+      "total": 83,
+      "codes": [
+        "PHONE_CANDIDATE"
+      ]
+    },
+    {
+      "scenario": "school correction receipt and activated effective receipt",
+      "status": "PASS",
+      "codes": [
+        "PHONE_CANDIDATE"
+      ]
+    }
+  ]
+}

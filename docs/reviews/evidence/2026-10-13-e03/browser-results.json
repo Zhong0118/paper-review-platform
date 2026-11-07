@@ -1,0 +1,36 @@
+{
+  "date": "2026-10-13",
+  "browser": "Chrome headless via Playwright",
+  "mode": "real frontend and isolated test database",
+  "task_id": "9dfbd27a-c0ea-4e1d-b458-7dc6ff9a296e",
+  "results": [
+    {
+      "scenario": "two own virtual historical results",
+      "status": "PASS",
+      "coverage": "本人历史评语范围内相似性提示\n\n仅比较本人过去 365 天、最近 200 条有效结果，本次检查 2 条；排除本任务全部版本。\n\n命中 2 条；最高字符3-gram Jaccard相似度 1.000（近似阈值 0.85，至少40字符）。这是重复线索，不是抄袭率或质量认定。"
+    },
+    {
+      "scenario": "text edit invalidates checks",
+      "status": "PASS"
+    },
+    {
+      "scenario": "failed check and retry",
+      "status": "PASS"
+    },
+    {
+      "scenario": "new history invalidates old acknowledgement at final submit",
+      "status": "PASS",
+      "http_status": 409
+    },
+    {
+      "scenario": "fresh confirmation permits final submit",
+      "status": "PASS",
+      "historical_hits": 3
+    },
+    {
+      "scenario": "approved correction excludes own original and submits after acknowledgement",
+      "status": "PASS",
+      "coverage": "本人历史评语范围内相似性提示\n\n仅比较本人过去 365 天、最近 200 条有效结果，本次检查 3 条；排除本任务全部版本。\n\n命中 3 条；最高字符3-gram Jaccard相似度 1.000（近似阈值 0.85，至少40字符）。这是重复线索，不是抄袭率或质量认定。"
+    }
+  ]
+}

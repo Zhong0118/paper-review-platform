@@ -1,0 +1,1479 @@
+{
+  "version": "2022",
+  "effectiveFrom": "2023-01-01",
+  "source": "https://www.moe.gov.cn/srcsite/A22/moe_833/202209/t20220914_660828.html",
+  "entries": [
+    {
+      "code": "0101",
+      "name": "哲学",
+      "categoryCode": "01",
+      "categoryName": "哲学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0151",
+      "name": "应用伦理",
+      "categoryCode": "01",
+      "categoryName": "哲学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "0201",
+      "name": "理论经济学",
+      "categoryCode": "02",
+      "categoryName": "经济学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0202",
+      "name": "应用经济学",
+      "categoryCode": "02",
+      "categoryName": "经济学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0251",
+      "name": "金融",
+      "categoryCode": "02",
+      "categoryName": "经济学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "0252",
+      "name": "应用统计",
+      "categoryCode": "02",
+      "categoryName": "经济学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "0253",
+      "name": "税务",
+      "categoryCode": "02",
+      "categoryName": "经济学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "0254",
+      "name": "国际商务",
+      "categoryCode": "02",
+      "categoryName": "经济学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "0255",
+      "name": "保险",
+      "categoryCode": "02",
+      "categoryName": "经济学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "0256",
+      "name": "资产评估",
+      "categoryCode": "02",
+      "categoryName": "经济学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "0258",
+      "name": "数字经济",
+      "categoryCode": "02",
+      "categoryName": "经济学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "0301",
+      "name": "法学",
+      "categoryCode": "03",
+      "categoryName": "法学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0302",
+      "name": "政治学",
+      "categoryCode": "03",
+      "categoryName": "法学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0303",
+      "name": "社会学",
+      "categoryCode": "03",
+      "categoryName": "法学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0304",
+      "name": "民族学",
+      "categoryCode": "03",
+      "categoryName": "法学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0305",
+      "name": "马克思主义理论",
+      "categoryCode": "03",
+      "categoryName": "法学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0306",
+      "name": "公安学",
+      "categoryCode": "03",
+      "categoryName": "法学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0307",
+      "name": "中共党史党建学",
+      "categoryCode": "03",
+      "categoryName": "法学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0308",
+      "name": "纪检监察学",
+      "categoryCode": "03",
+      "categoryName": "法学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0351",
+      "name": "法律",
+      "categoryCode": "03",
+      "categoryName": "法学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "0352",
+      "name": "社会工作",
+      "categoryCode": "03",
+      "categoryName": "法学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "0353",
+      "name": "警务",
+      "categoryCode": "03",
+      "categoryName": "法学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "0354",
+      "name": "知识产权",
+      "categoryCode": "03",
+      "categoryName": "法学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "0355",
+      "name": "国际事务",
+      "categoryCode": "03",
+      "categoryName": "法学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "0401",
+      "name": "教育学",
+      "categoryCode": "04",
+      "categoryName": "教育学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0402",
+      "name": "心理学",
+      "categoryCode": "04",
+      "categoryName": "教育学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0403",
+      "name": "体育学",
+      "categoryCode": "04",
+      "categoryName": "教育学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0451",
+      "name": "教育",
+      "categoryCode": "04",
+      "categoryName": "教育学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "0452",
+      "name": "体育",
+      "categoryCode": "04",
+      "categoryName": "教育学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "0453",
+      "name": "国际中文教育",
+      "categoryCode": "04",
+      "categoryName": "教育学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "0454",
+      "name": "应用心理",
+      "categoryCode": "04",
+      "categoryName": "教育学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "0501",
+      "name": "中国语言文学",
+      "categoryCode": "05",
+      "categoryName": "文学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0502",
+      "name": "外国语言文学",
+      "categoryCode": "05",
+      "categoryName": "文学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0503",
+      "name": "新闻传播学",
+      "categoryCode": "05",
+      "categoryName": "文学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0551",
+      "name": "翻译",
+      "categoryCode": "05",
+      "categoryName": "文学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "0552",
+      "name": "新闻与传播",
+      "categoryCode": "05",
+      "categoryName": "文学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "0553",
+      "name": "出版",
+      "categoryCode": "05",
+      "categoryName": "文学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "0601",
+      "name": "考古学",
+      "categoryCode": "06",
+      "categoryName": "历史学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0602",
+      "name": "中国史",
+      "categoryCode": "06",
+      "categoryName": "历史学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0603",
+      "name": "世界史",
+      "categoryCode": "06",
+      "categoryName": "历史学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0651",
+      "name": "博物馆",
+      "categoryCode": "06",
+      "categoryName": "历史学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "0701",
+      "name": "数学",
+      "categoryCode": "07",
+      "categoryName": "理学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0702",
+      "name": "物理学",
+      "categoryCode": "07",
+      "categoryName": "理学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0703",
+      "name": "化学",
+      "categoryCode": "07",
+      "categoryName": "理学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0704",
+      "name": "天文学",
+      "categoryCode": "07",
+      "categoryName": "理学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0705",
+      "name": "地理学",
+      "categoryCode": "07",
+      "categoryName": "理学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0706",
+      "name": "大气科学",
+      "categoryCode": "07",
+      "categoryName": "理学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0707",
+      "name": "海洋科学",
+      "categoryCode": "07",
+      "categoryName": "理学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0708",
+      "name": "地球物理学",
+      "categoryCode": "07",
+      "categoryName": "理学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0709",
+      "name": "地质学",
+      "categoryCode": "07",
+      "categoryName": "理学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0710",
+      "name": "生物学",
+      "categoryCode": "07",
+      "categoryName": "理学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0711",
+      "name": "系统科学",
+      "categoryCode": "07",
+      "categoryName": "理学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0712",
+      "name": "科学技术史",
+      "categoryCode": "07",
+      "categoryName": "理学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0713",
+      "name": "生态学",
+      "categoryCode": "07",
+      "categoryName": "理学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0714",
+      "name": "统计学",
+      "categoryCode": "07",
+      "categoryName": "理学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0751",
+      "name": "气象",
+      "categoryCode": "07",
+      "categoryName": "理学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "0801",
+      "name": "力学",
+      "categoryCode": "08",
+      "categoryName": "工学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0802",
+      "name": "机械工程",
+      "categoryCode": "08",
+      "categoryName": "工学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0803",
+      "name": "光学工程",
+      "categoryCode": "08",
+      "categoryName": "工学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0804",
+      "name": "仪器科学与技术",
+      "categoryCode": "08",
+      "categoryName": "工学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0805",
+      "name": "材料科学与工程",
+      "categoryCode": "08",
+      "categoryName": "工学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0806",
+      "name": "冶金工程",
+      "categoryCode": "08",
+      "categoryName": "工学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0807",
+      "name": "动力工程及工程热物理",
+      "categoryCode": "08",
+      "categoryName": "工学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0808",
+      "name": "电气工程",
+      "categoryCode": "08",
+      "categoryName": "工学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0809",
+      "name": "电子科学与技术",
+      "categoryCode": "08",
+      "categoryName": "工学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0810",
+      "name": "信息与通信工程",
+      "categoryCode": "08",
+      "categoryName": "工学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0811",
+      "name": "控制科学与工程",
+      "categoryCode": "08",
+      "categoryName": "工学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0812",
+      "name": "计算机科学与技术",
+      "categoryCode": "08",
+      "categoryName": "工学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0813",
+      "name": "建筑学",
+      "categoryCode": "08",
+      "categoryName": "工学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0814",
+      "name": "土木工程",
+      "categoryCode": "08",
+      "categoryName": "工学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0815",
+      "name": "水利工程",
+      "categoryCode": "08",
+      "categoryName": "工学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0816",
+      "name": "测绘科学与技术",
+      "categoryCode": "08",
+      "categoryName": "工学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0817",
+      "name": "化学工程与技术",
+      "categoryCode": "08",
+      "categoryName": "工学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0818",
+      "name": "地质资源与地质工程",
+      "categoryCode": "08",
+      "categoryName": "工学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0819",
+      "name": "矿业工程",
+      "categoryCode": "08",
+      "categoryName": "工学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0820",
+      "name": "石油与天然气工程",
+      "categoryCode": "08",
+      "categoryName": "工学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0821",
+      "name": "纺织科学与工程",
+      "categoryCode": "08",
+      "categoryName": "工学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0822",
+      "name": "轻工技术与工程",
+      "categoryCode": "08",
+      "categoryName": "工学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0823",
+      "name": "交通运输工程",
+      "categoryCode": "08",
+      "categoryName": "工学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0824",
+      "name": "船舶与海洋工程",
+      "categoryCode": "08",
+      "categoryName": "工学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0825",
+      "name": "航空宇航科学与技术",
+      "categoryCode": "08",
+      "categoryName": "工学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0826",
+      "name": "兵器科学与技术",
+      "categoryCode": "08",
+      "categoryName": "工学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0827",
+      "name": "核科学与技术",
+      "categoryCode": "08",
+      "categoryName": "工学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0828",
+      "name": "农业工程",
+      "categoryCode": "08",
+      "categoryName": "工学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0829",
+      "name": "林业工程",
+      "categoryCode": "08",
+      "categoryName": "工学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0830",
+      "name": "环境科学与工程",
+      "categoryCode": "08",
+      "categoryName": "工学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0831",
+      "name": "生物医学工程",
+      "categoryCode": "08",
+      "categoryName": "工学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0832",
+      "name": "食品科学与工程",
+      "categoryCode": "08",
+      "categoryName": "工学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0833",
+      "name": "城乡规划学",
+      "categoryCode": "08",
+      "categoryName": "工学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0835",
+      "name": "软件工程",
+      "categoryCode": "08",
+      "categoryName": "工学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0836",
+      "name": "生物工程",
+      "categoryCode": "08",
+      "categoryName": "工学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0837",
+      "name": "安全科学与工程",
+      "categoryCode": "08",
+      "categoryName": "工学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0838",
+      "name": "公安技术",
+      "categoryCode": "08",
+      "categoryName": "工学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0839",
+      "name": "网络空间安全",
+      "categoryCode": "08",
+      "categoryName": "工学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0851",
+      "name": "建筑",
+      "categoryCode": "08",
+      "categoryName": "工学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "0853",
+      "name": "城乡规划",
+      "categoryCode": "08",
+      "categoryName": "工学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "0854",
+      "name": "电子信息",
+      "categoryCode": "08",
+      "categoryName": "工学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "0855",
+      "name": "机械",
+      "categoryCode": "08",
+      "categoryName": "工学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "0856",
+      "name": "材料与化工",
+      "categoryCode": "08",
+      "categoryName": "工学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "0857",
+      "name": "资源与环境",
+      "categoryCode": "08",
+      "categoryName": "工学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "0858",
+      "name": "能源动力",
+      "categoryCode": "08",
+      "categoryName": "工学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "0859",
+      "name": "土木水利",
+      "categoryCode": "08",
+      "categoryName": "工学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "0860",
+      "name": "生物与医药",
+      "categoryCode": "08",
+      "categoryName": "工学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "0861",
+      "name": "交通运输",
+      "categoryCode": "08",
+      "categoryName": "工学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "0862",
+      "name": "风景园林",
+      "categoryCode": "08",
+      "categoryName": "工学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "0901",
+      "name": "作物学",
+      "categoryCode": "09",
+      "categoryName": "农学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0902",
+      "name": "园艺学",
+      "categoryCode": "09",
+      "categoryName": "农学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0903",
+      "name": "农业资源与环境",
+      "categoryCode": "09",
+      "categoryName": "农学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0904",
+      "name": "植物保护",
+      "categoryCode": "09",
+      "categoryName": "农学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0905",
+      "name": "畜牧学",
+      "categoryCode": "09",
+      "categoryName": "农学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0906",
+      "name": "兽医学",
+      "categoryCode": "09",
+      "categoryName": "农学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0907",
+      "name": "林学",
+      "categoryCode": "09",
+      "categoryName": "农学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0908",
+      "name": "水产",
+      "categoryCode": "09",
+      "categoryName": "农学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0909",
+      "name": "草学",
+      "categoryCode": "09",
+      "categoryName": "农学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0910",
+      "name": "水土保持与荒漠化防治学",
+      "categoryCode": "09",
+      "categoryName": "农学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "0951",
+      "name": "农业",
+      "categoryCode": "09",
+      "categoryName": "农学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "0952",
+      "name": "兽医",
+      "categoryCode": "09",
+      "categoryName": "农学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "0954",
+      "name": "林业",
+      "categoryCode": "09",
+      "categoryName": "农学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "0955",
+      "name": "食品与营养",
+      "categoryCode": "09",
+      "categoryName": "农学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "1001",
+      "name": "基础医学",
+      "categoryCode": "10",
+      "categoryName": "医学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "1002",
+      "name": "临床医学",
+      "categoryCode": "10",
+      "categoryName": "医学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "1003",
+      "name": "口腔医学",
+      "categoryCode": "10",
+      "categoryName": "医学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "1004",
+      "name": "公共卫生与预防医学",
+      "categoryCode": "10",
+      "categoryName": "医学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "1005",
+      "name": "中医学",
+      "categoryCode": "10",
+      "categoryName": "医学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "1006",
+      "name": "中西医结合",
+      "categoryCode": "10",
+      "categoryName": "医学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "1007",
+      "name": "药学",
+      "categoryCode": "10",
+      "categoryName": "医学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "1008",
+      "name": "中药学",
+      "categoryCode": "10",
+      "categoryName": "医学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "1009",
+      "name": "特种医学",
+      "categoryCode": "10",
+      "categoryName": "医学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "1011",
+      "name": "护理学",
+      "categoryCode": "10",
+      "categoryName": "医学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "1012",
+      "name": "法医学",
+      "categoryCode": "10",
+      "categoryName": "医学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "1051",
+      "name": "临床医学",
+      "categoryCode": "10",
+      "categoryName": "医学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "1052",
+      "name": "口腔医学",
+      "categoryCode": "10",
+      "categoryName": "医学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "1053",
+      "name": "公共卫生",
+      "categoryCode": "10",
+      "categoryName": "医学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "1054",
+      "name": "护理",
+      "categoryCode": "10",
+      "categoryName": "医学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "1055",
+      "name": "药学",
+      "categoryCode": "10",
+      "categoryName": "医学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "1056",
+      "name": "中药",
+      "categoryCode": "10",
+      "categoryName": "医学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "1057",
+      "name": "中医",
+      "categoryCode": "10",
+      "categoryName": "医学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "1058",
+      "name": "医学技术",
+      "categoryCode": "10",
+      "categoryName": "医学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "1059",
+      "name": "针灸",
+      "categoryCode": "10",
+      "categoryName": "医学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "1101",
+      "name": "军事思想与军事历史",
+      "categoryCode": "11",
+      "categoryName": "军事学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "1102",
+      "name": "战略学",
+      "categoryCode": "11",
+      "categoryName": "军事学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "1103",
+      "name": "联合作战学",
+      "categoryCode": "11",
+      "categoryName": "军事学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "1104",
+      "name": "军兵种作战学",
+      "categoryCode": "11",
+      "categoryName": "军事学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "1105",
+      "name": "军队指挥学",
+      "categoryCode": "11",
+      "categoryName": "军事学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "1106",
+      "name": "军队政治工作学",
+      "categoryCode": "11",
+      "categoryName": "军事学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "1107",
+      "name": "军事后勤学",
+      "categoryCode": "11",
+      "categoryName": "军事学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "1108",
+      "name": "军事装备学",
+      "categoryCode": "11",
+      "categoryName": "军事学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "1109",
+      "name": "军事管理学",
+      "categoryCode": "11",
+      "categoryName": "军事学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "1110",
+      "name": "军事训练学",
+      "categoryCode": "11",
+      "categoryName": "军事学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "1111",
+      "name": "军事智能",
+      "categoryCode": "11",
+      "categoryName": "军事学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "1152",
+      "name": "联合作战指挥",
+      "categoryCode": "11",
+      "categoryName": "军事学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "1153",
+      "name": "军兵种作战指挥",
+      "categoryCode": "11",
+      "categoryName": "军事学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "1154",
+      "name": "作战指挥保障",
+      "categoryCode": "11",
+      "categoryName": "军事学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "1155",
+      "name": "战时政治工作",
+      "categoryCode": "11",
+      "categoryName": "军事学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "1156",
+      "name": "后勤与装备保障",
+      "categoryCode": "11",
+      "categoryName": "军事学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "1157",
+      "name": "军事训练与管理",
+      "categoryCode": "11",
+      "categoryName": "军事学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "1201",
+      "name": "管理科学与工程",
+      "categoryCode": "12",
+      "categoryName": "管理学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "1202",
+      "name": "工商管理学",
+      "categoryCode": "12",
+      "categoryName": "管理学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "1203",
+      "name": "农林经济管理",
+      "categoryCode": "12",
+      "categoryName": "管理学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "1204",
+      "name": "公共管理学",
+      "categoryCode": "12",
+      "categoryName": "管理学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "1205",
+      "name": "信息资源管理",
+      "categoryCode": "12",
+      "categoryName": "管理学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "1251",
+      "name": "工商管理",
+      "categoryCode": "12",
+      "categoryName": "管理学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "1252",
+      "name": "公共管理",
+      "categoryCode": "12",
+      "categoryName": "管理学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "1253",
+      "name": "会计",
+      "categoryCode": "12",
+      "categoryName": "管理学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "1254",
+      "name": "旅游管理",
+      "categoryCode": "12",
+      "categoryName": "管理学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "1255",
+      "name": "图书情报",
+      "categoryCode": "12",
+      "categoryName": "管理学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "1256",
+      "name": "工程管理",
+      "categoryCode": "12",
+      "categoryName": "管理学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "1257",
+      "name": "审计",
+      "categoryCode": "12",
+      "categoryName": "管理学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "1301",
+      "name": "艺术学",
+      "categoryCode": "13",
+      "categoryName": "艺术学",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "1352",
+      "name": "音乐",
+      "categoryCode": "13",
+      "categoryName": "艺术学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "1353",
+      "name": "舞蹈",
+      "categoryCode": "13",
+      "categoryName": "艺术学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "1354",
+      "name": "戏剧与影视",
+      "categoryCode": "13",
+      "categoryName": "艺术学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "1355",
+      "name": "戏曲与曲艺",
+      "categoryCode": "13",
+      "categoryName": "艺术学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "1356",
+      "name": "美术与书法",
+      "categoryCode": "13",
+      "categoryName": "艺术学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "1357",
+      "name": "设计",
+      "categoryCode": "13",
+      "categoryName": "艺术学",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "1401",
+      "name": "集成电路科学与工程",
+      "categoryCode": "14",
+      "categoryName": "交叉学科",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "1402",
+      "name": "国家安全学",
+      "categoryCode": "14",
+      "categoryName": "交叉学科",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "1403",
+      "name": "设计学",
+      "categoryCode": "14",
+      "categoryName": "交叉学科",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "1404",
+      "name": "遥感科学与技术",
+      "categoryCode": "14",
+      "categoryName": "交叉学科",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "1405",
+      "name": "智能科学与技术",
+      "categoryCode": "14",
+      "categoryName": "交叉学科",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "1406",
+      "name": "纳米科学与工程",
+      "categoryCode": "14",
+      "categoryName": "交叉学科",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "1407",
+      "name": "区域国别学",
+      "categoryCode": "14",
+      "categoryName": "交叉学科",
+      "type": "ACADEMIC",
+      "aliases": []
+    },
+    {
+      "code": "1451",
+      "name": "文物",
+      "categoryCode": "14",
+      "categoryName": "交叉学科",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    },
+    {
+      "code": "1452",
+      "name": "密码",
+      "categoryCode": "14",
+      "categoryName": "交叉学科",
+      "type": "PROFESSIONAL",
+      "aliases": []
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "browser": "156.0.8078.49",
+  "cases": [
+    {
+      "case": "下载真实模板→上传CSV→预览差异→确认更新",
+      "status": "PASS"
+    },
+    {
+      "case": "刷新持久化/否与未知分别筛选/是的空态",
+      "status": "PASS"
+    },
+    {
+      "case": "重复用户名逐行报错且禁止确认",
+      "status": "PASS"
+    },
+    {
+      "case": "同一资料重复导入不发生无意义更新",
+      "status": "PASS"
+    },
+    {
+      "case": "空字段预览明确清空并持久化未知",
+      "status": "PASS"
+    },
+    {
+      "case": "双页面并发编辑使预览409失效/不覆盖新资料",
+      "status": "PASS"
+    },
+    {
+      "case": "学校页面不能进入平台专家库或读取身份",
+      "status": "PASS"
+    },
+    {
+      "case": "390px无整页横向溢出/来源链接无自动请求/无浏览器异常",
+      "status": "PASS"
+    }
+  ],
+  "sourceRequests": 0,
+  "pageErrors": []
+}

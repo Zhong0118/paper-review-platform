@@ -1,0 +1,39 @@
+
+ RUN  v4.1.10 /Users/zhongxu/Desktop/0-Inbox/paper-review-platform/frontend
+
+ ❯ src/modules/dispatch/__tests__/candidateRanking.spec.ts (4 tests | 1 failed) 78ms
+   × shows only supplied real dispatch details without empty demo fields or duplicate discipline codes 9ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/modules/dispatch/__tests__/candidateRanking.spec.ts > shows only supplied real dispatch details without empty demo fields or duplicate discipline codes
+AssertionError: expected [ Array(7) ] to deeply equal [ '专业目录' ]
+
+- Expected
++ Received
+
+  [
+    "专业目录",
++   "论文类型",
++   "送审学校",
++   "送审轮次",
++   "关键词",
++   "回避规则",
++   "学校要求",
+  ]
+
+ ❯ src/modules/dispatch/__tests__/candidateRanking.spec.ts:37:52
+     35| it('shows only supplied real dispatch details without empty demo field…
+     36|  const w=await page();const detail=w.get('[data-dispatch-detail]')
+     37|  expect(detail.findAll('dt').map(row=>row.text())).toEqual(['专业目录'])
+       |                                                    ^
+     38|  expect(detail.get('dd').text()).toBe('0812')
+     39|  expect(detail.text()).not.toContain('第 轮')
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 3 passed (4)
+   Start at  10:11:00
+   Duration  2.09s (transform 660ms, setup 0ms, import 1.37s, tests 78ms, environment 539ms)

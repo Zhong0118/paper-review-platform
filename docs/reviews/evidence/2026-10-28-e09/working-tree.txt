@@ -1,0 +1,82 @@
+ M README.md
+ M backend/app/api.py
+ M backend/app/core/exception_handlers.py
+ M backend/app/db/models.py
+ M backend/app/modules/expert/import_service.py
+ M backend/app/modules/expert/models.py
+ M backend/app/modules/expert/router.py
+ M backend/app/modules/expert/schema.py
+ M backend/app/modules/expert/service.py
+ M backend/app/modules/files/pdf.py
+ M backend/app/modules/files/service.py
+ M backend/scripts/recovery_drill.py
+ M backend/tests/test_file_access.py
+ M backend/tests/test_file_concurrency.py
+ M backend/tests/test_recovery_drill.py
+ M backend/tests/test_rls_end_to_end.py
+ M backend/tests/test_rls_roles.py
+ M docs/AGENT_HANDOFF.md
+ M docs/CURRENT.md
+ M docs/superpowers/plans/2026-10-12-e08-pdf-material-transform.md
+ M docs/superpowers/plans/2026-10-12-e09-expert-profile-import.md
+ M docs/superpowers/plans/2026-10-12-enhancement-roadmap.md
+ M docs/superpowers/specs/2026-10-12-e08-pdf-material-transform-design.md
+ M docs/superpowers/specs/2026-10-12-e09-expert-profile-import-design.md
+ M frontend/components.d.ts
+ M frontend/src/api/expertOperations.ts
+ M frontend/src/modules/expert-management/pages/RealExpertLibraryPage.vue
+ M frontend/src/modules/thesis/pages/ThesisEditPage.vue
+?? backend/alembic/versions/0026_pdf_transforms.py
+?? backend/alembic/versions/0027_expert_profiles.py
+?? backend/app/modules/expert/import_models.py
+?? backend/app/modules/files/transform_models.py
+?? backend/app/modules/files/transform_router.py
+?? backend/app/modules/files/transform_runtime.py
+?? backend/app/modules/files/transform_service.py
+?? backend/app/modules/files/transform_worker.py
+?? backend/pdf-worker/Dockerfile
+?? backend/pdf-worker/Dockerfile.dockerignore
+?? backend/pdf-worker/README.md
+?? backend/scripts/build_pdf_worker.py
+?? backend/tests/test_expert_profile_import.py
+?? backend/tests/test_pdf_transforms.py
+?? docs/reviews/2026-10-12-e08-validation.md
+?? docs/reviews/2026-10-12-e09-validation.md
+?? docs/reviews/2026-10-28-e08-runtime-blocker.md
+?? docs/reviews/evidence/2026-10-28-e08/backend-core.txt
+?? docs/reviews/evidence/2026-10-28-e08/backend-files.txt
+?? docs/reviews/evidence/2026-10-28-e08/browser-results.json
+?? docs/reviews/evidence/2026-10-28-e08/cleanup.json
+?? docs/reviews/evidence/2026-10-28-e08/delete_pages-preview.png
+?? docs/reviews/evidence/2026-10-28-e08/extract-preview.png
+?? docs/reviews/evidence/2026-10-28-e08/frontend.txt
+?? docs/reviews/evidence/2026-10-28-e08/merge-preview.png
+?? docs/reviews/evidence/2026-10-28-e08/mobile-preview.png
+?? docs/reviews/evidence/2026-10-28-e08/validation-results.json
+?? docs/reviews/evidence/2026-10-28-e08/working-tree.txt
+?? docs/reviews/evidence/2026-10-28-e09/backend-edge-final.txt
+?? docs/reviews/evidence/2026-10-28-e09/backend-related.txt
+?? docs/reviews/evidence/2026-10-28-e09/backend-security-recovery.txt
+?? docs/reviews/evidence/2026-10-28-e09/browser-check.mjs
+?? docs/reviews/evidence/2026-10-28-e09/browser-results.json
+?? docs/reviews/evidence/2026-10-28-e09/browser.txt
+?? docs/reviews/evidence/2026-10-28-e09/build.txt
+?? docs/reviews/evidence/2026-10-28-e09/cleanup.json
+?? docs/reviews/evidence/2026-10-28-e09/environment.json
+?? docs/reviews/evidence/2026-10-28-e09/frontend.txt
+?? docs/reviews/evidence/2026-10-28-e09/import-preview.png
+?? docs/reviews/evidence/2026-10-28-e09/mobile.png
+?? docs/reviews/evidence/2026-10-28-e09/profiles.png
+?? docs/reviews/evidence/2026-10-28-e09/red-fields.txt
+?? docs/reviews/evidence/2026-10-28-e09/red-import.txt
+?? docs/reviews/evidence/2026-10-28-e09/red-nul.txt
+?? docs/reviews/evidence/2026-10-28-e09/red-ui.txt
+?? docs/reviews/evidence/2026-10-28-e09/red-username-nul.txt
+?? docs/reviews/evidence/2026-10-28-e09/types.txt
+?? docs/reviews/evidence/2026-10-28-e09/version-conflict.png
+?? docs/reviews/evidence/2026-10-28-e09/working-tree.txt
+?? frontend/src/api/pdfTransforms.ts
+?? frontend/src/components/app/ExpertImportDialog.vue
+?? frontend/src/components/app/PdfTransformDialog.vue
+?? frontend/src/modules/expert-management/__tests__/expertImport.spec.ts
+?? frontend/src/modules/thesis/__tests__/pdfTransforms.spec.ts

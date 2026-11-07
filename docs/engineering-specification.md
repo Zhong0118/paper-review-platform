@@ -1,6 +1,6 @@
 ---
 title: 代码工程规范
-status: DRAFT
+status: HISTORICAL
 version: 0.1.0
 last_updated: 2026-08-04
 sources:
@@ -15,6 +15,8 @@ related_documents:
 ---
 
 # 代码工程规范
+
+> 历史草案。现行实现约定见 [CURRENT.md](CURRENT.md) 与 [AGENTS.md](../AGENTS.md)。
 
 本文件是 `docs/06_开发规范/开发规范.md` 的**代码级细则**：它规定写每一行代码时的文件头、注释、命名、TODO、错误码、API 调用、事务、测试和迁移标准。编码时所有新增/修改代码必须遵守本文件与 `docs/06_开发规范/`、`docs/03_架构设计/`。
 

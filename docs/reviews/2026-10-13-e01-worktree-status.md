@@ -1,0 +1,288 @@
+# E01交付时工作树清单
+
+记录日期：2026-10-13。分支`codex/slice-7a1-file-integrity`，HEAD`39a8962`，未提交、未推送。
+
+当前已跟踪修改89项，未跟踪191项。开始前分别87、176项；本清单包含全部历史工作，不代表都是E01新增。忽略的环境文件、一次性密码与运行日志未包含。
+
+```text
+ M README.md
+ M backend/alembic/env.py
+ M backend/app/api.py
+ M backend/app/core/config.py
+ M backend/app/core/logging.py
+ M backend/app/core/security.py
+ M backend/app/db/models.py
+ M backend/app/db/session.py
+ M backend/app/main.py
+ M backend/app/modules/audit/service.py
+ M backend/app/modules/auth/deps.py
+ M backend/app/modules/auth/router.py
+ M backend/app/modules/auth/service.py
+ M backend/app/modules/dispatch/models.py
+ M backend/app/modules/dispatch/router.py
+ M backend/app/modules/dispatch/service.py
+ M backend/app/modules/expert/models.py
+ M backend/app/modules/expert/router.py
+ M backend/app/modules/expert/schema.py
+ M backend/app/modules/expert/service.py
+ M backend/app/modules/files/models.py
+ M backend/app/modules/files/router.py
+ M backend/app/modules/files/service.py
+ M backend/app/modules/result/models.py
+ M backend/app/modules/result/objection_models.py
+ M backend/app/modules/result/service.py
+ M backend/app/modules/review/models.py
+ M backend/app/modules/review/service.py
+ M backend/app/modules/tenant/models.py
+ M backend/app/modules/tenant/router.py
+ M backend/app/modules/tenant/schema.py
+ M backend/app/modules/tenant/service.py
+ M backend/app/modules/thesis/models.py
+ M backend/app/modules/thesis/router.py
+ M backend/app/modules/thesis/service.py
+ M backend/app/modules/user/models.py
+ M backend/app/modules/user/router.py
+ M backend/app/modules/user/schema.py
+ M backend/app/modules/user/service.py
+ M backend/app/modules/workflow/models.py
+ M backend/app/seed.py
+ M backend/pyproject.toml
+ M backend/tests/conftest.py
+ M backend/tests/test_auth.py
+ M backend/tests/test_dispatch_result_integrity.py
+ M backend/tests/test_file_access.py
+ M backend/tests/test_file_concurrency.py
+ M backend/tests/test_file_lifecycle.py
+ M backend/tests/test_file_migration.py
+ M backend/tests/test_supervisor_results.py
+ M docs/AGENT_HANDOFF.md
+ M docs/CURRENT.md
+ M docs/superpowers/plans/2026-09-22-pilot-task-board.md
+ M docs/superpowers/specs/2026-09-22-pilot-delivery-scope.md
+ M frontend/components.d.ts
+ M frontend/src/api/dispatch.ts
+ M frontend/src/api/request.ts
+ M frontend/src/api/results.ts
+ M frontend/src/api/review.ts
+ M frontend/src/api/theses.ts
+ M frontend/src/modules/dispatch/__tests__/realDispatch.wiring.spec.ts
+ M frontend/src/modules/dispatch/components/CandidateExpertTable.vue
+ M frontend/src/modules/dispatch/pages/DispatchWorkbenchPage.vue
+ M frontend/src/modules/expert-management/pages/CorrectionApprovalPage.vue
+ M frontend/src/modules/result/__tests__/realDispatchObjections.spec.ts
+ M frontend/src/modules/result/__tests__/realResultPages.spec.ts
+ M frontend/src/modules/result/pages/ResultProcessingPage.vue
+ M frontend/src/modules/result/pages/StudentResultPage.vue
+ M frontend/src/modules/result/pages/SupervisorResultPage.vue
+ M frontend/src/modules/review/__tests__/realWorkspace.spec.ts
+ M frontend/src/modules/review/components/ExpertTaskTable.vue
+ M frontend/src/modules/review/components/ReviewFormPane.vue
+ M frontend/src/modules/review/pages/ExpertTasksPage.vue
+ M frontend/src/modules/review/pages/InvitationPage.vue
+ M frontend/src/modules/review/pages/ReviewWorkspacePage.vue
+ M frontend/src/modules/school/__tests__/realProgress.wiring.spec.ts
+ M frontend/src/modules/school/__tests__/schoolManagement.spec.ts
+ M frontend/src/modules/school/pages/BatchRulesPage.vue
+ M frontend/src/modules/school/pages/ObjectionWorkbenchPage.vue
+ M frontend/src/modules/school/pages/PreparationListPage.vue
+ M frontend/src/modules/school/pages/ReviewProgressPage.vue
+ M frontend/src/modules/system/pages/TenantPermissionsPage.vue
+ M frontend/src/modules/thesis/components/DisciplineSelector.vue
+ M frontend/src/modules/thesis/components/ThesisMaterialEditor.vue
+ M frontend/src/modules/thesis/pages/StudentDashboardPage.vue
+ M frontend/src/modules/thesis/pages/ThesisEditPage.vue
+ M frontend/src/router/__tests__/routes.spec.ts
+ M frontend/src/router/menus.ts
+ M frontend/src/router/routes.ts
+?? .github/workflows/check.yml
+?? backend/alembic/versions/0008_identity_invariants.py
+?? backend/alembic/versions/0009_pilot_operations.py
+?? backend/alembic/versions/0010_auth_version.py
+?? backend/alembic/versions/0011_rls_identity.py
+?? backend/alembic/versions/0012_rls_metadata.py
+?? backend/alembic/versions/0013_rls_core.py
+?? backend/alembic/versions/0014_rls_workflow.py
+?? backend/alembic/versions/0015_rls_children.py
+?? backend/alembic/versions/0016_expert_operations.py
+?? backend/alembic/versions/0017_expert_management.py
+?? backend/alembic/versions/0018_round_rule_snapshot.py
+?? backend/alembic/versions/0019_school_task_cancellation.py
+?? backend/alembic/versions/0020_official_catalogs.py
+?? backend/alembic/versions/0021_publication_snapshots.py
+?? backend/alembic/versions/0022_review_corrections.py
+?? backend/app/db/rls_context.py
+?? backend/app/modules/review/correction_router.py
+?? backend/app/modules/review/correction_service.py
+?? backend/app/modules/review/rules.py
+?? backend/app/modules/tenant/catalog_data.py
+?? backend/app/modules/tenant/catalog_router.py
+?? backend/app/modules/tenant/catalog_service.py
+?? backend/data/official/disciplines-2022.csv
+?? backend/data/official/graduate-2022.pdf
+?? backend/data/official/institutions-adult-2026.csv
+?? backend/data/official/institutions-adult-2026.xls
+?? backend/data/official/institutions-regular-2026.csv
+?? backend/data/official/institutions-regular-2026.xls
+?? backend/data/official/manifest.json
+?? backend/scripts/acceptance_server.py
+?? backend/scripts/recovery_drill.py
+?? backend/scripts/verify_catalog_source.py
+?? backend/tests/legacy_rls_fixture.py
+?? backend/tests/test_acceptance_server.py
+?? backend/tests/test_access_logging.py
+?? backend/tests/test_auth_concurrency.py
+?? backend/tests/test_auth_version_migration.py
+?? backend/tests/test_batch_creation_concurrency.py
+?? backend/tests/test_batch_operations.py
+?? backend/tests/test_candidate_followup.py
+?? backend/tests/test_eligibility_operations.py
+?? backend/tests/test_expert_migration.py
+?? backend/tests/test_expert_operations.py
+?? backend/tests/test_idempotency_service.py
+?? backend/tests/test_identity_migration.py
+?? backend/tests/test_official_catalog_api.py
+?? backend/tests/test_official_catalog_data.py
+?? backend/tests/test_official_catalog_migration.py
+?? backend/tests/test_operations_migration.py
+?? backend/tests/test_production_safety.py
+?? backend/tests/test_recovery_drill.py
+?? backend/tests/test_result_corrections.py
+?? backend/tests/test_review_rules.py
+?? backend/tests/test_rls_children.py
+?? backend/tests/test_rls_context.py
+?? backend/tests/test_rls_core.py
+?? backend/tests/test_rls_end_to_end.py
+?? backend/tests/test_rls_identity.py
+?? backend/tests/test_rls_metadata.py
+?? backend/tests/test_rls_roles.py
+?? backend/tests/test_rls_workflow.py
+?? backend/tests/test_rule_snapshot_api.py
+?? backend/tests/test_rule_snapshot_migration.py
+?? backend/tests/test_school_member_operations.py
+?? backend/tests/test_system_operations.py
+?? backend/tests/test_token_revocation.py
+?? backend/tests/test_user_operations.py
+?? docs/operations/official-catalogs.md
+?? docs/operations/pilot-recovery-runbook.md
+?? docs/reviews/2026-09-23-r02-concurrency-blocker.md
+?? docs/reviews/2026-09-23-r03-concurrency.md
+?? docs/reviews/2026-09-23-r04-validation.md
+?? docs/reviews/2026-09-23-r05-validation.md
+?? docs/reviews/2026-09-23-r06-validation.md
+?? docs/reviews/2026-09-23-r07-validation.md
+?? docs/reviews/2026-09-23-r08-validation.md
+?? docs/reviews/2026-09-23-t05-followup-review.md
+?? docs/reviews/2026-09-24-t06-1-validation.md
+?? docs/reviews/2026-09-24-t06-2-validation.md
+?? docs/reviews/2026-09-24-t06-3-validation.md
+?? docs/reviews/2026-09-24-t06-rls-design-rereview.md
+?? docs/reviews/2026-09-24-t06-rls-design-review.md
+?? docs/reviews/2026-09-24-t06-rls-design-revision.md
+?? docs/reviews/2026-09-28-hard-parts-worktree.txt
+?? docs/reviews/2026-09-28-local-pilot-release-candidate.md
+?? docs/reviews/2026-09-28-roadmap-review.md
+?? docs/reviews/2026-09-28-t06-4-validation.md
+?? docs/reviews/2026-09-28-t06-5-validation.md
+?? docs/reviews/2026-09-28-t06-6-validation.md
+?? docs/reviews/2026-09-28-t06-7-validation.md
+?? docs/reviews/2026-09-28-t06-8-validation.md
+?? docs/reviews/2026-09-28-t07-1-validation.md
+?? docs/reviews/2026-09-28-t07-2-rls-blocker.md
+?? docs/reviews/2026-09-28-t07-2-validation.md
+?? docs/reviews/2026-09-28-t07-validation.md
+?? docs/reviews/2026-09-28-t08-backend-validation.md
+?? docs/reviews/2026-09-28-t08-validation.md
+?? docs/reviews/2026-09-28-t09-a1-validation.md
+?? docs/reviews/2026-09-28-t09-a2-validation.md
+?? docs/reviews/2026-09-28-t10-a-validation.md
+?? docs/reviews/2026-09-28-t10-toolchain-blocker.md
+?? docs/reviews/2026-10-02-candidate-followup-review.md
+?? docs/reviews/2026-10-02-t11-a-browser-validation.md
+?? docs/reviews/2026-10-03-followup-fix-contract.md
+?? docs/reviews/2026-10-03-followup-fix-validation.md
+?? docs/reviews/2026-10-03-official-catalogs-validation.md
+?? docs/reviews/2026-10-12-e01-validation.md
+?? docs/reviews/2026-10-13-e01-worktree-status.md
+?? docs/reviews/evidence/2026-10-02-t11-expert-anonymous-pdf.png
+?? docs/reviews/evidence/2026-10-13-e01/expert-activated.png
+?? docs/reviews/evidence/2026-10-13-e01/mentor-activated.png
+?? docs/reviews/evidence/2026-10-13-e01/school-comparison.png
+?? docs/reviews/evidence/2026-10-13-e01/student-activated.png
+?? docs/reviews/evidence/2026-10-13-e01/student-pending.png
+?? docs/reviews/pilot-acceptance-matrix.md
+?? docs/reviews/pilot-baseline.md
+?? docs/reviews/probes/t05_batch_race.py
+?? docs/reviews/probes/test_2026_10_02_candidate_review.py
+?? docs/reviews/t05b-backend-checkpoint.md
+?? docs/superpowers/plans/2026-09-22-t05-pilot-operations-implementation.md
+?? docs/superpowers/plans/2026-09-23-t05-review-fixes.md
+?? docs/superpowers/plans/2026-09-23-t06-rls-implementation.md
+?? docs/superpowers/plans/2026-09-28-cheaper-model-handoff.md
+?? docs/superpowers/plans/2026-09-28-hard-parts-first.md
+?? docs/superpowers/plans/2026-09-28-pilot-deployment-gates.md
+?? docs/superpowers/plans/2026-09-28-pilot-execution-pack.md
+?? docs/superpowers/plans/2026-09-28-pilot-next-wave.md
+?? docs/superpowers/plans/2026-09-28-t07-expert-operations.md
+?? docs/superpowers/plans/2026-09-28-t08-fixed-review-rules.md
+?? docs/superpowers/plans/2026-09-28-t09-local-security.md
+?? docs/superpowers/plans/2026-09-28-t10-local-recovery.md
+?? docs/superpowers/plans/2026-09-28-t11-local-acceptance.md
+?? docs/superpowers/plans/2026-10-03-official-catalogs.md
+?? docs/superpowers/plans/2026-10-12-e01-review-result-correction.md
+?? docs/superpowers/plans/2026-10-12-e02-review-comment-checks.md
+?? docs/superpowers/plans/2026-10-12-e03-review-comment-similarity.md
+?? docs/superpowers/plans/2026-10-12-e04-data-time-scope.md
+?? docs/superpowers/plans/2026-10-12-e05-review-operations-dashboard.md
+?? docs/superpowers/plans/2026-10-12-e06-table-column-preferences.md
+?? docs/superpowers/plans/2026-10-12-e07-thesis-sensitive-locations.md
+?? docs/superpowers/plans/2026-10-12-e08-pdf-material-transform.md
+?? docs/superpowers/plans/2026-10-12-e09-expert-profile-import.md
+?? docs/superpowers/plans/2026-10-12-e10-expert-candidate-ranking.md
+?? docs/superpowers/plans/2026-10-12-enhancement-roadmap.md
+?? docs/superpowers/specs/2026-09-22-pilot-scope-decisions.md
+?? docs/superpowers/specs/2026-09-22-slice-t05-pilot-operations-design.md
+?? docs/superpowers/specs/2026-09-23-t05-review-fixes-design.md
+?? docs/superpowers/specs/2026-09-23-t06-rls-design.md
+?? docs/superpowers/specs/2026-09-28-pilot-deployment-gates-design.md
+?? docs/superpowers/specs/2026-09-28-t07-expert-operations-design.md
+?? docs/superpowers/specs/2026-09-28-t08-fixed-review-rules-design.md
+?? docs/superpowers/specs/2026-09-28-t09-local-security-design.md
+?? docs/superpowers/specs/2026-09-28-t10-local-recovery-design.md
+?? docs/superpowers/specs/2026-09-28-t11-local-acceptance-design.md
+?? docs/superpowers/specs/2026-10-03-official-catalogs-design.md
+?? docs/superpowers/specs/2026-10-12-e01-review-result-correction-design.md
+?? docs/superpowers/specs/2026-10-12-e02-review-comment-checks-design.md
+?? docs/superpowers/specs/2026-10-12-e03-review-comment-similarity-design.md
+?? docs/superpowers/specs/2026-10-12-e04-data-time-scope-design.md
+?? docs/superpowers/specs/2026-10-12-e05-review-operations-dashboard-design.md
+?? docs/superpowers/specs/2026-10-12-e06-table-column-preferences-design.md
+?? docs/superpowers/specs/2026-10-12-e07-thesis-sensitive-locations-design.md
+?? docs/superpowers/specs/2026-10-12-e08-pdf-material-transform-design.md
+?? docs/superpowers/specs/2026-10-12-e09-expert-profile-import-design.md
+?? docs/superpowers/specs/2026-10-12-e10-expert-candidate-ranking-design.md
+?? frontend/src/api/__tests__/operations.spec.ts
+?? frontend/src/api/catalogs.ts
+?? frontend/src/api/corrections.ts
+?? frontend/src/api/expertOperations.ts
+?? frontend/src/api/schoolOperations.ts
+?? frontend/src/api/systemOperations.ts
+?? frontend/src/components/app/CatalogMultiSelect.vue
+?? frontend/src/components/app/InstitutionSelector.vue
+?? frontend/src/components/app/OfficialCatalogImport.vue
+?? frontend/src/modules/expert-management/__tests__/realExpertLibrary.spec.ts
+?? frontend/src/modules/expert-management/pages/RealExpertLibraryPage.vue
+?? frontend/src/modules/result/__tests__/realCorrections.spec.ts
+?? frontend/src/modules/result/components/RealCorrectionPanel.vue
+?? frontend/src/modules/result/components/ReviewOutcomeNotice.vue
+?? frontend/src/modules/review/__tests__/realReviewRules.spec.ts
+?? frontend/src/modules/school/__tests__/officialCatalogs.spec.ts
+?? frontend/src/modules/school/__tests__/realBatchRules.spec.ts
+?? frontend/src/modules/school/__tests__/realSchoolMembers.spec.ts
+?? frontend/src/modules/school/pages/SchoolDisciplinesPage.vue
+?? frontend/src/modules/school/pages/SchoolMembersPage.vue
+?? frontend/src/modules/system/__tests__/realTenantPermissions.spec.ts
+?? frontend/src/modules/thesis/__tests__/officialSelector.spec.ts
+?? frontend/src/modules/thesis/__tests__/realThesisIdentity.spec.ts
+?? scripts/check.sh
+?? scripts/tests/check_test.sh
+```

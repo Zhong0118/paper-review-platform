@@ -1,1 +1,5 @@
-# 基础数据库建设
+from sqlalchemy.orm import DeclarativeBase
+
+
+class Base(DeclarativeBase):
+    pass

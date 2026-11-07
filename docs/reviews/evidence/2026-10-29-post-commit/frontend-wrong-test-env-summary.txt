@@ -1,0 +1,4 @@
+Incorrect runner environment: VITE_DEMO_MODE=false applied to Vitest, instead of only the real-mode build. No product/test assertions changed to address this runner error. Full raw output remains in ignored scratch/frontend-wrong-test-env.log.
+ Test Files  15 failed | 59 passed (74)
+      Tests  81 failed | 443 passed (524)
+   Duration  18.00s (transform 5.07s, setup 0ms, import 27.16s, tests 9.52s, environment 27.60s)

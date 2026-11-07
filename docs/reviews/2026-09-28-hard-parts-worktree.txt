@@ -1,0 +1,178 @@
+Branch: codex/slice-7a1-file-integrity
+HEAD: 39a8962c489163018a49ef5058171925c4faaa9d
+Tracked changes: 63
+Untracked files: 109
+All pre-existing work retained; no commit/push/deploy.
+
+ M README.md
+ M backend/alembic/env.py
+ M backend/app/api.py
+ M backend/app/core/config.py
+ M backend/app/core/logging.py
+ M backend/app/core/security.py
+ M backend/app/db/session.py
+ M backend/app/main.py
+ M backend/app/modules/audit/service.py
+ M backend/app/modules/auth/deps.py
+ M backend/app/modules/auth/router.py
+ M backend/app/modules/auth/service.py
+ M backend/app/modules/dispatch/models.py
+ M backend/app/modules/dispatch/router.py
+ M backend/app/modules/dispatch/service.py
+ M backend/app/modules/expert/models.py
+ M backend/app/modules/expert/router.py
+ M backend/app/modules/expert/schema.py
+ M backend/app/modules/expert/service.py
+ M backend/app/modules/files/models.py
+ M backend/app/modules/files/router.py
+ M backend/app/modules/files/service.py
+ M backend/app/modules/result/models.py
+ M backend/app/modules/result/objection_models.py
+ M backend/app/modules/result/service.py
+ M backend/app/modules/review/models.py
+ M backend/app/modules/review/service.py
+ M backend/app/modules/tenant/models.py
+ M backend/app/modules/tenant/router.py
+ M backend/app/modules/tenant/schema.py
+ M backend/app/modules/tenant/service.py
+ M backend/app/modules/thesis/models.py
+ M backend/app/modules/thesis/router.py
+ M backend/app/modules/thesis/service.py
+ M backend/app/modules/user/models.py
+ M backend/app/modules/user/router.py
+ M backend/app/modules/user/schema.py
+ M backend/app/modules/user/service.py
+ M backend/app/modules/workflow/models.py
+ M backend/app/seed.py
+ M backend/tests/conftest.py
+ M backend/tests/test_auth.py
+ M backend/tests/test_dispatch_result_integrity.py
+ M backend/tests/test_file_access.py
+ M backend/tests/test_file_concurrency.py
+ M backend/tests/test_file_lifecycle.py
+ M backend/tests/test_file_migration.py
+ M backend/tests/test_supervisor_results.py
+ M docs/AGENT_HANDOFF.md
+ M docs/CURRENT.md
+ M docs/superpowers/plans/2026-09-22-pilot-task-board.md
+ M docs/superpowers/specs/2026-09-22-pilot-delivery-scope.md
+ M frontend/src/api/request.ts
+ M frontend/src/api/theses.ts
+ M frontend/src/modules/school/__tests__/schoolManagement.spec.ts
+ M frontend/src/modules/school/pages/BatchRulesPage.vue
+ M frontend/src/modules/school/pages/PreparationListPage.vue
+ M frontend/src/modules/system/pages/TenantPermissionsPage.vue
+ M frontend/src/modules/thesis/pages/StudentDashboardPage.vue
+ M frontend/src/modules/thesis/pages/ThesisEditPage.vue
+ M frontend/src/router/__tests__/routes.spec.ts
+ M frontend/src/router/menus.ts
+ M frontend/src/router/routes.ts
+?? .github/workflows/check.yml
+?? backend/alembic/versions/0008_identity_invariants.py
+?? backend/alembic/versions/0009_pilot_operations.py
+?? backend/alembic/versions/0010_auth_version.py
+?? backend/alembic/versions/0011_rls_identity.py
+?? backend/alembic/versions/0012_rls_metadata.py
+?? backend/alembic/versions/0013_rls_core.py
+?? backend/alembic/versions/0014_rls_workflow.py
+?? backend/alembic/versions/0015_rls_children.py
+?? backend/alembic/versions/0016_expert_operations.py
+?? backend/alembic/versions/0017_expert_management.py
+?? backend/alembic/versions/0018_round_rule_snapshot.py
+?? backend/app/db/rls_context.py
+?? backend/app/modules/review/rules.py
+?? backend/scripts/acceptance_server.py
+?? backend/tests/legacy_rls_fixture.py
+?? backend/tests/test_acceptance_server.py
+?? backend/tests/test_access_logging.py
+?? backend/tests/test_auth_concurrency.py
+?? backend/tests/test_auth_version_migration.py
+?? backend/tests/test_batch_creation_concurrency.py
+?? backend/tests/test_batch_operations.py
+?? backend/tests/test_eligibility_operations.py
+?? backend/tests/test_expert_migration.py
+?? backend/tests/test_expert_operations.py
+?? backend/tests/test_idempotency_service.py
+?? backend/tests/test_identity_migration.py
+?? backend/tests/test_operations_migration.py
+?? backend/tests/test_production_safety.py
+?? backend/tests/test_review_rules.py
+?? backend/tests/test_rls_children.py
+?? backend/tests/test_rls_context.py
+?? backend/tests/test_rls_core.py
+?? backend/tests/test_rls_end_to_end.py
+?? backend/tests/test_rls_identity.py
+?? backend/tests/test_rls_metadata.py
+?? backend/tests/test_rls_roles.py
+?? backend/tests/test_rls_workflow.py
+?? backend/tests/test_rule_snapshot_api.py
+?? backend/tests/test_rule_snapshot_migration.py
+?? backend/tests/test_school_member_operations.py
+?? backend/tests/test_system_operations.py
+?? backend/tests/test_token_revocation.py
+?? backend/tests/test_user_operations.py
+?? docs/reviews/2026-09-23-r02-concurrency-blocker.md
+?? docs/reviews/2026-09-23-r03-concurrency.md
+?? docs/reviews/2026-09-23-r04-validation.md
+?? docs/reviews/2026-09-23-r05-validation.md
+?? docs/reviews/2026-09-23-r06-validation.md
+?? docs/reviews/2026-09-23-r07-validation.md
+?? docs/reviews/2026-09-23-r08-validation.md
+?? docs/reviews/2026-09-23-t05-followup-review.md
+?? docs/reviews/2026-09-24-t06-1-validation.md
+?? docs/reviews/2026-09-24-t06-2-validation.md
+?? docs/reviews/2026-09-24-t06-3-validation.md
+?? docs/reviews/2026-09-24-t06-rls-design-rereview.md
+?? docs/reviews/2026-09-24-t06-rls-design-review.md
+?? docs/reviews/2026-09-24-t06-rls-design-revision.md
+?? docs/reviews/2026-09-28-hard-parts-worktree.txt
+?? docs/reviews/2026-09-28-roadmap-review.md
+?? docs/reviews/2026-09-28-t06-4-validation.md
+?? docs/reviews/2026-09-28-t06-5-validation.md
+?? docs/reviews/2026-09-28-t06-6-validation.md
+?? docs/reviews/2026-09-28-t06-7-validation.md
+?? docs/reviews/2026-09-28-t06-8-validation.md
+?? docs/reviews/2026-09-28-t07-1-validation.md
+?? docs/reviews/2026-09-28-t07-2-rls-blocker.md
+?? docs/reviews/2026-09-28-t07-2-validation.md
+?? docs/reviews/2026-09-28-t08-backend-validation.md
+?? docs/reviews/2026-09-28-t09-a1-validation.md
+?? docs/reviews/2026-09-28-t09-a2-validation.md
+?? docs/reviews/2026-09-28-t10-toolchain-blocker.md
+?? docs/reviews/pilot-acceptance-matrix.md
+?? docs/reviews/pilot-baseline.md
+?? docs/reviews/probes/t05_batch_race.py
+?? docs/reviews/t05b-backend-checkpoint.md
+?? docs/superpowers/plans/2026-09-22-t05-pilot-operations-implementation.md
+?? docs/superpowers/plans/2026-09-23-t05-review-fixes.md
+?? docs/superpowers/plans/2026-09-23-t06-rls-implementation.md
+?? docs/superpowers/plans/2026-09-28-cheaper-model-handoff.md
+?? docs/superpowers/plans/2026-09-28-hard-parts-first.md
+?? docs/superpowers/plans/2026-09-28-pilot-deployment-gates.md
+?? docs/superpowers/plans/2026-09-28-pilot-execution-pack.md
+?? docs/superpowers/plans/2026-09-28-pilot-next-wave.md
+?? docs/superpowers/plans/2026-09-28-t07-expert-operations.md
+?? docs/superpowers/plans/2026-09-28-t08-fixed-review-rules.md
+?? docs/superpowers/plans/2026-09-28-t09-local-security.md
+?? docs/superpowers/plans/2026-09-28-t10-local-recovery.md
+?? docs/superpowers/plans/2026-09-28-t11-local-acceptance.md
+?? docs/superpowers/specs/2026-09-22-pilot-scope-decisions.md
+?? docs/superpowers/specs/2026-09-22-slice-t05-pilot-operations-design.md
+?? docs/superpowers/specs/2026-09-23-t05-review-fixes-design.md
+?? docs/superpowers/specs/2026-09-23-t06-rls-design.md
+?? docs/superpowers/specs/2026-09-28-pilot-deployment-gates-design.md
+?? docs/superpowers/specs/2026-09-28-t07-expert-operations-design.md
+?? docs/superpowers/specs/2026-09-28-t08-fixed-review-rules-design.md
+?? docs/superpowers/specs/2026-09-28-t09-local-security-design.md
+?? docs/superpowers/specs/2026-09-28-t10-local-recovery-design.md
+?? docs/superpowers/specs/2026-09-28-t11-local-acceptance-design.md
+?? frontend/src/api/__tests__/operations.spec.ts
+?? frontend/src/api/schoolOperations.ts
+?? frontend/src/api/systemOperations.ts
+?? frontend/src/modules/school/__tests__/realBatchRules.spec.ts
+?? frontend/src/modules/school/__tests__/realSchoolMembers.spec.ts
+?? frontend/src/modules/school/pages/SchoolMembersPage.vue
+?? frontend/src/modules/system/__tests__/realTenantPermissions.spec.ts
+?? frontend/src/modules/thesis/__tests__/realThesisIdentity.spec.ts
+?? scripts/check.sh
+?? scripts/tests/check_test.sh

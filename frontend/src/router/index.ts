@@ -13,9 +13,31 @@
 
 import { createRouter, createWebHistory } from 'vue-router'
 
+import { useAuthStore } from '@/stores/auth'
+
+import { appRoutes } from './routes'
+
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
-  routes: [],
+  routes: [
+    { path: '/', redirect: '/login' },
+    ...appRoutes,
+    // U1 原型：仅开发服务器注册，生产构建经 DEV 常量折叠后整体移除
+    ...(import.meta.env.DEV ? (await import('@/prototypes/routes')).prototypeRoutes : []),
+    { path: '/:pathMatch(.*)*', redirect: '/login' },
+  ],
+})
+
+router.beforeEach((to) => {
+  const authStore = useAuthStore()
+  if (!authStore.user) authStore.hydrateFromStorage()
+  if (to.path === '/login') return true
+  if (import.meta.env.DEV && to.meta.prototype) return true
+
+  const role = authStore.user?.role
+  if (!role) return { path: '/login', query: { redirect: to.fullPath } }
+  if (!to.meta.roleCodes.includes(role)) return authStore.defaultRoute
+  return true
 })
 
 export default router

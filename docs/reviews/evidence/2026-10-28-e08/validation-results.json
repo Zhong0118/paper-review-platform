@@ -1,0 +1,30 @@
+{
+  "date": "2026-10-28",
+  "branch": "codex/slice-7a1-file-integrity",
+  "head": "80ce25c92485a5e1d2ffc59d2cbe57bb712ecf0a",
+  "backend": {
+    "core_recovery_passed": 80,
+    "file_access_concurrency_passed": 19,
+    "distinct_passed": 99,
+    "all_repository_tests": false
+  },
+  "frontend": {
+    "passed": 57,
+    "files": 7
+  },
+  "typecheck": "PASS",
+  "real_mode_build": "PASS",
+  "browser_scenarios_passed": 5,
+  "database": "local 5433/paper_review_test, independent owned schemas",
+  "alembic_revision": "0026_pdf_transforms",
+  "force_rls_tables": 35,
+  "remaining_transform_containers": 0,
+  "committed": false,
+  "pushed": false,
+  "deployed": false,
+  "limitations": [
+    "No full repository suite this step",
+    "No production migration or deployment",
+    "No exhaustive malicious-PDF fuzzing or host-crash injection"
+  ]
+}

@@ -1,0 +1,182 @@
+/**
+ * R1 统一语义令牌：全站唯一来源（U4 计划 §17.5）。
+ * 命名沿用 shadcn-vue 约定（--background / --primary / --sidebar-* …），本项目补充状态色与尺寸。
+ * 定义在 :root，所以 Teleport 到 body 的 Dialog / Popover / Select 取到同一套值。
+ * 旧 theme.css、workspace.css（--ws-*）迁移期改为别名，迁完删除；element.css（--el-*）已在 R4 随 Element Plus 一起删除。
+ * 调色只改本文件；页面不写死色值、尺寸。
+ */
+
+:root {
+  /* 面与文字 */
+  --background: #ffffff;
+  --foreground: #16191d;
+  --page: #f6f7f9;
+  --card: #ffffff;
+  --card-foreground: #16191d;
+  --popover: #ffffff;
+  --popover-foreground: #16191d;
+  --muted: #f1f3f5;
+  --muted-foreground: #5b6470;
+  --faint: #646c78; /* ≥4.5:1 on white, page, sidebar and muted */
+  --accent: #f1f3f5;
+  --accent-foreground: #16191d;
+  --secondary: #f1f3f5;
+  --secondary-foreground: #16191d;
+  --border: #e4e7eb;
+  --border-strong: #d0d5db;
+  --input: #d0d5db;
+
+  /* 品牌：只用于主动作、焦点与必要强调 */
+  --primary: #1b4f8a;
+  --primary-hover: #163f6e;
+  --primary-foreground: #ffffff;
+  --primary-soft: #ebf1f8;
+  --ring: #1b4f8a;
+
+  /* 状态：按含义使用；不只靠颜色传达 */
+  --destructive: #b42318;
+  --destructive-hover: #931c13;
+  --destructive-foreground: #ffffff;
+  --destructive-soft: #fdecea;
+  --warning: #8a5300;
+  --warning-soft: #fdf3e1;
+  --success: #1e7a46;
+  --success-soft: #e8f4ec;
+  --info-soft: #eef1f5;
+
+  /* 侧栏 */
+  --sidebar: #f6f7f9;
+  --sidebar-foreground: #2b3138;
+  --sidebar-primary: #1b4f8a;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e9ecef;
+  --sidebar-accent-foreground: #16191d;
+  --sidebar-border: #e4e7eb;
+  --sidebar-ring: #1b4f8a;
+
+  /* 尺寸 */
+  --radius: 6px;
+  --control-h: 36px;
+  --control-h-sm: 32px;
+  --row-h: 44px;
+  --bar-h: 52px;
+  --sidebar-w: 224px;
+  --sidebar-w-icon: 56px;
+  --page-x: 24px;
+  --motion: 150ms;
+
+  --app-font: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei',
+    'Noto Sans CJK SC', 'Segoe UI', sans-serif;
+  --app-mono: 'SFMono-Regular', 'SF Mono', Menlo, Consolas, monospace;
+  --app-shadow-float: 0 8px 24px rgb(22 25 29 / 0.12), 0 1px 3px rgb(22 25 29 / 0.08);
+}
+
+@media (max-width: 1023px) {
+  :root {
+    --page-x: 16px;
+  }
+}
+@media (max-width: 599px) {
+  :root {
+    --page-x: 12px;
+  }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-page: var(--page);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-faint: var(--faint);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-input: var(--input);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-soft: var(--primary-soft);
+  --color-ring: var(--ring);
+  --color-destructive: var(--destructive);
+  --color-destructive-hover: var(--destructive-hover);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-destructive-soft: var(--destructive-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-info-soft: var(--info-soft);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* 圆角：控件 6、面板 8、Dialog/Sheet 10（v3 §7） */
+  --radius-sm: 4px;
+  --radius-md: var(--radius);
+  --radius-lg: 8px;
+  --radius-xl: 10px;
+
+  --font-sans: var(--app-font);
+  --font-mono: var(--app-mono);
+
+  /* 字号：正文 14、数据 13、辅助 12、顶栏标题 16、页标题 20、阅读 16 */
+  --text-xs: 12px;
+  --text-xs--line-height: 18px;
+  --text-sm: 13px;
+  --text-sm--line-height: 20px;
+  --text-base: 14px;
+  --text-base--line-height: 22px;
+  --text-md: 16px;
+  --text-md--line-height: 24px;
+  --text-lg: 18px;
+  --text-lg--line-height: 26px;
+  --text-xl: 20px;
+  --text-xl--line-height: 28px;
+  --text-2xl: 24px;
+  --text-2xl--line-height: 32px;
+
+  --shadow-float: var(--app-shadow-float);
+}
+
+@layer base {
+  html {
+    font-family: var(--app-font);
+    font-size: 14px;
+    font-synthesis: none;
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    color: var(--foreground);
+    background: var(--page);
+    font-size: 14px;
+    line-height: 22px;
+  }
+  * {
+    border-color: var(--border);
+  }
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

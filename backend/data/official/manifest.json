@@ -1,0 +1,49 @@
+{
+  "downloaded_at": "2026-10-03",
+  "sources": [
+    {
+      "name": "研究生教育学科专业目录（2022年）",
+      "version": "2022",
+      "publisher": "国务院学位委员会、教育部",
+      "url": "https://www.gov.cn/zhengce/zhengceku/2022-09/14/5709785/files/bb23485679bf489aba5d3299c36e0606.pdf"
+    },
+    {
+      "name": "全国普通高等学校名单",
+      "version": "2026-06-17",
+      "publisher": "教育部",
+      "url": "https://www.moe.gov.cn/jyb_xxgk/s5743/s5744/202606/W020260618416094865984.xls"
+    },
+    {
+      "name": "全国成人高等学校名单",
+      "version": "2026-06-17",
+      "publisher": "教育部",
+      "url": "https://www.moe.gov.cn/jyb_xxgk/s5743/s5744/202606/W020260618307096079727.xls"
+    }
+  ],
+  "files": [
+    {
+      "file": "disciplines-2022.csv",
+      "sha256": "4ddf8977e39720591d2213a6978a3914be27841e183e92b08ab62893b56bb130"
+    },
+    {
+      "file": "graduate-2022.pdf",
+      "sha256": "9693faf68dd3156afc0f580fadbfe4f64dd1a815eedf1f1e56b992887a7b0fba"
+    },
+    {
+      "file": "institutions-adult-2026.csv",
+      "sha256": "768754c35b9857304f3c9d7cc1201202010693717a38adbf56e6bf8a1b346d20"
+    },
+    {
+      "file": "institutions-adult-2026.xls",
+      "sha256": "34765edba0ceda935ca7d4455bc2eb105b94eee8d8d4d7c9150fba327cf11bbf"
+    },
+    {
+      "file": "institutions-regular-2026.csv",
+      "sha256": "73cc3719db3b88dba388faa79f01081742a37e170f0def24986466f536a3401b"
+    },
+    {
+      "file": "institutions-regular-2026.xls",
+      "sha256": "29c40f083b639888e429cf40b68f9a75782d1ce81131c99aabca65b65b36eaea"
+    }
+  ]
+}

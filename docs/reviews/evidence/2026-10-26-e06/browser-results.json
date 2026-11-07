@@ -1,0 +1,41 @@
+{
+  "date": "2026-10-26",
+  "browser": "Chrome via Playwright",
+  "mode": "real",
+  "results": [
+    {
+      "scenario": "school: real table hide/drag/keyboard/focus/refresh/reset/mobile scroll",
+      "status": "PASS"
+    },
+    {
+      "scenario": "expert: real table hide/drag/keyboard/focus/refresh/reset/mobile scroll",
+      "status": "PASS"
+    },
+    {
+      "scenario": "candidate: real table hide/drag/keyboard/focus/refresh/reset/mobile scroll",
+      "status": "PASS"
+    },
+    {
+      "scenario": "E05 platform counters and candidate selection still work; no score distribution",
+      "status": "PASS"
+    },
+    {
+      "scenario": "E04/E05 all/past-year counts 2→1, drill-down and refresh persist",
+      "status": "PASS"
+    },
+    {
+      "scenario": "E02/E03 real correction checks, three same-author similar histories, confirmation invalidated on edits",
+      "status": "PASS"
+    },
+    {
+      "scenario": "E01 expert request→platform approve→expert checked submit→school confirm, old80 retained then68 published, no reopened PDF or private reason leak",
+      "status": "PASS"
+    },
+    {
+      "scenario": "E05 corrected publication still one paper and four submitted tasks",
+      "status": "PASS",
+      "distribution": "已发布论文 1 篇\n\n仅统计当前有效发布 每篇论文计一次 更正后替换分值\n\n0-59 分\n0 篇\n60-79 分\n1 篇\n80-100 分\n0 篇"
+    }
+  ],
+  "pageErrors": []
+}

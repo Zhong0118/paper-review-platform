@@ -1,0 +1,18 @@
+{
+  "browser": "156.0.8078.49",
+  "results": [
+    {
+      "scenario": "school: real table hide/drag/keyboard/focus/refresh/reset/mobile scroll",
+      "status": "PASS"
+    },
+    {
+      "scenario": "expert: real table hide/drag/keyboard/focus/refresh/reset/mobile scroll",
+      "status": "PASS"
+    },
+    {
+      "scenario": "candidate: real table hide/drag/keyboard/focus/refresh/reset/mobile scroll",
+      "status": "PASS"
+    }
+  ],
+  "page_errors": []
+}

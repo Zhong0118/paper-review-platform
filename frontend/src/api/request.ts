@@ -22,7 +22,7 @@ import axios, {
   type AxiosRequestConfig,
   type InternalAxiosRequestConfig,
 } from 'axios'
-import { ElMessage } from 'element-plus'
+import { notify } from '@/components/app/notify/notify'
 import { useAuthStore } from '@/stores/auth'
 
 /** 后端统一响应包装 */
@@ -47,6 +47,7 @@ export type ApiErrorCode =
   | 'AUTH_REQUIRED'
   | 'ACCESS_DENIED'
   | 'RESOURCE_NOT_FOUND'
+  | 'RESOURCE_CONFLICT'
   | 'VALIDATION_FAILED'
   | 'STATE_TRANSITION_DENIED'
   | 'VERSION_CONFLICT'
@@ -61,6 +62,9 @@ export type ApiErrorCode =
 export interface RequestOptions extends AxiosRequestConfig {
   /** 幂等键，命令接口必传 */
   idempotencyKey?: string
+  onHeaders?: (headers: Record<string, unknown>) => void
+  /** 页面自己在原位说明错误时设为 true：不再弹全局提示（401 跳转登录不受影响） */
+  quiet?: boolean
 }
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api/v1'
@@ -93,56 +97,65 @@ http.interceptors.response.use(
     const requestId = error.response?.data?.request_id
     const status = error.response?.status
 
-    // 认证失效：清理会话并跳转登录
-    if (status === 401 || code === 'AUTH_REQUIRED') {
+    // 认证失效：清理会话并跳转登录。登录请求本身的 401 是“用户名或密码错误”，
+    // 交给登录页原位显示；整页跳回 /login 会把这条提示刷掉，看起来像点了没反应。
+    const loginAttempt = error.config?.url === '/auth/login'
+    if ((status === 401 || code === 'AUTH_REQUIRED') && !loginAttempt) {
       const auth = useAuthStore()
       auth.clearSession()
       window.location.href = '/login'
     }
 
+    // 调用方自己在页面上说明错误：不重复弹全局提示
+    if ((error.config as RequestOptions | undefined)?.quiet) return Promise.reject(error)
+
     // 403/404 统一提示，防资源枚举
     if (status === 403 || code === 'ACCESS_DENIED') {
-      ElMessage.error('您没有执行该操作的权限')
+      notify.error('您没有执行该操作的权限')
       return Promise.reject(error)
     }
     if (status === 404 || code === 'RESOURCE_NOT_FOUND') {
-      ElMessage.error('资源不存在或不可见')
+      notify.error('资源不存在或不可见')
       return Promise.reject(error)
     }
     // 409 并发/状态冲突，提示刷新
     if (status === 409 || code === 'VERSION_CONFLICT' || code === 'STATE_TRANSITION_DENIED') {
-      ElMessage.error('数据已变更，请刷新后重试')
+      notify.error('数据已变更，请刷新后重试')
       return Promise.reject(error)
     }
     if (code === 'RATE_LIMITED') {
-      ElMessage.error('操作过于频繁，请稍后重试')
+      notify.error('操作过于频繁，请稍后重试')
       return Promise.reject(error)
     }
 
     // 其余：展示后端消息（若存在）
     const message = error.response?.data?.message ?? error.message ?? '请求失败'
-    ElMessage.error(message)
+    notify.error(message)
     void requestId
     return Promise.reject(error)
   },
 )
 
 /** 解包响应体，返回 data */
-async function unwrap<T>(promise: Promise<{ data: ApiResponse<T> }>): Promise<T> {
+async function unwrap<T>(promise: Promise<{ data: ApiResponse<T>; headers: Record<string, unknown> }>, onHeaders?: RequestOptions['onHeaders']): Promise<T> {
   const response = await promise
+  onHeaders?.(response.headers)
   return response.data.data
 }
 
 /** 类型化请求方法 */
 export const httpApi = {
   get<T>(url: string, config?: RequestOptions): Promise<T> {
-    return unwrap(http.get<ApiResponse<T>>(url, config))
+    return unwrap(http.get<ApiResponse<T>>(url, config), config?.onHeaders)
   },
   post<T>(url: string, data?: unknown, config?: RequestOptions): Promise<T> {
     return unwrap(http.post<ApiResponse<T>>(url, data, config))
   },
   patch<T>(url: string, data?: unknown, config?: RequestOptions): Promise<T> {
     return unwrap(http.patch<ApiResponse<T>>(url, data, config))
+  },
+  put<T>(url: string, data?: unknown, config?: RequestOptions): Promise<T> {
+    return unwrap(http.put<ApiResponse<T>>(url, data, config))
   },
   delete<T>(url: string, config?: RequestOptions): Promise<T> {
     return unwrap(http.delete<ApiResponse<T>>(url, config))

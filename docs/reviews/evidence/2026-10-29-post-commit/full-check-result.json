@@ -1,0 +1,8 @@
+{
+  "head": "d71b4121dec7fe264f23d3e1fe7cc3023f07bf88",
+  "command": "./scripts/check.sh",
+  "started_at": "2026-10-29T01:37:31.849245+00:00",
+  "finished_at": "2026-10-29T02:06:02.035885+00:00",
+  "duration_seconds": 1710.19,
+  "exit_code": 0
+}

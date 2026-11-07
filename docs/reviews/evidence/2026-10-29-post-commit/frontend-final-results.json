@@ -1,0 +1,20 @@
+[
+  {
+    "command": "node_modules/.bin/vitest run --maxWorkers=4",
+    "VITE_DEMO_MODE": "repository default",
+    "exit_code": 0,
+    "duration_seconds": 21.14
+  },
+  {
+    "command": "node_modules/.bin/vue-tsc --build",
+    "VITE_DEMO_MODE": "repository default",
+    "exit_code": 0,
+    "duration_seconds": 2.22
+  },
+  {
+    "command": "node_modules/.bin/vite build",
+    "VITE_DEMO_MODE": "false",
+    "exit_code": 0,
+    "duration_seconds": 1.77
+  }
+]

@@ -1,0 +1,6 @@
+{"command": "node .superpowers/sdd/2026-10-29-post-commit-acceptance/browser-materials.cjs", "exit_code": 1, "duration_seconds": 0.15}
+{"command": "node .superpowers/sdd/2026-10-29-post-commit-acceptance/browser-materials.cjs", "exit_code": 0, "duration_seconds": 22.59}
+{"command": "node .superpowers/sdd/2026-10-29-post-commit-acceptance/browser-columns.cjs", "exit_code": 0, "duration_seconds": 24.75}
+{"command": "node .superpowers/sdd/2026-10-29-post-commit-acceptance/browser-e10.cjs", "exit_code": 0, "duration_seconds": 31.53}
+{"command": "node .superpowers/sdd/2026-10-29-post-commit-acceptance/browser-columns.cjs", "exit_code": 0, "duration_seconds": 16.99, "after_dispatch_detail_fix": true}
+{"command": "node .superpowers/sdd/2026-10-29-post-commit-acceptance/browser-e10.cjs", "exit_code": 0, "duration_seconds": 33.98, "after_dispatch_detail_fix": true}

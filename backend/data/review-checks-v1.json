@@ -1,0 +1,21 @@
+{
+  "version": "review-checks-v2",
+  "source": "项目规则：仅作待核查提示，不是学术质量标准；尚无确认的错词或不当用语词条。",
+  "entries": [],
+  "conclusions": {
+    "建议通过": "PASS",
+    "不通过": "FAIL",
+    "建议修改": "REVISION_REQUIRED",
+    "修改后通过": "REVISION_REQUIRED"
+  },
+  "similarity": {
+    "version": "own-history-v1",
+    "templates": [
+      "建议通过",
+      "建议修改",
+      "不通过",
+      "修改后通过"
+    ],
+    "source": "仅排除现有评审结论固定标签；不推定学术评语为模板。"
+  }
+}

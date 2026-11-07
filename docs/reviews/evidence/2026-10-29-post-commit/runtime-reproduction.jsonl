@@ -1,0 +1,2 @@
+{"scenario": "missing_docker", "expected": {"type": "AppError", "code": "PDF_RUNTIME_UNAVAILABLE", "http_status": 503}, "actual": {"type": "FileNotFoundError", "code": null, "http_status": null}, "calls": ["create", "inspect"]}
+{"scenario": "cleanup_timeout", "expected": {"type": "AppError", "code": "PDF_RUNTIME_UNAVAILABLE", "http_status": 503}, "actual": {"type": "TimeoutExpired", "code": null, "http_status": null}, "calls": ["create", "inspect"]}

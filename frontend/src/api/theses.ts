@@ -1,0 +1,80 @@
+import type {ProgramKey,SavedProgram} from './schoolPrograms'
+import type { SensitiveReport } from './sensitiveChecks'
+import { scopeOptions, type TimeScope, type TimeScopeReporter } from './timeScope'
+import { httpApi, type RequestOptions } from './request'
+
+export interface ThesisFileRef {
+  file_id: string
+  purpose: string
+  filename: string
+}
+
+export interface ThesisDetail {
+  id: string
+  stage: string
+  version: number
+  return_reason: string | null
+  draft_eligibility_status?: string | null
+  allowed_actions: string[]
+  anonymization: SensitiveReport
+  current_version: {
+    content_revision?: string
+    school_program?: SavedProgram|null
+    id: string
+    title: string
+    abstract: string
+    discipline_code: string
+    discipline_name: string
+    keywords: string[]
+    is_editable: boolean
+    files: ThesisFileRef[]
+  } | null
+  recent_events: Array<{ action: string; from_stage: string | null; to_stage: string; reason: string | null }>
+  student?: {
+    name: string
+    student_no: string
+    supervisor_name: string | null
+    degree_type?: string | null
+    tenant_name: string
+    college_name: string
+  } | null
+  batch_name?: string
+  review_batch?: { id: string; name: string; end_at: string | null } | null
+}
+
+export interface DraftPayload {
+  program?:ProgramKey
+  title: string
+  abstract: string
+  discipline_code?: string
+  discipline_name?: string
+  keywords: string[]
+}
+
+export function listTheses(scope?: TimeScope, report?: TimeScopeReporter) {
+  return scope === undefined ? httpApi.get<ThesisDetail[]>('/theses') : httpApi.get<ThesisDetail[]>('/theses', scopeOptions(scope, report))
+}
+
+export function getThesis(id: string) {
+  return httpApi.get<ThesisDetail>(`/theses/${id}`)
+}
+
+export function createThesis(payload: DraftPayload) {
+  return httpApi.post<ThesisDetail>('/theses', payload)
+}
+
+export function patchThesis(id: string, payload: DraftPayload & {expected_content_revision:string}) {
+  return httpApi.patch<ThesisDetail>(`/theses/${id}`, payload)
+}
+
+export function deleteThesis(id: string, options?: RequestOptions) {
+  return httpApi.delete(`/theses/${id}`, options)
+}
+
+export function submitThesis(id: string, version: number, expectedContentRevision: string, options?: RequestOptions) {
+  return httpApi.post<ThesisDetail>(`/theses/${id}:submit`, { version, expected_content_revision:expectedContentRevision }, options)
+}
+
+export function withdrawThesis(id: string, version: number, reason: string, options?: RequestOptions) {
+  return httpApi.post<ThesisDetail>(`/theses/${id}:withdraw`, { version, reason }, options)
+}

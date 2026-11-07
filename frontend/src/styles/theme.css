@@ -7,8 +7,6 @@
  *    对应文档：docs/ui-design-system.md 第 2 节。
  */
 
-@import 'tailwindcss';
-
 @theme {
   /* 品牌主色：学术蓝 */
   --color-primary: #1b4f8a;
@@ -17,11 +15,21 @@
   --color-primary-soft: #e8f0f9;
   --color-primary-50: #f4f8fc;
 
+  /* 双盲业务识别色：只用于身份隔离信息轨道 */
+  --color-blind-rail: #5b6b7a;
+  --color-blind-rail-soft: #edf1f4;
+  --color-paper: #fbfcfe;
+  --color-page: #f2f5f8;
+
   /* 语义色 */
   --color-success: #2e7d32;
   --color-warning: #e65100;
   --color-danger: #c62828;
   --color-info: #0288d1;
+  --color-billing-frozen: #a35d12;
+  --color-billing-frozen-soft: #fff4e7;
+  --color-result-processing: #675b88;
+  --color-result-processing-soft: #f2eff8;
 
   /* 中性色 */
   --color-text-primary: #212121;
@@ -30,6 +38,11 @@
   --color-border: #e0e0e0;
   --color-fill: #f5f5f5;
   --color-bg: #ffffff;
+
+  /* 字体角色 */
+  --font-display: 'Songti SC', 'STSong', 'SimSun', serif;
+  --font-body: 'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC', sans-serif;
+  --font-data: 'SFMono-Regular', 'Cascadia Code', 'Roboto Mono', monospace;
 
   /* 字体层级 */
   --text-h1: 24px;
@@ -49,22 +62,18 @@
   --shadow-md: 0 4px 12px rgb(0 0 0 / 0.12);
 }
 
-/* 同步到 Element Plus 语义变量，使组件库与品牌令牌一致 */
-:root {
-  --el-color-primary: #1b4f8a;
-  --el-color-primary-light-3: #2a63a6;
-  --el-color-primary-light-5: #6d95bf;
-  --el-color-primary-light-7: #a9c0da;
-  --el-color-primary-light-8: #c7d6e6;
-  --el-color-primary-light-9: #e8f0f9;
-  --el-color-primary-dark-2: #123d6b;
-  --el-color-success: #2e7d32;
-  --el-color-warning: #e65100;
-  --el-color-danger: #c62828;
-  --el-color-info: #0288d1;
-  --el-font-size-base: 14px;
-  --el-border-radius-base: 6px;
-  --el-text-color-primary: #212121;
-  --el-text-color-regular: #616161;
-  --el-border-color: #e0e0e0;
+/* R1：改为读 tokens.css，并放进 base 层，让组件上的工具类（如 outline-none + ring）能覆盖 */
+@layer base {
+  :root {
+    color: var(--foreground);
+    background: var(--page);
+    font-family: var(--app-font);
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+  }
+
+  :focus-visible {
+    outline: 3px solid rgb(27 79 138 / 0.28);
+    outline-offset: 2px;
+  }
 }

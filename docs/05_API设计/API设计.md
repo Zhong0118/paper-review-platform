@@ -67,8 +67,12 @@ related_documents:
 | API-009 | `POST /theses/{id}:withdraw`、`POST /withdrawal-requests/{id}:decide`、`POST /school-review/theses/{id}:terminate` | 送审前撤回、送审后申请审批或学校永久终止 | 学生、学校审核人员 |
 | API-010 | `GET /school-review/theses`、`POST /school-review/theses/{id}:confirm-anonymization`、`POST /school-review/theses:batch-confirm-anonymization`、`POST /school-review/theses/{id}:confirm-dispatch` | 材料和匿名件确认、逐项返回的批量确认、学校确认送出 | 学校审核人员 |
 | API-011 | `POST /files:prepare-upload`、`POST /files/{id}:complete`、`POST /files/{id}:authorize-download` | 文件上传确认和授权下载 | 按资源权限 |
+| API-036 | `POST /school-review/theses` | 学校为已同步学生单篇代传并直接提交 | 学校审核人员 |
+| API-037 | `POST /school-review/thesis-imports:preview`、`POST /school-review/thesis-imports/{id}:commit` | 批量导入预检与确认写入 | 学校审核人员 |
 
 匿名检查失败必须返回结构化检查项；未确认匿名件不得进入 `READY_FOR_DISPATCH`。批量确认逐项返回成功/失败，不执行无解释的部分提交。学校确认送出后才允许百杰创建首个送审轮次。学校审核投影允许识别学生，不返回专家身份。
+
+学校代传请求必须包含已同步 `student_id`、`batch_id`、`discipline_code`、`discipline_name`、`keywords: string[]` 及原始/匿名文件引用，并记录 `submission_source=SCHOOL_MANUAL` 和操作审计。批量导入预检逐行返回 `VALID/DUPLICATE/UNKNOWN_DISCIPLINE/MISSING_FILE`；只有显式确认后才允许有效行写入并记为 `SCHOOL_BATCH`。当前代码仅提供前端演示预览，API-036/037 是待后端实现的正式契约，不得据此宣称真实 Excel 解析或批量写入已经完成。
 
 ### 3.3 专家与送审
 
@@ -81,7 +85,7 @@ related_documents:
 | API-016 | `POST /expert-tasks/{id}:reassign`、`POST /review-rounds/{id}:supplement` | 改派或补审 | 百杰审核人员 |
 | API-017 | `POST /expert-tasks/{id}:remind`、`POST /expert-tasks/{id}:extend`、`POST /expert-tasks/{id}:cancel` | 催审、延期、取消 | 百杰审核人员 |
 
-候选和任务响应面向百杰审核人员时只提供匿名论文、学科/送审专业方向和专家身份，不返回学生、导师身份之外的信息；学校审核人员的进度接口使用任务化名或数量统计，不返回专家身份。百杰运营侧接口可返回学生/导师身份用于派单、进度和费用管理，但必须受数据范围与审计约束。
+候选和任务响应面向百杰审核人员时，可返回匿名论文、学科/送审专业方向、专家身份，以及派单、进度和费用管理所必需的学生/导师身份；不得返回论文原始版或超出当前租户与职能范围的身份信息，敏感访问必须审计。学校审核人员的进度接口使用任务化名或数量统计，不返回专家身份。
 
 ### 3.4 专家评阅
 
@@ -118,8 +122,9 @@ related_documents:
 | API-032 | `GET /finance/withdrawals`、`GET /finance/withdrawals/{id}`、`POST /finance/withdrawals/{id}:review`、`POST /finance/withdrawals/{id}:record-payment` | 范围化查询、人工审核和线下付款回填 | 授权财务处理范围；不新增核心角色 |
 | API-033 | `GET /audit-events` | 范围化审计查询 | 经授权的系统管理员或审核人员 |
 | API-034 | `POST /exports`、`GET /exports/{id}` | 异步生成评阅书和统计导出 | 按数据范围 |
+| API-038 | `GET /school-review/account`、`GET /school-review/bills`、`GET /school-review/bills/{id}`、`POST /finance/school-accounts/{tenantId}:record-credit` | 学校查看额度与送审账单；百杰录入线下充值或合同额度 | 学校审核人员只读本校；百杰授权财务职能写入 |
 
-财务操作权限通过现有角色的数据范围或职能权限赋予，不为此新增第六个核心角色。P0 不提供自动支付供应商调用接口。
+财务操作权限通过现有角色的数据范围或职能权限赋予，不为此新增第六个核心角色。P0 不提供自动支付供应商调用接口。学校确认送出必须在同一业务事务中校验费用快照并冻结额度；未配置规则或额度不足时不创建轮次/任务。有效评阅后，学校冻结额度转消费账单，专家收入由同一业务事件幂等入账。
 
 ### 3.7 批次与评审规则
 
@@ -154,6 +159,8 @@ related_documents:
 | `ANONYMIZATION_FAILED` | 422 | 匿名检查未通过 |
 | `FILE_NOT_READY` | 409 | 文件未完成、扫描失败或用途不符 |
 | `CONFLICT_RULE_TRIGGERED` | 409 | 结果冲突，需补审或处理 |
+| `FEE_RULE_MISSING` | 409 | 当前批次缺少可用于送审的费用规则快照 |
+| `INSUFFICIENT_SCHOOL_BALANCE` | 409 | 学校账户可用额度不足，不能确认送审 |
 | `RATE_LIMITED` | 429 | 请求频率超过限制 |
 | `INTEGRATION_UNAVAILABLE` | 503 | 外部系统暂时不可用 |
 

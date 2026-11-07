@@ -76,6 +76,7 @@ venv/
 ENV/
 .pytest_cache/
 .coverage
+*.egg-info/
 
 # Node.js / Express / NestJS (如果后端是 Node)
 # (已由 node_modules/ 和 logs/ 覆盖)
@@ -98,3 +99,9 @@ target/
 *.db
 tmp/
 temp/
+storage/original/
+storage/anonymous/
+.playwright-mcp/
+# Local code intelligence indexes
+.codegraph/
+.zvec-grep/

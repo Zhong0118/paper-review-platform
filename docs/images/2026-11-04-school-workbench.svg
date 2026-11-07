@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1360" height="592" viewBox="0 0 1360 592" role="img" aria-labelledby="title desc">
+  <title id="title">百杰校审 · 学校管理桌面设计示意</title>
+  <desc id="desc">示意数据。顶栏右侧是本人账号；左栏区分入驻学校与官方目录；中间是可筛选的学校表，学校详情从行内进入。不是已经实现的页面。</desc>
+  <style>
+    text{font-family:"PingFang SC","Microsoft YaHei","Noto Sans CJK SC",sans-serif;fill:#1d2c3a;font-size:15px}
+    .brand,.title{font-family:"Songti SC","STSong","SimSun",serif;font-weight:700}
+    .brand{font-size:23px}.title{font-size:32px}.small{font-size:13px;fill:#536576}
+    .blue{fill:#1b4f8a;font-weight:600}.th{fill:#43576a;font-size:14px;font-weight:600}
+    .num{font-family:"SFMono-Regular",Consolas,monospace;font-size:14px;fill:#415466}
+    .line{stroke:#dae1e7;stroke-width:1}.white{fill:white}
+  </style>
+  <rect width="1360" height="592" fill="#f2f5f8"/>
+  <rect width="1360" height="64" fill="white"/><path class="line" d="M0 63.5h1360"/>
+  <path d="M27 19v26m5-26v26" stroke="#1b4f8a" stroke-width="2"/>
+  <text class="brand" x="44" y="40">百杰校审</text><path class="line" d="M164 20v24"/>
+  <text class="small" x="182" y="37">平台工作台</text>
+  <circle cx="1170" cy="32" r="15" fill="#e8f0f9"/><text class="blue" x="1163" y="37">林</text>
+  <text x="1195" y="38">林老师 · 系统管理</text><path d="m1320 30 5 5 5-5" fill="none" stroke="#536576"/>
+  <rect x="0" y="64" width="216" height="484" fill="white"/><path class="line" d="M215.5 64v484"/>
+  <text class="small" x="26" y="111">系统管理</text>
+  <rect x="14" y="128" width="188" height="42" rx="5" fill="#e8f0f9"/>
+  <rect x="14" y="136" width="3" height="26" rx="1.5" fill="#1b4f8a"/>
+  <text x="32" y="155" class="blue">学校管理</text><text x="32" y="200">官方基础目录</text>
+  <text x="250" y="125" class="title">学校管理</text>
+  <text x="251" y="154" class="small">维护已入驻学校及其管理员账号</text>
+  <rect x="1206" y="102" width="120" height="40" rx="5" fill="#1b4f8a"/><text class="white" x="1235" y="128">新增学校</text>
+  <rect x="249" y="180" width="1078" height="328" rx="7" stroke="#dae1e7" fill="white"/>
+  <rect x="268" y="198" width="274" height="36" rx="4" stroke="#bdc9d4" fill="white"/>
+  <text class="small" x="280" y="221">搜索学校名称或学校代码</text>
+  <rect x="555" y="198" width="151" height="36" rx="4" stroke="#bdc9d4" fill="white"/>
+  <text x="568" y="221" class="small">状态：全部</text><path d="m683 214 4 4 4-4" fill="none" stroke="#536576"/>
+  <text x="740" y="221" class="blue">查询</text><text x="800" y="221" class="small">重置</text>
+  <text x="1278" y="221" class="small">刷新</text>
+  <rect x="250" y="249" width="1076" height="43" fill="#f3f6f8"/>
+  <g class="line" fill="none"><path d="M250 292h1076m-1076 53h1076m-1076 53h1076m-1076 53h1076"/></g>
+  <g class="th"><text class="th" x="272" y="276">学校名称</text><text class="th" x="515" y="276">学校代码</text><text class="th" x="682" y="276">根组织</text><text class="th" x="876" y="276">状态</text><text class="th" x="1060" y="276" text-anchor="end">启用管理员数</text><text class="th" x="1215" y="276">操作</text></g>
+  <text x="272" y="325" font-weight="600">海川示范大学</text><text class="num" x="515" y="325">DEMO-HC</text><text x="682" y="325">研究生院</text><text x="1060" y="325" text-anchor="end">3</text>
+  <text x="272" y="378" font-weight="600">南浦示范学院</text><text class="num" x="515" y="378">DEMO-NP</text><text x="682" y="378">研究生处</text><text x="1060" y="378" text-anchor="end">1</text>
+  <text x="272" y="431" font-weight="600">澄江示范大学</text><text class="num" x="515" y="431">DEMO-CJ</text><text x="682" y="431">研究生院</text><text x="1060" y="431" text-anchor="end">2</text>
+  <g><circle cx="881" cy="320" r="4" fill="#397459"/><circle cx="881" cy="373" r="4" fill="#397459"/><circle cx="881" cy="426" r="4" fill="#856026"/></g>
+  <text x="894" y="325">正常</text><text x="894" y="378">正常</text><text x="894" y="431">已暂停</text>
+  <text class="blue" x="1215" y="325">管理</text><text class="blue" x="1215" y="378">管理</text><text class="blue" x="1215" y="431">管理</text>
+  <text class="small" x="272" y="485">共 3 所学校</text>
+  <rect x="0" y="548" width="1360" height="44" fill="#e7edf3"/>
+  <text class="small" x="26" y="576">设计参考 · 虚构数据</text><text class="small" x="250" y="576">“管理”进入单校详情；目录导入从左栏进入；个人信息与退出登录在右上角。</text>
+</svg>
