@@ -77,7 +77,7 @@ async function typeIssues(wrapper: Awaited<ReturnType<typeof mountDesk>>['wrappe
 describe('U2-2 expert focus review desk', () => {
   it('shows the anonymous identity and deadline, reads the anonymous file, and fills the form from the draft', async () => {
     const { wrapper } = await mountDesk()
-    expect(wrapper.get('.code').text()).toBe('T-0417')
+    expect(wrapper.get('.code').text()).toBe('任务 T-0417')
     expect(wrapper.get('.rv-title').text()).toBe('面向边缘计算的容错调度')
     expect(wrapper.get('[data-review-deadline]').text()).toContain('北京时间')
     expect(api.getMaterials).toHaveBeenCalledWith('t1')
@@ -188,7 +188,9 @@ describe('U2-2 expert focus review desk', () => {
     expect(first[2]).toEqual({ payload_hash: 'h1', rule_version: 'c1', codes: [] })
     expect(first[3]).toBe(4)
     expect(second[4]).toBe(first[4])
-    expect(wrapper.get('[aria-label="本人正式意见"]').text()).toContain('80 / 100（规则结论：合格）')
+    const final = wrapper.get('[aria-label="本人正式意见"]')
+    expect(final.get('[data-total]').text()).toBe('80')
+    expect(final.get('[data-outcome]').text()).toBe('合格')
     expect(wrapper.text()).toContain('已提交，匿名稿不再提供阅读')
   })
 

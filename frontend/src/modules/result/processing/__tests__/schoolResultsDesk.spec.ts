@@ -70,8 +70,10 @@ describe('school results desk', () => {
     expect(router.currentRoute.value.query.thesis).toBe('a')
     expect(wrapper.text()).toContain('将公开的内容')
     expect(wrapper.text()).toContain('不会公开')
-    expect(wrapper.get('[data-total]').text()).toBe('82 / 100')
-    expect(wrapper.text()).toContain('专家未填写修改建议')
+    expect(wrapper.get('[data-total]').text()).toBe('82')
+    expect(wrapper.get('[data-review-verdict]').text()).toContain('/ 100')
+    // P1-1：与学生反馈同一套缺省文案
+    expect(wrapper.get('[data-advice] [data-missing]').text()).toBe('未填写修改建议。')
   })
 
   it('keeps the thesis list when corrections fail and says the correction view is unavailable', async () => {

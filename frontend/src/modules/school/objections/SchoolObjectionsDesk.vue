@@ -86,7 +86,7 @@ function thesisOf(row: ObjectionRow) {
   return theses.value?.get(row.thesis_id) ?? null
 }
 function titleOf(row: ObjectionRow) {
-  if (!theses.value) return '论文题目没有加载出来'
+  if (!theses.value) return '题目暂时没有取到'
   return thesisOf(row)?.current_version?.title || '论文已不在当前范围'
 }
 function moved(status: ObjectionStatus) {
@@ -151,6 +151,7 @@ const account = computed<WorkspaceAccount>(() => ({
           :title="titleOf(selected)"
           :student-no="thesisOf(selected)?.student?.student_no ?? ''"
           :thesis-found="Boolean(thesisOf(selected))"
+          :title-missing="!theses"
           :reload="load"
           @moved="moved"
         />

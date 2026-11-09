@@ -59,8 +59,17 @@ describe('school objections desk', () => {
   it('keeps the objections when theses fail', async () => {
     api.listSchoolTheses.mockRejectedValueOnce(httpError(500, 'INTERNAL'))
     const { wrapper } = await mountAt('/school/objections')
-    expect(titles(wrapper)).toEqual(['论文题目没有加载出来', '论文题目没有加载出来'])
+    expect(titles(wrapper)).toEqual(['题目暂时没有取到', '题目暂时没有取到'])
     expect(wrapper.find('a[data-result-link]').exists()).toBe(false)
+    // P1-5：对象区标题不把出错提示当题目，旁边给重试；重试重新读取论文列表
+    const head = wrapper.get('[data-object-title]')
+    expect(head.text()).toContain('题目暂时没有取到')
+    expect(head.classes()).toContain('muted')
+    await wrapper.get('[data-action="retry-title"]').trigger('click')
+    await flushPromises()
+    expect(api.listSchoolTheses).toHaveBeenCalledTimes(2)
+    expect(wrapper.get('[data-object-title]').text()).toBe('论文t-o1')
+    expect(wrapper.find('[data-action="retry-title"]').exists()).toBe(false)
   })
 
   it('shows a list failure without counts and retries', async () => {

@@ -19,6 +19,8 @@ const props = defineProps<{
   studentNo: string
   /** 找到对应论文时才给出结果链接 */
   thesisFound: boolean
+  /** P1-5：本校论文列表没有取到，题目位置显示说明并给重试 */
+  titleMissing?: boolean
   reload: () => Promise<ObjectionRow[] | null>
 }>()
 const emit = defineEmits<{ moved: [status: ObjectionStatus] }>()
@@ -32,6 +34,17 @@ const pending = ref(false)
 const pill = computed<{ tone: PillTone; text: string }>(() =>
   props.row.status === 'SUBMITTED' ? { tone: 'action', text: '待处理' } : props.row.status === 'PROCESSING' ? { tone: 'warning', text: '处理中' } : { tone: 'success', text: '已办结' },
 )
+
+const retrying = ref(false)
+async function retryTitle() {
+  if (retrying.value) return
+  retrying.value = true
+  try {
+    await props.reload()
+  } finally {
+    if (alive) retrying.value = false
+  }
+}
 
 const STARTED = '已开始处理。学生会看到“学校正在处理你的异议”。'
 const RESOLVED = '已办结。学生现在可以在反馈页看到处理结论。'
@@ -121,7 +134,10 @@ async function resolve() {
         <StatusPill :tone="pill.tone">{{ pill.text }}</StatusPill>
         <RouterLink v-if="thesisFound" class="btn btn--sm btn--quiet" data-result-link :to="{ path: '/school/results', query: { view: 'published', thesis: row.thesis_id } }">查看已发布结果</RouterLink>
       </div>
-      <h2 class="wsd-obj__title">{{ title }}</h2>
+      <div class="title-row">
+        <h2 class="wsd-obj__title" :class="{ muted: titleMissing }" data-object-title>{{ title }}</h2>
+        <button v-if="titleMissing" type="button" class="btn btn--sm" data-action="retry-title" :disabled="retrying" @click="retryTitle">{{ retrying ? '正在重试…' : '重试' }}</button>
+      </div>
       <dl class="wsd-obj__meta">
         <div><dt>学生</dt><dd>{{ row.student_name || '未取得姓名' }}<template v-if="studentNo">（{{ studentNo }}）</template></dd></div>
         <div><dt>登记</dt><dd class="num">{{ beijingDate(row.created_at) }}</dd></div>
@@ -189,6 +205,12 @@ async function resolve() {
 </template>
 
 <style scoped>
+.title-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+}
 .said {
   display: grid;
   grid-template-columns: 48px minmax(0, 1fr);

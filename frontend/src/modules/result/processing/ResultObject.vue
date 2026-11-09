@@ -11,10 +11,14 @@ import { apiFailure } from '@/api/failure'
 import { downloadPublishedReview, getSchoolResults, publishThesis, type SchoolResults } from '@/api/results'
 import type { ThesisDetail } from '@/api/theses'
 import ReviewCheckSummary from '@/components/app/ReviewCheckSummary.vue'
+import ReviewOpinion, { type OpinionSection } from '@/components/app/review/ReviewOpinion.vue'
+import ReviewVerdict from '@/components/app/review/ReviewVerdict.vue'
 import ConfirmDialog from '@/components/workspace/ConfirmDialog.vue'
 import StateBlock from '@/components/workspace/StateBlock.vue'
 import StatusPill, { type PillTone } from '@/components/workspace/StatusPill.vue'
 import { useAuthStore } from '@/stores/auth'
+
+import type { FeedbackItem } from '../feedback/publishedFeedback'
 
 import CorrectionSection from './CorrectionSection.vue'
 import { correctionStatus, readSchoolResult, type ResultView } from './resultView'
@@ -79,7 +83,14 @@ const pill = computed<{ tone: PillTone; text: string }>(() => {
   if (published.value || props.view === 'published') return { tone: 'success', text: '已发布' }
   return { tone: 'action', text: '待发布' }
 })
-const outcomeTone = (code: string): PillTone => (code === 'PASS' ? 'success' : code === 'FAIL' ? 'danger' : 'warning')
+/** P1-1：与学生反馈同一套段落与缺省文案 */
+const sections = (item: FeedbackItem): OpinionSection[] => [
+  { key: 'overall', heading: '总体评价', text: item.overall, missing: '未填写总体评价。' },
+  { key: 'issues', heading: '主要问题', text: item.issues, missing: '未填写主要问题。' },
+  item.advice.kind === 'v1'
+    ? { key: 'advice', heading: '修改建议', text: '', missing: '此历史发布版本未收录修改建议。' }
+    : { key: 'advice', heading: '修改建议', text: item.advice.text, missing: '未填写修改建议。' },
+]
 const contentTitle = computed(() => (!published.value ? '将公开的内容' : props.correction ? '当前生效的发布内容' : '已发布的内容'))
 
 // ---- 发布 ----
@@ -216,36 +227,10 @@ function correctionConflict() {
           <h3 id="pub-h">{{ contentTitle }}</h3>
           <p>{{ published ? '读回自发布快照' : '发布后学生与导师按这个顺序阅读' }}</p>
         </div>
-        <div class="verdict">
-          <div>
-            <span class="verdict__k">评阅结论</span>
-            <StatusPill :tone="outcomeTone(view.outcome.code)">{{ view.outcome.label }}</StatusPill>
-          </div>
-          <div>
-            <span class="verdict__k">总分</span>
-            <span class="verdict__v num" data-total>{{ view.total }}<small> / {{ view.maxTotal }}</small></span>
-          </div>
-        </div>
-        <p v-if="view.outcome.code === 'REVISION_REQUIRED'" class="wsd-hint">“修改后通过”是评分档位，不代表已经验收修改稿。</p>
+        <ReviewVerdict :outcome="view.outcome" :total="view.total" :max-total="view.maxTotal" />
         <article v-for="(item, index) in view.items" :key="item.alias" class="opinion">
           <h4>{{ item.alias }}<span class="muted">　{{ item.total }} 分，{{ item.recommendation || '未填写评审建议' }}</span></h4>
-          <dl class="opinion__body">
-            <dt>总体评价</dt><dd class="wsd-plain" :class="{ muted: !item.overall.trim() }">{{ item.overall.trim() ? item.overall : '未填写总体评价' }}</dd>
-            <dt>主要问题</dt><dd class="wsd-plain" :class="{ muted: !item.issues.trim() }">{{ item.issues.trim() ? item.issues : '未填写主要问题' }}</dd>
-            <dt>修改建议</dt>
-            <dd v-if="item.advice.kind === 'v1'" class="muted">此历史发布版本未收录修改建议</dd>
-            <dd v-else class="wsd-plain" :class="{ muted: !item.advice.text.trim() }">{{ item.advice.text.trim() ? item.advice.text : '专家未填写修改建议' }}</dd>
-          </dl>
-          <table class="wsd-dtable scores">
-            <caption class="sr-only">{{ item.alias }} 分项评分</caption>
-            <tbody>
-              <tr v-for="score in item.scores" :key="score.key">
-                <th scope="row" class="wsd-shrink">{{ score.label }}</th>
-                <td><span class="bar" :style="{ '--v': `${score.max ? (score.score / score.max) * 100 : 0}%` }" /></td>
-                <td class="wsd-n num">{{ score.score }} / {{ score.max }}</td>
-              </tr>
-            </tbody>
-          </table>
+          <ReviewOpinion :sections="sections(item)" :scores="item.scores" />
           <div v-if="results.items[index]?.check_summary" class="checks">
             <span class="muted">提交时复核提示（专家已逐条确认，不改变分数与结论）</span>
             <ReviewCheckSummary :summary="results.items[index]!.check_summary" />
@@ -281,70 +266,14 @@ function correctionConflict() {
 </template>
 
 <style scoped>
-.verdict {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px 40px;
-  padding: 12px 14px;
-  border-radius: var(--ws-radius);
-  background: var(--ws-page);
-}
-.verdict > div {
-  display: grid;
-  gap: 4px;
-  justify-items: start;
-}
-.verdict__k {
-  color: var(--ws-muted);
-  font-size: 12px;
-}
-.verdict__v {
-  font-size: 24px;
-  font-weight: 600;
-  line-height: 1.1;
-}
-.verdict__v small {
-  color: var(--ws-muted);
-  font-size: 13px;
-  font-weight: 400;
-}
 .opinion {
   display: grid;
-  gap: 12px;
+  gap: 16px;
   padding-top: 4px;
 }
-.opinion h4 {
+.opinion > h4 {
   font-size: 14px;
   font-weight: 600;
-}
-.opinion__body {
-  display: grid;
-  grid-template-columns: 72px minmax(0, 1fr);
-  gap: 10px 12px;
-  margin: 0;
-  line-height: 1.7;
-}
-.opinion__body dt {
-  color: var(--ws-muted);
-  font-size: 13px;
-}
-.opinion__body dd {
-  margin: 0;
-}
-.scores th {
-  color: var(--ws-muted);
-  font-weight: 400;
-}
-.scores td,
-.scores th {
-  padding-block: 6px;
-}
-.bar {
-  display: block;
-  min-width: 80px;
-  height: 6px;
-  border-radius: 3px;
-  background: linear-gradient(90deg, var(--ws-action) var(--v), var(--ws-sunken) var(--v));
 }
 .checks {
   display: grid;
@@ -356,14 +285,5 @@ function correctionConflict() {
   gap: 4px;
   margin: 0;
   padding-left: 1.2em;
-}
-@media (max-width: 899px) {
-  .opinion__body {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 2px;
-  }
-  .opinion__body dd {
-    margin-bottom: 8px;
-  }
 }
 </style>

@@ -231,7 +231,7 @@ const account = computed<WorkspaceAccount>(() => ({
             <SearchField :model-value="keyword" label="搜索专家" placeholder="姓名、账号、单位、方向" @update:model-value="(value) => setQuery({ q: value || undefined })" />
           </template>
           <template #filters>
-            <ComboFilter :model-value="discipline || null" label="学科" :options="disciplineOptions" :disabled="!ready" search-placeholder="搜索学科名称或代码" @update:model-value="(value) => setQuery({ discipline: value ?? undefined })" />
+            <ComboFilter :model-value="discipline || null" label="学科" placeholder="全部学科" :options="disciplineOptions" :disabled="!ready" search-placeholder="搜索学科名称或代码" @update:model-value="(value) => setQuery({ discipline: value ?? undefined })" />
             <Select :model-value="title || 'all'" :disabled="!ready" @update:model-value="(value) => setQuery({ title: value === 'all' ? undefined : String(value) })">
               <SelectTrigger class="w-[140px]" aria-label="职称" data-filter="title"><SelectValue placeholder="职称" /></SelectTrigger>
               <SelectContent>
@@ -239,7 +239,7 @@ const account = computed<WorkspaceAccount>(() => ({
                 <SelectItem v-for="t in titleOptions" :key="t" :value="t">{{ t }}</SelectItem>
               </SelectContent>
             </Select>
-            <ComboFilter :model-value="province || null" label="省份" :options="provinceOptions" :disabled="!ready" width="w-[140px]" search-placeholder="搜索省份" @update:model-value="(value) => setQuery({ province: value ?? undefined })" />
+            <ComboFilter :model-value="province || null" label="省份" placeholder="全部省份" :options="provinceOptions" :disabled="!ready" width="w-[140px]" search-placeholder="搜索省份" @update:model-value="(value) => setQuery({ province: value ?? undefined })" />
           </template>
         </FilterBar>
 

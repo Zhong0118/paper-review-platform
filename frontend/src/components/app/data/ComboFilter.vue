@@ -53,7 +53,7 @@ function clear() {
         :aria-expanded="open"
         :aria-label="current ? `${label}：${current.label}` : label"
         :disabled="disabled"
-        :class="[width, 'justify-between gap-1.5 px-3 font-normal', current ? 'text-foreground' : 'text-muted-foreground']"
+        :class="[width, 'justify-between gap-1.5 px-3 font-normal', current || placeholder ? 'text-foreground' : 'text-muted-foreground']"
         data-combo
       >
         <span class="truncate">{{ current ? current.label : placeholder || label }}</span>
