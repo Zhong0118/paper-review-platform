@@ -172,7 +172,7 @@ const account = computed<WorkspaceAccount>(() => ({
       <MasterDetail :open="Boolean(thesisId)" :narrow="narrow" list-label="结果清单" detail-label="当前论文结果" list-width="340px" back-label="结果清单" @back="setQuery({ thesis: undefined, correction: undefined })">
         <template #list>
           <div class="wsd-lhead">
-            <ViewTabs :model-value="view" :views="viewTabs" label="视图" size="sm" @select="setView($event as ViewKey)" />
+            <ViewTabs :model-value="view" :views="viewTabs" label="视图" size="segmented" @select="setView($event as ViewKey)" />
             <p v-if="ready" class="wsd-scope">计数为已加载的 {{ rows.length }} 篇（{{ timeScope.scope.value === 'past_year' ? '近一年，按论文创建日' : '全部年份' }}）。</p>
             <p v-if="ready && correctionsFailed" class="wsd-scope warn" role="status">
               更正记录没有加载出来，“更正待确认”暂不可用。<Button type="button" variant="ghost" size="sm" @click="load">重试</Button>
@@ -188,13 +188,13 @@ const account = computed<WorkspaceAccount>(() => ({
             <template v-if="timeScope.scope.value === 'past_year'" #actions><Button type="button" variant="outline" @click="timeScope.setScope('all')">查看全部年份</Button></template>
           </StatePanel>
           <StatePanel v-else-if="!list.length" kind="empty" :title="view === 'correction' ? '没有待确认的更正' : '这个视图里没有论文'" compact />
-          <ul v-else class="wsd-tlist">
+          <ul v-else class="wsd-tlist rlist">
             <li v-for="row in list" :key="row.id">
               <button type="button" class="wsd-titem" :class="{ 'wsd-titem--on': row.id === thesisId }" :aria-current="row.id === thesisId || undefined" @click="select(row.id)">
                 <span class="wsd-titem__title">{{ row.current_version?.title || '未命名论文' }}</span>
-                <span v-if="row.student" class="wsd-titem__meta">{{ row.student.name }}　{{ row.student.student_no }}</span>
-                <span class="wsd-titem__line" :class="{ 'wsd-titem__line--warn': viewOf(row, awaiting) === 'correction' }">
-                  {{ line(row) }}<template v-if="row.id === extra?.id">（不在当前时间范围）</template>
+                <span class="rrow">
+                  <span class="wsd-titem__meta">{{ row.student ? `${row.student.name}　${row.student.student_no}` : '' }}</span>
+                  <span class="rstat" :data-status="viewOf(row, awaiting)">{{ line(row) }}<template v-if="row.id === extra?.id">（不在当前时间范围）</template></span>
                 </span>
               </button>
             </li>
@@ -232,6 +232,45 @@ const account = computed<WorkspaceAccount>(() => ({
 </template>
 
 <style scoped>
+/* G1-5：第二行左学生、右带圆点的状态；选中项用品牌浅底 */
+.rlist .wsd-titem {
+  border-bottom: 1px solid var(--border);
+}
+.rlist .wsd-titem--on,
+.rlist .wsd-titem--on:hover {
+  background: var(--primary-soft);
+}
+.rlist .wsd-titem--on .wsd-titem__title {
+  font-weight: 600;
+}
+.rrow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  justify-content: space-between;
+  font-size: 12px;
+}
+.rstat {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  color: var(--primary);
+}
+.rstat::before {
+  content: '';
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.rstat[data-status='published'] {
+  color: var(--success);
+}
+.rstat[data-status='correction'] {
+  color: var(--warning);
+  font-weight: 500;
+}
 .warn {
   display: flex;
   flex-wrap: wrap;

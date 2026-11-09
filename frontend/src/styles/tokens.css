@@ -11,6 +11,7 @@
   --background: #ffffff;
   --foreground: #16191d;
   --page: #f6f7f9;
+  --canvas: #eef1f4; /* G1：纸面背后的桌面，faint 文字在上面仍 ≥4.5:1 */
   --card: #ffffff;
   --card-foreground: #16191d;
   --popover: #ffffff;
@@ -86,6 +87,7 @@
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-page: var(--page);
+  --color-canvas: var(--canvas);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
   --color-popover: var(--popover);

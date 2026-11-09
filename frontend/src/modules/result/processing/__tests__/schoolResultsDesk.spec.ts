@@ -74,6 +74,14 @@ describe('school results desk', () => {
     expect(wrapper.get('[data-review-verdict]').text()).toContain('/ 100')
     // P1-1：与学生反馈同一套缺省文案
     expect(wrapper.get('[data-advice] [data-missing]').text()).toBe('未填写修改建议。')
+    // G1：纸面、说明栏、分段页签、清单状态点
+    expect(wrapper.get('[data-view-tabs]').attributes('data-size')).toBe('segmented')
+    expect(wrapper.find('[data-result-sheet]').exists()).toBe(true)
+    expect(wrapper.get('[data-result-bar]').text()).toContain('将公开的内容')
+    expect(wrapper.get('[data-result-sheet] h2').text()).toBe('论文a')
+    expect(wrapper.get('[data-reviewer-count]').text()).toBe('1 位匿名专家')
+    expect(wrapper.find('[data-score-fill]').exists()).toBe(false)
+    expect(wrapper.get('.wsd-titem [data-status]').attributes('data-status')).toBe('publish')
   })
 
   it('keeps the thesis list when corrections fail and says the correction view is unavailable', async () => {
