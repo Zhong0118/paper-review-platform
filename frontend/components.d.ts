@@ -87,6 +87,8 @@ declare module 'vue' {
     ResizablePanelGroup: typeof import('./src/components/ui/resizable/ResizablePanelGroup.vue')['default']
     ReviewCheckPanel: typeof import('./src/components/app/ReviewCheckPanel.vue')['default']
     ReviewCheckSummary: typeof import('./src/components/app/ReviewCheckSummary.vue')['default']
+    ReviewOpinion: typeof import('./src/components/app/review/ReviewOpinion.vue')['default']
+    ReviewVerdict: typeof import('./src/components/app/review/ReviewVerdict.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     SaveStatus: typeof import('./src/components/workspace/SaveStatus.vue')['default']

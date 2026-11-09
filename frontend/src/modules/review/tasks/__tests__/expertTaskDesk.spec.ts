@@ -42,6 +42,8 @@ it('opens on the first non-empty view and puts the task id on row links', async 
   expect(wrapper.get('[data-tab="IN_REVIEW"]').text()).toContain('1')
   expect(wrapper.get('[data-action="continue-review"]').attributes('href')).toBe('/expert/review?task_id=b')
   expect(wrapper.get('[data-expert-task="b"]').text()).toContain('计算机科学与技术')
+  // P1-4：编号带标签，与平台沟通时对得上
+  expect(wrapper.get('[data-expert-task="b"] [data-task-code]').text()).toBe('任务编号 B-002')
 })
 
 it('switches views, including an empty one, with the pressed state and an empty note', async () => {

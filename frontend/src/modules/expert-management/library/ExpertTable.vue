@@ -19,7 +19,9 @@ const props = defineProps<{ rows: ExpertRecord[]; options: ExpertOptions; select
 const emit = defineEmits<{ preview: [row: ExpertRecord]; open: [row: ExpertRecord] }>()
 
 const disciplineName = computed(() => new Map(props.options.disciplines.map((d) => [d.code, d.name])))
-const tri = (value: boolean | null) => (value === null ? '未知' : value ? '是' : '否')
+/** P1-2：表格里所有空值都写成浅色“—”；博导 / 硕导两项都未知时只写一个“—” */
+const dash = () => h('span', { class: 'text-faint' }, '—')
+const yesNo = (value: boolean | null) => (value === null ? '—' : value ? '是' : '否')
 const TONE = { action: 'brand', neutral: 'neutral', warning: 'warning' } as const
 
 const col = createColumnHelper<AppTableFeatures, ExpertRecord>()
@@ -39,22 +41,25 @@ const columns = col.columns([
     header: '单位',
     sortFn: 'text',
     meta: { width: '24%', label: '单位' },
-    cell: ({ row }) => h('span', { class: 'line-clamp-2 whitespace-normal', title: row.original.unit }, row.original.unit || '—'),
+    cell: ({ row }) => h('span', { class: 'line-clamp-2 whitespace-normal', title: row.original.unit }, row.original.unit || dash()),
   }),
-  col.accessor('title', { header: '职称', sortFn: 'text', meta: { width: '9%', label: '职称' }, cell: ({ row }) => row.original.title || '—' }),
+  col.accessor('title', { header: '职称', sortFn: 'text', meta: { width: '9%', label: '职称' }, cell: ({ row }) => row.original.title || dash() }),
   col.accessor((row) => row.discipline_codes.map((code) => disciplineName.value.get(code) ?? code).join('、'), {
     id: 'disciplines',
     header: '学科',
     enableSorting: false,
     meta: { width: '20%', label: '学科' },
-    cell: ({ getValue }) => h('span', { class: 'line-clamp-2 whitespace-normal', title: getValue() }, getValue() || '—'),
+    cell: ({ getValue }) => h('span', { class: 'line-clamp-2 whitespace-normal', title: getValue() }, getValue() || dash()),
   }),
-  col.accessor((row) => row.province_name ?? '', { id: 'province', header: '省份', sortFn: 'text', meta: { width: '8%', label: '省份' }, cell: ({ getValue }) => getValue() || h('span', { class: 'text-faint' }, '未填') }),
+  col.accessor((row) => row.province_name ?? '', { id: 'province', header: '省份', sortFn: 'text', meta: { width: '8%', label: '省份' }, cell: ({ getValue }) => getValue() || dash() }),
   col.display({
     id: 'supervisor',
     header: '博导 / 硕导',
     meta: { width: '9%', label: '导师资格' },
-    cell: ({ row }) => h('span', { class: 'text-sm' }, `${tri(row.original.doctoral_supervisor)} / ${tri(row.original.masters_supervisor)}`),
+    cell: ({ row }) => {
+      const { doctoral_supervisor: doctoral, masters_supervisor: masters } = row.original
+      return doctoral === null && masters === null ? dash() : h('span', { class: 'text-sm' }, `${yesNo(doctoral)} / ${yesNo(masters)}`)
+    },
   }),
   col.display({
     id: 'status',
@@ -70,7 +75,7 @@ const columns = col.columns([
     header: '回避',
     sortFn: 'basic',
     meta: { width: '6%', align: 'right', label: '回避数' },
-    cell: ({ getValue }) => h('span', { class: 'tabular' }, getValue() ? String(getValue()) : h('span', { class: 'text-faint' }, '—')),
+    cell: ({ getValue }) => h('span', { class: 'tabular' }, getValue() ? String(getValue()) : dash()),
   }),
   col.display({
     id: 'actions',

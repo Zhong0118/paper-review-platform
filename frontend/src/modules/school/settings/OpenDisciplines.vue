@@ -130,9 +130,11 @@ function adopt(keepMine: boolean) {
   <template v-else>
     <div class="wsd-obj open">
       <div v-if="flash" class="wsd-banner wsd-banner--ok" role="status">{{ flash }}</div>
-      <StateBlock v-if="!configured" kind="unconfigured" :title="`尚未设置开放学科：现在开放全部 ${options.length} 个学科`" compact>
-        学生新建论文时可以选择全部启用的官方学科。保存后只开放勾选的学科；历史论文保持原值。
-      </StateBlock>
+      <!-- P1-3：未配置只是一条说明，不占用空状态块；清单仍是首屏主体 -->
+      <div v-if="!configured" class="wsd-banner" role="status" data-unconfigured>
+        <strong>尚未设置开放学科：现在开放全部 {{ options.length }} 个学科</strong>
+        <span>学生新建论文时可以选择全部启用的官方学科。保存后只开放勾选的学科；历史论文保持原值。</span>
+      </div>
       <div v-if="conflict && theirsDiff" class="wsd-banner wsd-banner--danger" role="alert" data-conflict>
         <strong>没有保存：另一位学校审核刚刚保存了开放学科</strong>
         <span>对方新增：{{ label(theirsDiff.added) || '无' }}；对方取消：{{ label(theirsDiff.removed) || '无' }}。你的勾选还在。</span>

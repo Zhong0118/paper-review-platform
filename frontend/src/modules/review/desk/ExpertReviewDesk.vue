@@ -12,6 +12,8 @@ import { isNavigationFailure, useRouter } from 'vue-router'
 import type { CheckAck } from '@/api/reviewChecks'
 import { ChevronLeft } from '@lucide/vue'
 
+import ReviewOpinion, { type OpinionScore, type OpinionSection } from '@/components/app/review/ReviewOpinion.vue'
+import ReviewVerdict from '@/components/app/review/ReviewVerdict.vue'
 import AppShell from '@/components/app/shell/AppShell.vue'
 import { useSignOut } from '@/components/app/shell/useSignOut'
 import { Button } from '@/components/ui/button'
@@ -21,7 +23,7 @@ import SplitPane from '@/components/workspace/SplitPane.vue'
 import StateBlock from '@/components/workspace/StateBlock.vue'
 import StatusPill from '@/components/workspace/StatusPill.vue'
 import type { DraftState, WorkspaceAccount } from '@/components/workspace/types'
-import type { ReviewScoreInput } from '@/demo/types'
+import type { ReviewDimensionKey, ReviewScoreInput } from '@/demo/types'
 import RealCorrectionPanel from '@/modules/result/components/RealCorrectionPanel.vue'
 import { workspaceNav } from '@/router/workspaceNav'
 import { useAuthStore } from '@/stores/auth'
@@ -128,6 +130,21 @@ const total = (input: ReviewScoreInput | null) =>
   (rule.value?.dimensions ?? []).reduce((sum, item) => sum + (Number(input?.[item.key]) || 0), 0)
 const maxTotal = computed(() => (rule.value?.dimensions ?? []).reduce((sum, item) => sum + item.max_score, 0))
 const bandOf = (value: number) => rule.value?.bands.find((item) => value >= item.min && value <= item.max) ?? null
+/** P1-1：只读正式意见与学生、学校同一套排法；主要优点与分项评价只在专家本人页面传入 */
+const finalSections = (value: ReviewScoreInput): OpinionSection[] => [
+  { key: 'overall', heading: '总体评价', text: value.overallComment, missing: '未填写总体评价。' },
+  { key: 'issues', heading: '主要问题', text: value.issues, missing: '未填写主要问题。' },
+  { key: 'advice', heading: '修改建议', text: value.revisionAdvice ?? '', missing: '未填写修改建议。' },
+  { key: 'strengths', heading: '主要优点（不发布）', text: value.strengths ?? '', missing: '未填写主要优点。' },
+]
+const finalScores = (value: ReviewScoreInput): OpinionScore[] =>
+  (rule.value?.dimensions ?? []).map((item) => ({
+    key: item.key,
+    label: item.label,
+    score: Number(value[item.key as keyof ReviewScoreInput] ?? 0),
+    max: item.max_score,
+    note: value.evaluations?.[item.key as ReviewDimensionKey] || undefined,
+  }))
 const len = (value?: string) => Array.from((value ?? '').trim()).length
 
 function requestSubmit(input: ReviewScoreInput, ack: CheckAck) {
@@ -166,7 +183,7 @@ const result = computed(() => (submitted.value ? draft.value : null))
       </template>
       <template #title>
         <span v-if="task" class="flex min-w-0 items-center gap-2">
-          <span class="code num">{{ task.anonymousId }}</span>
+          <span class="code" title="任务编号，与平台沟通更正或延期时使用">任务 <span class="num">{{ task.anonymousId }}</span></span>
           <h1 class="rv-title" :title="task.anonymousTitle">{{ task.anonymousTitle }}</h1>
         </span>
         <h1 v-else class="rv-title">在线评阅</h1>
@@ -198,24 +215,10 @@ const result = computed(() => (submitted.value ? draft.value : null))
         <StatusPill tone="success">已正式提交</StatusPill>
         <span class="muted">内容已锁定，只能查看</span>
       </div>
-      <dl v-if="result" class="final__body">
-        <dt>总分</dt>
-        <dd class="num">{{ total(result) }} / {{ maxTotal }}<template v-if="bandOf(total(result))">（规则结论：{{ bandOf(total(result))?.label }}）</template></dd>
-        <dt>评阅建议</dt><dd>{{ result.recommendation }}</dd>
-        <dt>总体评价</dt><dd class="pre">{{ result.overallComment }}</dd>
-        <dt>主要问题</dt><dd class="pre">{{ result.issues }}</dd>
-        <dt>修改建议</dt><dd class="pre">{{ result.revisionAdvice || '（未填写）' }}</dd>
-        <dt>主要优点（不发布）</dt><dd class="pre">{{ result.strengths || '（未填写）' }}</dd>
-        <dt>各项评分</dt>
-        <dd>
-          <ul class="final__scores">
-            <li v-for="item in rule.dimensions" :key="item.key">
-              <span>{{ item.label }}</span><span class="num">{{ result[item.key] }} / {{ item.max_score }}</span>
-              <small v-if="result.evaluations?.[item.key]" class="muted">{{ result.evaluations[item.key] }}</small>
-            </li>
-          </ul>
-        </dd>
-      </dl>
+      <template v-if="result">
+        <ReviewVerdict :outcome="bandOf(total(result))" :total="total(result)" :max-total="maxTotal" :recommendation="result.recommendation" recommendation-label="评阅建议" />
+        <ReviewOpinion :sections="finalSections(result)" :scores="finalScores(result)" scores-caption="分项评价文字只写给平台，不对外发布。" />
+      </template>
       <div class="final__corr">
         <h2 class="sec">发现正式意见有误？</h2>
         <p class="muted">更正要先申请，平台批准后你提交更正内容，最后由学校确认。学校确认前，学生看到的仍是当前版本。更正稿不会自动保存。</p>
@@ -437,7 +440,7 @@ const result = computed(() => (submitted.value ? draft.value : null))
 .final {
   display: grid;
   align-content: start;
-  gap: 16px;
+  gap: 24px;
   max-width: 760px;
   margin: 12px auto 32px;
   padding: 20px 24px;
@@ -451,36 +454,6 @@ const result = computed(() => (submitted.value ? draft.value : null))
   gap: 8px;
   align-items: center;
   font-size: 13px;
-}
-.final__body {
-  display: grid;
-  gap: 4px;
-  margin: 0;
-}
-.final__body dt {
-  margin-top: 8px;
-  color: var(--ws-muted);
-  font-size: 12px;
-}
-.final__body dd {
-  margin: 0;
-  line-height: 1.7;
-}
-.final__scores {
-  display: grid;
-  gap: 4px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  font-size: 13px;
-}
-.final__scores li {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 0 12px;
-}
-.final__scores small {
-  grid-column: 1 / -1;
 }
 .final__corr {
   display: grid;

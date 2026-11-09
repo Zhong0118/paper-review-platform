@@ -108,6 +108,19 @@ describe('expert library desk', () => {
     expect(none.router.currentRoute.value.query.q).toBeUndefined()
   })
 
+  it('writes every empty table value as one dash and names the “all” filters (P1-2)', async () => {
+    edit('a', { unit: '', title: '', province_name: null, doctoral_supervisor: null, masters_supervisor: null })
+    const { wrapper } = await mountAt('/platform/experts?view=all')
+    const cells = (id: string) => wrapper.get(`[data-preview="${id}"]`).element.closest('tr')!.querySelectorAll('td')
+    const a = [...cells('a')].map((cell) => cell.textContent?.trim())
+    expect(a.slice(1, 3)).toEqual(['—', '—'])
+    expect(a[4]).toBe('—')
+    expect(a[5]).toBe('—')
+    expect([...cells('b')][5]!.textContent?.trim()).toBe('是 / —')
+    expect(wrapper.text()).not.toContain('未填')
+    expect(wrapper.findAll('[data-combo]').map((combo) => combo.text())).toEqual(['全部学科', '全部省份'])
+  })
+
   it('says when a linked expert is not in the library', async () => {
     const { wrapper } = await mountAt('/platform/experts?expert=gone')
     expect(wrapper.text()).toContain('这位专家不在专家库中')

@@ -92,6 +92,8 @@ describe('open disciplines', () => {
     api.saveDisciplineSettings.mockResolvedValueOnce({ configured: true, codes: ['0101', '0801', '0812'], version: 1 })
     const { wrapper } = await mountAt('/school/disciplines')
     expect(wrapper.text()).toContain('尚未设置开放学科：现在开放全部 3 个学科')
+    // P1-3：一行横幅，不再是空状态块
+    expect(wrapper.get('[data-unconfigured]').classes()).toContain('wsd-banner')
     expect(options.every((o) => box(wrapper, o.code).checked)).toBe(true)
     await click(wrapper, '[data-action="save-disciplines"]')
     expect(api.saveDisciplineSettings).toHaveBeenCalledWith(['0101', '0801', '0812'], 0, { quiet: true })

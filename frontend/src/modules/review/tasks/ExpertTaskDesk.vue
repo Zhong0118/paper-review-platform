@@ -183,7 +183,7 @@ const account = computed<WorkspaceAccount>(() => ({ name: auth.user?.displayName
         <ul v-else-if="narrow" class="divide-y">
           <li v-for="task in visible" :key="task.id" class="grid gap-2 px-4 py-3" :data-expert-task="task.id">
             <p class="flex flex-wrap items-center gap-2">
-              <span class="tabular text-sm text-muted-foreground">{{ task.anonymousId }}</span>
+              <span class="text-sm text-muted-foreground" data-task-code>任务编号 <span class="tabular">{{ task.anonymousId }}</span></span>
               <StatusBadge :tone="STATUS[task.status]?.tone ?? 'neutral'">{{ STATUS[task.status]?.text ?? task.status }}</StatusBadge>
               <StatusBadge v-if="task.overdue" tone="danger" data-overdue-tag>已逾期</StatusBadge>
             </p>
@@ -215,7 +215,7 @@ const account = computed<WorkspaceAccount>(() => ({ name: auth.user?.displayName
               <TableCell class="whitespace-normal">
                 <span class="grid gap-0.5">
                   <span class="font-medium">{{ task.anonymousTitle }}</span>
-                  <span class="tabular text-xs text-muted-foreground">{{ task.anonymousId }}</span>
+                  <span class="text-xs text-muted-foreground" data-task-code>任务编号 <span class="tabular">{{ task.anonymousId }}</span></span>
                 </span>
               </TableCell>
               <TableCell>{{ task.discipline || '—' }}</TableCell>

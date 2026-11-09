@@ -43,8 +43,11 @@ const account = computed<WorkspaceAccount>(() => ({
     <AppShell :nav="nav" :account="account" :workspace="account.org" layout="bare" title="学科与专业" @sign-out="signOut">
       <template #context>决定学生新建论文时能选的学科与专业</template>
       <div class="page">
-        <div class="border-b bg-background px-(--page-x) py-2">
-          <ViewTabs :model-value="tab" :views="TABS" label="分区" class="mx-auto max-w-[960px]" @update:model-value="setTab" />
+        <!-- P1-3：页签与下方内容同宽（1080）、同内边距，左边缘对齐 -->
+        <div class="border-b bg-background py-2">
+          <div class="tabs-row mx-auto max-w-[1080px]">
+            <ViewTabs :model-value="tab" :views="TABS" label="分区" @update:model-value="setTab" />
+          </div>
         </div>
         <OpenDisciplines v-if="tab === 'open'" />
         <ProgramImport v-else />
@@ -59,7 +62,16 @@ const account = computed<WorkspaceAccount>(() => ({
   flex-direction: column;
   min-height: calc(100svh - var(--bar-h));
 }
-/* form 模板：内容居中 960，提交条仍贴底满宽 */
+/* 与 .wsd-obj 的左右内边距一致（宽屏 24、窄屏 14） */
+.tabs-row {
+  padding-inline: 24px;
+}
+@media (max-width: 899px) {
+  .tabs-row {
+    padding-inline: 14px;
+  }
+}
+/* form 模板：内容居中，提交条仍贴底满宽 */
 .page :deep(.wsd-obj) {
   margin-inline: auto;
 }
